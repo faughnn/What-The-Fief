@@ -47,13 +47,33 @@ Add new invariants as new systems are built. If you see `ERROR:` in output, fix 
 
 Build this into the game from Phase 1. Don't skip it. It's the core of the self-correction loop.
 
+### Regression Protection
+
+Before starting each new phase:
+1. Run a standard test scenario (e.g., 3 villagers, 1 house, 1 farm, 1 woodcutter, 20 ticks)
+2. Save the output to `docs/baselines/phase-N-pre.txt`
+3. After implementing the phase, re-run the SAME scenario
+4. Compare: systems you didn't touch should produce the same results
+5. If something changed unexpectedly, that's a regression — fix it before moving on
+
+This catches subtle breaks like "production rates silently changed" that invariants won't flag.
+
 ### Verification Depth
 
 Running the game once isn't enough for complex systems. As the game grows:
 - Test edge cases explicitly (0 food, 0 villagers, full storage, overlapping buildings)
 - Run extended simulations (50-100 ticks) to check for drift, overflow, or cascading failures
-- When adding a new system, verify it doesn't break existing ones by running a full simulation
+- When adding a new system, verify it doesn't break existing ones by re-running the baseline scenario
 - If a system has tricky logic (pathfinding, combat, production chains), write a small test script in `src/tests/` that sets up specific scenarios and asserts expected outcomes
+
+### Output Size Management
+
+As the map and village grow, stdout will become too large to read effectively. Plan for this:
+- The default `--view` output should be a compact summary (resources, population, alerts, errors) not the full grid
+- Full grid view (`--view map`) should be a separate flag, used for spot-checks
+- Villager detail (`--view villagers`) should be a separate flag
+- Keep the compact summary under ~50 lines so it's always easy to scan
+- When the map exceeds 20x20, the compact summary should NOT print the full grid — just the stats and any errors
 
 ## Tech Stack
 
