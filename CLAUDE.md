@@ -18,7 +18,7 @@ This is how you build everything:
 
 ```
 EDIT   -> Write/modify TypeScript files
-RUN    -> Execute: npx tsx src/main.ts --ticks N --view all
+RUN    -> Execute the game: npx tsx src/main.ts [with whatever args exist]
 READ   -> Read the stdout output carefully
 CHECK  -> Does the output match expectations? Any errors?
          YES -> commit, update PROGRESS.md, move to next feature
@@ -26,6 +26,16 @@ CHECK  -> Does the output match expectations? Any errors?
 ```
 
 Always verify by running the code. Never assume code works — run it and read the output.
+
+As the CLI gains flags (--ticks, --view, --place, etc.), use them to test specific scenarios. Early on, `npx tsx src/main.ts` with no args is fine.
+
+### Verification Depth
+
+Running the game once isn't enough for complex systems. As the game grows:
+- Test edge cases explicitly (0 food, 0 villagers, full storage, overlapping buildings)
+- Run extended simulations (50-100 ticks) to check for drift, overflow, or cascading failures
+- When adding a new system, verify it doesn't break existing ones by running a full simulation
+- If a system has tricky logic (pathfinding, combat, production chains), write a small test script in `src/tests/` that sets up specific scenarios and asserts expected outcomes
 
 ## Tech Stack
 
@@ -49,7 +59,11 @@ Rules:
 - Renderers only read state, never modify it
 - New systems: add fields to GameState, add sub-steps to tick()
 
-As the codebase grows, you may split modules into subdirectories (e.g., src/simulation/pathfinding.ts) but maintain the same dependency direction. world.ts types can split into src/world/*.ts, etc.
+As the codebase grows, split files when they exceed ~300 lines. Use subdirectories that mirror the original module structure:
+- `src/world.ts` -> `src/world/index.ts`, `src/world/villager.ts`, `src/world/building.ts`, etc.
+- `src/simulation.ts` -> `src/simulation/index.ts`, `src/simulation/pathfinding.ts`, `src/simulation/combat.ts`, etc.
+
+Maintain the same dependency direction. Re-export from index.ts so imports from other modules don't break.
 
 ## Phase Specs
 
@@ -84,7 +98,7 @@ Be specific. After compaction you will lose all conversation context. PROGRESS.m
 - Never ask for human input — make decisions yourself
 - When the design doc is ambiguous, make a reasonable choice and document it in the phase spec
 - If you discover the architecture needs adjustment, make the change and document why in PROGRESS.md
-- If something is genuinely broken and you can't fix it after 3 attempts, log it in PROGRESS.md under "Known Issues" and move to the next feature
+- If something is genuinely broken and you can't fix it after 3 different approaches (not 3 runs of the same fix — 3 meaningfully different strategies), log it in PROGRESS.md under "Known Issues" with what you tried, and move to the next feature
 - Prefer simple solutions over clever ones
 - Don't over-engineer — build what's needed for the current phase, not future phases
 
@@ -103,11 +117,21 @@ Be specific. After compaction you will lose all conversation context. PROGRESS.m
 11. World Systems — day/night, weather, wildlife, housing tiers, roads, decorations
 12. Narrative Layer — NPC villages, trust, liberation, quests, renown
 
+## Completion
+
+When all 12 phases are implemented and verified:
+1. Update PROGRESS.md to mark the project as complete
+2. Run a full simulation (100+ ticks) as a final integration test
+3. Log the final state in PROGRESS.md
+4. Stop — the project is done
+
 ## Bootstrap (first time only)
 
 If `package.json` doesn't exist, the project hasn't been initialized yet:
-1. Run `npm init -y`
-2. Run `npm install -D tsx typescript`
-3. Create `tsconfig.json` with strict mode
-4. Create the `src/` directory
-5. Then start Phase 1
+1. Create `.gitignore` with: node_modules/, dist/, *.js (in src/), .DS_Store
+2. Run `npm init -y`
+3. Run `npm install -D tsx typescript`
+4. Create `tsconfig.json` with strict mode
+5. Create the `src/` directory
+6. Commit the bootstrap as `bootstrap: initialize project with tsx and typescript`
+7. Then start Phase 1
