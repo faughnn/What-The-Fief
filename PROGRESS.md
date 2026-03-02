@@ -5,7 +5,10 @@
 - **Working on**: Nothing — needs bootstrap
 - **Next step**: Bootstrap project, then Phase 1
 
-## File Manifest
+## Active Files (re-read these after compaction)
+(files relevant to current task — NOT every file in the project)
+
+## File Manifest (all source files)
 (no source files yet)
 
 ## Phase Checklist

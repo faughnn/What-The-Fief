@@ -4,8 +4,8 @@ You are autonomously building a 2D top-down colony sim inspired by Bellwright. N
 
 ## After Every Compaction (do this first)
 
-1. Read `PROGRESS.md` — it tells you exactly where you left off
-2. Read the source files listed in PROGRESS.md's file manifest to rebuild context
+1. Read `PROGRESS.md` — it tells you exactly where you left off and what files to re-read
+2. Read ONLY the files listed under "Active Files" in PROGRESS.md — not everything
 3. Read the current phase spec (`docs/plans/phase-N-spec.md`) if one exists
 4. Pick up where you left off — do NOT re-do completed work
 5. If PROGRESS.md says "Not started", check if `package.json` exists:
