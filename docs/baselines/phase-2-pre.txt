@@ -1,0 +1,24 @@
+=== Colony State [day 20] ===
+
+    0 1 2 3 4 5 6 7 8 9
+ 0  f v T W . . . . . .
+ 1  T . . . ~ ~ . T T T
+ 2  . . . . ~ ~ . . . .
+ 3  . . T . ~ ~ . . . .
+ 4  . F F . T . . . . .
+ 5  . F F . ~ ~ . . . .
+ 6  . . . . ~ ~ T . T .
+ 7  . . T . ~ ~ . . . T
+ 8  . . T . . . . . . T
+ 9  . . . ^ ~ ~ T . . T
+
+Resources: wood=60 food=71 stone=20
+Population: 4
+Buildings: house=2 farm=1 woodcutter=1
+Errors: (none)
+
+Villagers:
+  Edric (farmer) pos=(0,0) [sleeping] job=b3 home=b1 food=10
+  Mara (farmer) pos=(0,0) [sleeping] job=b3 home=b1 food=10
+  Aldric (woodcutter) pos=(1,0) [sleeping] job=b4 home=b2 food=10
+  Blythe (idle) pos=(1,0) [sleeping] home=b2 food=10

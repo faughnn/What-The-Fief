@@ -1,23 +1,17 @@
 // main.ts — CLI entry point
 
 import { createWorld, BuildingType } from './world.js';
-import { tick, placeBuilding } from './simulation.js';
+import { tick, placeBuilding, assignVillager } from './simulation.js';
 import { renderAll, ViewMode } from './render-text.js';
 
 // --- Argument Parsing ---
-function parseArgs(argv: string[]): {
-  ticks: number;
-  view: ViewMode;
-  place: { type: BuildingType; x: number; y: number }[];
-  width: number;
-  height: number;
-  seed: number;
-} {
+function parseArgs(argv: string[]) {
   const args = argv.slice(2);
   const result = {
     ticks: 1,
     view: 'all' as ViewMode,
     place: [] as { type: BuildingType; x: number; y: number }[],
+    assign: [] as { villagerId: string; buildingId: string }[],
     width: 10,
     height: 10,
     seed: 42,
@@ -35,6 +29,12 @@ function parseArgs(argv: string[]): {
         const type = args[++i] as BuildingType;
         const [x, y] = args[++i].split(',').map(Number);
         result.place.push({ type, x, y });
+        break;
+      }
+      case '--assign': {
+        const villagerId = args[++i];
+        const buildingId = args[++i];
+        result.assign.push({ villagerId, buildingId });
         break;
       }
       case '--width':
@@ -55,12 +55,16 @@ function parseArgs(argv: string[]): {
 // --- Main ---
 function main() {
   const opts = parseArgs(process.argv);
-
   let state = createWorld(opts.width, opts.height, opts.seed);
 
   // Place buildings before ticking
   for (const p of opts.place) {
     state = placeBuilding(state, p.type, p.x, p.y);
+  }
+
+  // Assign villagers before ticking
+  for (const a of opts.assign) {
+    state = assignVillager(state, a.villagerId, a.buildingId);
   }
 
   // Run ticks

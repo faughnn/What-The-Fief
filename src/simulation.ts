@@ -1,22 +1,85 @@
 // simulation.ts — All game rules. Pure functions: old state in, new state out.
 
 import {
-  GameState, BuildingType, Building, Resources,
-  BUILDING_TEMPLATES, Tile,
+  GameState, BuildingType, Building, Resources, Villager, VillagerRole,
+  Tile, BUILDING_TEMPLATES, createVillager,
 } from './world.js';
+
+// --- BFS Pathfinding ---
+export function findPath(
+  grid: Tile[][],
+  width: number,
+  height: number,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+): { x: number; y: number }[] {
+  if (fromX === toX && fromY === toY) return [];
+
+  const visited = new Set<string>();
+  const queue: { x: number; y: number; path: { x: number; y: number }[] }[] = [];
+  queue.push({ x: fromX, y: fromY, path: [] });
+  visited.add(`${fromX},${fromY}`);
+
+  const dirs = [
+    { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+    { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
+  ];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const { dx, dy } of dirs) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const key = `${nx},${ny}`;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      if (visited.has(key)) continue;
+      if (grid[ny][nx].terrain === 'water') continue;
+      const newPath = [...current.path, { x: nx, y: ny }];
+      if (nx === toX && ny === toY) return newPath;
+      visited.add(key);
+      queue.push({ x: nx, y: ny, path: newPath });
+    }
+  }
+
+  return []; // unreachable
+}
+
+// --- Helpers ---
+const HOUSE_CAPACITY = 2;
+const MAX_COMMUTE = 20; // tiles — beyond this, villager can't work that day
+
+function getBuildingEntrance(b: Building): { x: number; y: number } {
+  return { x: b.x, y: b.y };
+}
+
+function roleForBuilding(type: BuildingType): VillagerRole {
+  switch (type) {
+    case 'farm': return 'farmer';
+    case 'woodcutter': return 'woodcutter';
+    case 'quarry': return 'quarrier';
+    default: return 'idle';
+  }
+}
+
+function findHome(villager: Villager, buildings: Building[], villagers: Villager[]): string | null {
+  for (const b of buildings) {
+    if (b.type !== 'house') continue;
+    const residents = villagers.filter(v => v.homeBuildingId === b.id);
+    if (residents.length < HOUSE_CAPACITY) return b.id;
+  }
+  return null;
+}
 
 // --- State Validation ---
 export function validateState(state: GameState): string[] {
   const errors: string[] = [];
 
-  // No negative resources
   for (const [key, val] of Object.entries(state.resources)) {
-    if (val < 0) {
-      errors.push(`ERROR: Negative resource ${key}=${val}`);
-    }
+    if (val < 0) errors.push(`ERROR: Negative resource ${key}=${val}`);
   }
 
-  // Grid dimensions match
   if (state.grid.length !== state.height) {
     errors.push(`ERROR: Grid height ${state.grid.length} != state.height ${state.height}`);
   }
@@ -26,46 +89,170 @@ export function validateState(state: GameState): string[] {
     }
   }
 
-  // Population >= 0
-  if (state.population < 0) {
-    errors.push(`ERROR: Negative population ${state.population}`);
-  }
-
-  // No out-of-bounds buildings
   for (const b of state.buildings) {
     if (b.x < 0 || b.y < 0 || b.x + b.width > state.width || b.y + b.height > state.height) {
-      errors.push(`ERROR: Building ${b.id} (${b.type}) out of bounds at (${b.x},${b.y}) size ${b.width}x${b.height}`);
+      errors.push(`ERROR: Building ${b.id} (${b.type}) out of bounds`);
     }
   }
 
-  // No overlapping buildings
   for (let i = 0; i < state.buildings.length; i++) {
     for (let j = i + 1; j < state.buildings.length; j++) {
       const a = state.buildings[i];
       const b = state.buildings[j];
-      if (buildingsOverlap(a, b)) {
-        errors.push(`ERROR: Buildings ${a.id} (${a.type}) and ${b.id} (${b.type}) overlap`);
+      if (!(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y)) {
+        errors.push(`ERROR: Buildings ${a.id} and ${b.id} overlap`);
       }
+    }
+  }
+
+  for (const v of state.villagers) {
+    if (v.x < 0 || v.y < 0 || v.x >= state.width || v.y >= state.height) {
+      errors.push(`ERROR: Villager ${v.id} out of bounds at (${v.x},${v.y})`);
+    }
+    if (v.jobBuildingId) {
+      const job = state.buildings.find(b => b.id === v.jobBuildingId);
+      if (!job) errors.push(`ERROR: Villager ${v.id} assigned to nonexistent building ${v.jobBuildingId}`);
+    }
+    if (v.homeBuildingId) {
+      const home = state.buildings.find(b => b.id === v.homeBuildingId);
+      if (!home) errors.push(`ERROR: Villager ${v.id} assigned to nonexistent home ${v.homeBuildingId}`);
     }
   }
 
   return errors;
 }
 
-function buildingsOverlap(a: Building, b: Building): boolean {
-  return !(a.x + a.width <= b.x || b.x + b.width <= a.x ||
-           a.y + a.height <= b.y || b.y + b.height <= a.y);
-}
-
 // --- Tick ---
+// Each tick = 1 full day. Within a day: wake → travel to work → work → eat → travel home → sleep.
+// Travel is resolved instantly (path distance used as a work-time penalty in later phases).
 export function tick(state: GameState): GameState {
-  // Phase 1: just advance the day and validate
+  let villagers = state.villagers.map(v => ({ ...v, path: [...v.path] }));
+  const resources: Resources = { ...state.resources };
+  const buildings = state.buildings.map(b => ({ ...b, assignedWorkers: [...b.assignedWorkers] }));
+
+  // 1. Auto-assign homeless villagers to houses
+  for (const v of villagers) {
+    if (!v.homeBuildingId) {
+      const homeId = findHome(v, buildings, villagers);
+      if (homeId) v.homeBuildingId = homeId;
+    }
+  }
+
+  // 2. Day cycle for each villager: travel → work → travel home
+  for (const v of villagers) {
+    if (v.jobBuildingId) {
+      const job = buildings.find(b => b.id === v.jobBuildingId);
+      if (job) {
+        const entrance = getBuildingEntrance(job);
+        const pathToWork = findPath(state.grid, state.width, state.height, v.x, v.y, entrance.x, entrance.y);
+        const canReach = v.x === entrance.x && v.y === entrance.y || pathToWork.length > 0;
+        const commuteDist = pathToWork.length;
+
+        if (canReach && commuteDist <= MAX_COMMUTE) {
+          // Move to workplace
+          v.x = entrance.x;
+          v.y = entrance.y;
+          v.state = 'working';
+
+          // Produce
+          switch (job.type) {
+            case 'farm':
+              resources.food += 3;
+              break;
+            case 'woodcutter':
+              resources.wood += 2;
+              break;
+            case 'quarry':
+              resources.stone += 2;
+              break;
+          }
+
+          // Travel home
+          if (v.homeBuildingId) {
+            const home = buildings.find(b => b.id === v.homeBuildingId);
+            if (home) {
+              const homeEntrance = getBuildingEntrance(home);
+              v.x = homeEntrance.x;
+              v.y = homeEntrance.y;
+              v.state = 'sleeping';
+            }
+          }
+        } else {
+          v.state = 'idle';
+        }
+      }
+    } else {
+      // No job — stay idle at current position, or go home
+      if (v.homeBuildingId) {
+        const home = buildings.find(b => b.id === v.homeBuildingId);
+        if (home) {
+          const entrance = getBuildingEntrance(home);
+          v.x = entrance.x;
+          v.y = entrance.y;
+          v.state = 'sleeping';
+        }
+      } else {
+        v.state = 'idle';
+      }
+    }
+  }
+
+  // 3. Eat — consume 1 food per villager from global storage
+  for (const v of villagers) {
+    if (resources.food > 0) {
+      resources.food -= 1;
+      v.food = Math.min(10, v.food + 1);
+    } else {
+      v.food -= 1;
+    }
+  }
+
+  // 4. Housing check
+  for (const v of villagers) {
+    if (!v.homeBuildingId) {
+      v.homeless += 1;
+    } else {
+      v.homeless = 0;
+    }
+  }
+
+  // 5. Departure — starving or homeless too long
+  const departing = villagers.filter(v => v.food <= 0 || v.homeless >= 5);
+  for (const d of departing) {
+    for (const b of buildings) {
+      b.assignedWorkers = b.assignedWorkers.filter(id => id !== d.id);
+    }
+  }
+  villagers = villagers.filter(v => v.food > 0 && v.homeless < 5);
+
+  // 6. Immigration — if food > population*3 and there's an empty house slot
+  if (resources.food > villagers.length * 3) {
+    const emptyHome = findHome(
+      { homeBuildingId: null } as Villager,
+      buildings,
+      villagers,
+    );
+    if (emptyHome) {
+      const home = buildings.find(b => b.id === emptyHome)!;
+      const entrance = getBuildingEntrance(home);
+      const newV = createVillager(state.nextVillagerId, entrance.x, entrance.y);
+      newV.homeBuildingId = emptyHome;
+      newV.state = 'sleeping';
+      villagers.push(newV);
+    }
+  }
+
   const newState: GameState = {
     ...state,
     day: state.day + 1,
+    resources,
+    buildings,
+    villagers,
+    nextVillagerId: villagers.length > state.villagers.length
+      ? state.nextVillagerId + 1
+      : state.nextVillagerId,
   };
 
-  // Run invariant checks — print errors to stdout
   const errors = validateState(newState);
   for (const err of errors) {
     console.log(err);
@@ -89,13 +276,11 @@ export function placeBuilding(
 
   const { width: bw, height: bh } = template;
 
-  // Bounds check
   if (x < 0 || y < 0 || x + bw > state.width || y + bh > state.height) {
     console.log(`ERROR: Building ${type} at (${x},${y}) would be out of bounds`);
     return state;
   }
 
-  // Terrain check
   for (let dy = 0; dy < bh; dy++) {
     for (let dx = 0; dx < bw; dx++) {
       const tile = state.grid[y + dy][x + dx];
@@ -110,7 +295,6 @@ export function placeBuilding(
     }
   }
 
-  // Resource check
   const cost = template.cost;
   const newResources: Resources = { ...state.resources };
   for (const [res, amount] of Object.entries(cost)) {
@@ -122,17 +306,13 @@ export function placeBuilding(
     newResources[key] -= amount as number;
   }
 
-  // Create building
   const building: Building = {
     id: `b${state.nextBuildingId}`,
-    type,
-    x, y,
-    width: bw,
-    height: bh,
+    type, x, y,
+    width: bw, height: bh,
     assignedWorkers: [],
   };
 
-  // Update grid — stamp building onto tiles
   const newGrid: Tile[][] = state.grid.map((row, gy) =>
     row.map((tile, gx) => {
       if (gx >= x && gx < x + bw && gy >= y && gy < y + bh) {
@@ -149,4 +329,60 @@ export function placeBuilding(
     buildings: [...state.buildings, building],
     nextBuildingId: state.nextBuildingId + 1,
   };
+}
+
+// --- Assign Villager to Job ---
+export function assignVillager(
+  state: GameState,
+  villagerId: string,
+  buildingId: string,
+): GameState {
+  const villager = state.villagers.find(v => v.id === villagerId);
+  if (!villager) {
+    console.log(`ERROR: Villager ${villagerId} not found`);
+    return state;
+  }
+
+  const building = state.buildings.find(b => b.id === buildingId);
+  if (!building) {
+    console.log(`ERROR: Building ${buildingId} not found`);
+    return state;
+  }
+
+  const template = BUILDING_TEMPLATES[building.type];
+  if (template.maxWorkers === 0) {
+    console.log(`ERROR: Building ${buildingId} (${building.type}) cannot have workers`);
+    return state;
+  }
+
+  if (building.assignedWorkers.length >= template.maxWorkers) {
+    console.log(`ERROR: Building ${buildingId} is full (${building.assignedWorkers.length}/${template.maxWorkers})`);
+    return state;
+  }
+
+  const newBuildings = state.buildings.map(b => {
+    if (b.assignedWorkers.includes(villagerId)) {
+      return { ...b, assignedWorkers: b.assignedWorkers.filter(id => id !== villagerId) };
+    }
+    return b;
+  });
+
+  const targetIdx = newBuildings.findIndex(b => b.id === buildingId);
+  newBuildings[targetIdx] = {
+    ...newBuildings[targetIdx],
+    assignedWorkers: [...newBuildings[targetIdx].assignedWorkers, villagerId],
+  };
+
+  const newVillagers = state.villagers.map(v => {
+    if (v.id === villagerId) {
+      return {
+        ...v,
+        jobBuildingId: buildingId,
+        role: roleForBuilding(building.type),
+      };
+    }
+    return v;
+  });
+
+  return { ...state, buildings: newBuildings, villagers: newVillagers };
 }

@@ -1,6 +1,6 @@
 // render-text.ts — Reads GameState, returns string. No mutation.
 
-import { GameState, Terrain, BuildingType } from './world.js';
+import { GameState, Terrain, BuildingType, VillagerRole } from './world.js';
 import { validateState } from './simulation.js';
 
 const TERRAIN_CHARS: Record<Terrain, string> = {
@@ -18,31 +18,42 @@ const BUILDING_CHARS: Record<BuildingType, string> = {
   storehouse: 'S',
 };
 
+const ROLE_CHARS: Record<VillagerRole, string> = {
+  idle: 'v',
+  farmer: 'f',
+  woodcutter: 'w',
+  quarrier: 'q',
+};
+
 export function renderMap(state: GameState): string {
   const lines: string[] = [];
-
-  // Header
   lines.push(`=== Colony State [day ${state.day}] ===`);
   lines.push('');
 
-  // For large grids, skip the map
   if (state.width > 20 || state.height > 20) {
     lines.push(`(Map omitted — grid is ${state.width}x${state.height})`);
     return lines.join('\n');
   }
 
-  // Column headers
+  // Build villager position map
+  const villagerMap = new Map<string, string>();
+  for (const v of state.villagers) {
+    villagerMap.set(`${v.x},${v.y}`, ROLE_CHARS[v.role]);
+  }
+
   const colHeader = '   ' + Array.from({ length: state.width }, (_, i) =>
     i.toString().padStart(2)
   ).join('');
   lines.push(colHeader);
 
-  // Grid rows
   for (let y = 0; y < state.height; y++) {
     let row = y.toString().padStart(2) + ' ';
     for (let x = 0; x < state.width; x++) {
       const tile = state.grid[y][x];
-      if (tile.building) {
+      const vChar = villagerMap.get(`${x},${y}`);
+      if (vChar) {
+        row += ' ' + vChar;
+      } else if (tile.building) {
         row += ' ' + BUILDING_CHARS[tile.building.type];
       } else {
         row += ' ' + TERRAIN_CHARS[tile.terrain];
@@ -54,13 +65,28 @@ export function renderMap(state: GameState): string {
   return lines.join('\n');
 }
 
+export function renderVillagers(state: GameState): string {
+  const lines: string[] = [];
+  lines.push('Villagers:');
+  if (state.villagers.length === 0) {
+    lines.push('  (none)');
+    return lines.join('\n');
+  }
+  for (const v of state.villagers) {
+    const dest = v.destX !== null ? ` -> (${v.destX},${v.destY})` : '';
+    const job = v.jobBuildingId ? ` job=${v.jobBuildingId}` : '';
+    const home = v.homeBuildingId ? ` home=${v.homeBuildingId}` : ' (homeless)';
+    lines.push(`  ${v.name} (${v.role}) pos=(${v.x},${v.y})${dest} [${v.state}]${job}${home} food=${v.food}`);
+  }
+  return lines.join('\n');
+}
+
 export function renderSummary(state: GameState): string {
   const lines: string[] = [];
 
   lines.push(`Resources: wood=${state.resources.wood} food=${state.resources.food} stone=${state.resources.stone}`);
-  lines.push(`Population: ${state.population}`);
+  lines.push(`Population: ${state.villagers.length}`);
 
-  // Buildings by type
   const counts: Partial<Record<BuildingType, number>> = {};
   for (const b of state.buildings) {
     counts[b.type] = (counts[b.type] || 0) + 1;
@@ -72,7 +98,6 @@ export function renderSummary(state: GameState): string {
     lines.push(`Buildings: ${parts.join(' ')}`);
   }
 
-  // Errors
   const errors = validateState(state);
   if (errors.length === 0) {
     lines.push('Errors: (none)');
@@ -85,7 +110,7 @@ export function renderSummary(state: GameState): string {
   return lines.join('\n');
 }
 
-export type ViewMode = 'map' | 'summary' | 'all';
+export type ViewMode = 'map' | 'summary' | 'all' | 'villagers';
 
 export function renderAll(state: GameState, viewMode: ViewMode): string {
   switch (viewMode) {
@@ -93,7 +118,9 @@ export function renderAll(state: GameState, viewMode: ViewMode): string {
       return renderMap(state);
     case 'summary':
       return renderSummary(state);
+    case 'villagers':
+      return renderVillagers(state);
     case 'all':
-      return renderMap(state) + '\n\n' + renderSummary(state);
+      return renderMap(state) + '\n\n' + renderSummary(state) + '\n\n' + renderVillagers(state);
   }
 }
