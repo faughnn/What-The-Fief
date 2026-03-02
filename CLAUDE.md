@@ -29,6 +29,24 @@ Always verify by running the code. Never assume code works — run it and read t
 
 As the CLI gains flags (--ticks, --view, --place, etc.), use them to test specific scenarios. Early on, `npx tsx src/main.ts` with no args is fine.
 
+### Invariant Validation (critical for self-correction)
+
+The game must validate its own state. After every tick, run invariant checks and print any violations as `ERROR:` lines in stdout. Examples:
+- No negative resources
+- Every villager position is within grid bounds
+- Every assigned worker's building exists on the grid
+- Population count matches villager list length
+- No two buildings on the same tile
+- No villager assigned to a building that's already full
+- Storage quantities don't exceed capacity
+- No villager with negative morale/health/hunger values
+- Every villager has a valid home (or is flagged as unhoused)
+- Dead/departed villagers are removed from all assignments
+
+Add new invariants as new systems are built. If you see `ERROR:` in output, fix the bug before moving on. This is how you catch logic bugs that aren't obvious from reading the grid.
+
+Build this into the game from Phase 1. Don't skip it. It's the core of the self-correction loop.
+
 ### Verification Depth
 
 Running the game once isn't enough for complex systems. As the game grows:
