@@ -1,6 +1,9 @@
 // render-text.ts — Reads GameState, returns string. No mutation.
 
-import { GameState, BuildingType, VillagerRole, BUILDING_TEMPLATES, ResourceType } from './world.js';
+import {
+  GameState, VillagerRole, BUILDING_TEMPLATES, ResourceType, BuildingType,
+  ALL_RESOURCES, FOOD_PRIORITY,
+} from './world.js';
 import { validateState } from './simulation.js';
 
 const TERRAIN_CHARS: Record<string, string> = {
@@ -10,6 +13,8 @@ const TERRAIN_CHARS: Record<string, string> = {
 const ROLE_CHARS: Record<VillagerRole, string> = {
   idle: 'v', farmer: 'f', woodcutter: 'w', quarrier: 'q',
   herbalist: 'h', flaxer: 'x', hemper: 'p', miner: 'i',
+  sawyer: 's', smelter: 'e', miller: 'l', baker: 'b',
+  tanner_worker: 'n', weaver_worker: 'a', ropemaker_worker: 'r',
 };
 
 export function renderMap(state: GameState): string {
@@ -23,13 +28,9 @@ export function renderMap(state: GameState): string {
   }
 
   const villagerMap = new Map<string, string>();
-  for (const v of state.villagers) {
-    villagerMap.set(`${v.x},${v.y}`, ROLE_CHARS[v.role]);
-  }
+  for (const v of state.villagers) villagerMap.set(`${v.x},${v.y}`, ROLE_CHARS[v.role]);
 
-  const colHeader = '   ' + Array.from({ length: state.width }, (_, i) =>
-    i.toString().padStart(2)
-  ).join('');
+  const colHeader = '   ' + Array.from({ length: state.width }, (_, i) => i.toString().padStart(2)).join('');
   lines.push(colHeader);
 
   for (let y = 0; y < state.height; y++) {
@@ -37,13 +38,9 @@ export function renderMap(state: GameState): string {
     for (let x = 0; x < state.width; x++) {
       const tile = state.grid[y][x];
       const vChar = villagerMap.get(`${x},${y}`);
-      if (vChar) {
-        row += ' ' + vChar;
-      } else if (tile.building) {
-        row += ' ' + BUILDING_TEMPLATES[tile.building.type].mapChar;
-      } else {
-        row += ' ' + TERRAIN_CHARS[tile.terrain];
-      }
+      if (vChar) row += ' ' + vChar;
+      else if (tile.building) row += ' ' + BUILDING_TEMPLATES[tile.building.type].mapChar;
+      else row += ' ' + TERRAIN_CHARS[tile.terrain];
     }
     lines.push(row);
   }
@@ -52,12 +49,8 @@ export function renderMap(state: GameState): string {
 }
 
 export function renderVillagers(state: GameState): string {
-  const lines: string[] = [];
-  lines.push('Villagers:');
-  if (state.villagers.length === 0) {
-    lines.push('  (none)');
-    return lines.join('\n');
-  }
+  const lines: string[] = ['Villagers:'];
+  if (state.villagers.length === 0) { lines.push('  (none)'); return lines.join('\n'); }
   for (const v of state.villagers) {
     const job = v.jobBuildingId ? ` job=${v.jobBuildingId}` : '';
     const home = v.homeBuildingId ? ` home=${v.homeBuildingId}` : ' (homeless)';
@@ -70,10 +63,8 @@ export function renderSummary(state: GameState): string {
   const lines: string[] = [];
   const r = state.resources;
 
-  // Show non-zero resources plus core ones
   const parts: string[] = [];
-  const show: ResourceType[] = ['wood', 'stone', 'food', 'wheat', 'iron_ore', 'herbs', 'flax', 'hemp'];
-  for (const key of show) {
+  for (const key of ALL_RESOURCES) {
     if (r[key] > 0 || key === 'wood' || key === 'stone' || key === 'food') {
       parts.push(`${key}=${r[key]}`);
     }
@@ -83,54 +74,49 @@ export function renderSummary(state: GameState): string {
 
   const counts: Partial<Record<BuildingType, number>> = {};
   for (const b of state.buildings) counts[b.type] = (counts[b.type] || 0) + 1;
-  if (state.buildings.length === 0) {
-    lines.push('Buildings: (none)');
-  } else {
-    lines.push(`Buildings: ${Object.entries(counts).map(([t, c]) => `${t}=${c}`).join(' ')}`);
-  }
+  lines.push(state.buildings.length === 0
+    ? 'Buildings: (none)'
+    : `Buildings: ${Object.entries(counts).map(([t, c]) => `${t}=${c}`).join(' ')}`);
 
   const errors = validateState(state);
-  if (errors.length === 0) {
-    lines.push('Errors: (none)');
-  } else {
-    for (const err of errors) lines.push(err);
-  }
+  lines.push(errors.length === 0 ? 'Errors: (none)' : errors.join('\n'));
 
   return lines.join('\n');
 }
 
 export function renderEconomy(state: GameState): string {
-  const lines: string[] = [];
-  lines.push('Economy:');
+  const lines: string[] = ['Economy:'];
 
-  // Calculate production per day
   const production: Partial<Record<ResourceType, number>> = {};
+  const consumption: Partial<Record<ResourceType, number>> = {};
+
   for (const v of state.villagers) {
-    if (v.jobBuildingId) {
-      const b = state.buildings.find(b => b.id === v.jobBuildingId);
-      if (b) {
-        const t = BUILDING_TEMPLATES[b.type];
-        if (t.production) {
-          production[t.production.output] = (production[t.production.output] || 0) + t.production.amountPerWorker;
-        }
+    if (!v.jobBuildingId) continue;
+    const b = state.buildings.find(b => b.id === v.jobBuildingId);
+    if (!b) continue;
+    const t = BUILDING_TEMPLATES[b.type];
+    if (!t.production) continue;
+    production[t.production.output] = (production[t.production.output] || 0) + t.production.amountPerWorker;
+    if (t.production.inputs) {
+      for (const [res, amt] of Object.entries(t.production.inputs)) {
+        consumption[res as ResourceType] = (consumption[res as ResourceType] || 0) + (amt as number);
       }
     }
   }
 
-  // Consumption
-  const consumption = state.villagers.length; // 1 food/wheat per villager
-
   lines.push('  Production/day:');
-  if (Object.keys(production).length === 0) {
-    lines.push('    (none)');
-  } else {
-    for (const [res, amt] of Object.entries(production)) {
-      lines.push(`    +${amt} ${res}`);
-    }
-  }
-  lines.push(`  Consumption/day: -${consumption} food/wheat`);
-  const foodProd = (production.wheat || 0) + (production.food || 0);
-  lines.push(`  Net food: ${foodProd - consumption >= 0 ? '+' : ''}${foodProd - consumption}/day`);
+  const prodEntries = Object.entries(production);
+  if (prodEntries.length === 0) lines.push('    (none)');
+  else for (const [res, amt] of prodEntries) lines.push(`    +${amt} ${res}`);
+
+  lines.push('  Input consumption/day:');
+  const consEntries = Object.entries(consumption);
+  if (consEntries.length === 0) lines.push('    (none)');
+  else for (const [res, amt] of consEntries) lines.push(`    -${amt} ${res}`);
+
+  const foodProd = FOOD_PRIORITY.reduce((sum, { resource }) => sum + (production[resource] || 0), 0);
+  const foodCons = state.villagers.length;
+  lines.push(`  Food: +${foodProd} produced, -${foodCons} eaten = ${foodProd - foodCons >= 0 ? '+' : ''}${foodProd - foodCons}/day`);
 
   return lines.join('\n');
 }
@@ -143,7 +129,6 @@ export function renderAll(state: GameState, viewMode: ViewMode): string {
     case 'summary': return renderSummary(state);
     case 'villagers': return renderVillagers(state);
     case 'economy': return renderEconomy(state);
-    case 'all':
-      return [renderMap(state), renderSummary(state), renderVillagers(state), renderEconomy(state)].join('\n\n');
+    case 'all': return [renderMap(state), renderSummary(state), renderVillagers(state), renderEconomy(state)].join('\n\n');
   }
 }

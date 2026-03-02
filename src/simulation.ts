@@ -3,6 +3,7 @@
 import {
   GameState, BuildingType, Building, Resources, ResourceType, Villager, VillagerRole,
   Tile, BUILDING_TEMPLATES, createVillager, BASE_STORAGE_CAP, STOREHOUSE_BONUS,
+  SPOILAGE, FOOD_PRIORITY, ALL_RESOURCES,
 } from './world.js';
 
 // --- BFS Pathfinding ---
@@ -42,56 +43,62 @@ function getBuildingEntrance(b: Building): { x: number; y: number } {
   return { x: b.x, y: b.y };
 }
 
+const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
+  farm: 'farmer', woodcutter: 'woodcutter', quarry: 'quarrier',
+  herb_garden: 'herbalist', flax_field: 'flaxer', hemp_field: 'hemper',
+  iron_mine: 'miner', sawmill: 'sawyer', smelter: 'smelter',
+  mill: 'miller', bakery: 'baker', tanner: 'tanner_worker',
+  weaver: 'weaver_worker', ropemaker: 'ropemaker_worker',
+};
+
 function roleForBuilding(type: BuildingType): VillagerRole {
-  const map: Partial<Record<BuildingType, VillagerRole>> = {
-    farm: 'farmer', woodcutter: 'woodcutter', quarry: 'quarrier',
-    herb_garden: 'herbalist', flax_field: 'flaxer', hemp_field: 'hemper', iron_mine: 'miner',
-  };
-  return map[type] || 'idle';
+  return ROLE_MAP[type] || 'idle';
 }
 
 function findHome(buildings: Building[], villagers: Villager[]): string | null {
   for (const b of buildings) {
     if (b.type !== 'house') continue;
-    const residents = villagers.filter(v => v.homeBuildingId === b.id);
-    if (residents.length < HOUSE_CAPACITY) return b.id;
+    if (villagers.filter(v => v.homeBuildingId === b.id).length < HOUSE_CAPACITY) return b.id;
   }
   return null;
 }
 
 function computeStorageCap(buildings: Building[]): number {
-  const storehouses = buildings.filter(b => b.type === 'storehouse').length;
-  return BASE_STORAGE_CAP + storehouses * STOREHOUSE_BONUS;
+  return BASE_STORAGE_CAP + buildings.filter(b => b.type === 'storehouse').length * STOREHOUSE_BONUS;
 }
 
 function addResource(resources: Resources, type: ResourceType, amount: number, cap: number): number {
-  const current = resources[type];
-  const space = Math.max(0, cap - current);
+  const space = Math.max(0, cap - resources[type]);
   const added = Math.min(amount, space);
   resources[type] += added;
   return added;
+}
+
+function hasInputs(resources: Resources, inputs: Partial<Record<ResourceType, number>>): boolean {
+  for (const [res, amt] of Object.entries(inputs)) {
+    if (resources[res as ResourceType] < (amt as number)) return false;
+  }
+  return true;
+}
+
+function consumeInputs(resources: Resources, inputs: Partial<Record<ResourceType, number>>): void {
+  for (const [res, amt] of Object.entries(inputs)) {
+    resources[res as ResourceType] -= amt as number;
+  }
 }
 
 // --- State Validation ---
 export function validateState(state: GameState): string[] {
   const errors: string[] = [];
 
-  for (const [key, val] of Object.entries(state.resources)) {
-    if ((val as number) < 0) errors.push(`ERROR: Negative resource ${key}=${val}`);
+  for (const key of ALL_RESOURCES) {
+    if (state.resources[key] < 0) errors.push(`ERROR: Negative resource ${key}=${state.resources[key]}`);
+    if (state.resources[key] > state.storageCap) errors.push(`ERROR: Resource ${key}=${state.resources[key]} exceeds cap ${state.storageCap}`);
   }
 
-  const cap = state.storageCap;
-  for (const [key, val] of Object.entries(state.resources)) {
-    if ((val as number) > cap) errors.push(`ERROR: Resource ${key}=${val} exceeds cap ${cap}`);
-  }
-
-  if (state.grid.length !== state.height) {
-    errors.push(`ERROR: Grid height ${state.grid.length} != ${state.height}`);
-  }
+  if (state.grid.length !== state.height) errors.push(`ERROR: Grid height mismatch`);
   for (let y = 0; y < state.grid.length; y++) {
-    if (state.grid[y].length !== state.width) {
-      errors.push(`ERROR: Grid row ${y} width ${state.grid[y].length} != ${state.width}`);
-    }
+    if (state.grid[y].length !== state.width) errors.push(`ERROR: Grid row ${y} width mismatch`);
   }
 
   for (const b of state.buildings) {
@@ -112,13 +119,13 @@ export function validateState(state: GameState): string[] {
 
   for (const v of state.villagers) {
     if (v.x < 0 || v.y < 0 || v.x >= state.width || v.y >= state.height) {
-      errors.push(`ERROR: Villager ${v.id} out of bounds at (${v.x},${v.y})`);
+      errors.push(`ERROR: Villager ${v.id} out of bounds`);
     }
     if (v.jobBuildingId && !state.buildings.find(b => b.id === v.jobBuildingId)) {
-      errors.push(`ERROR: Villager ${v.id} assigned to nonexistent building ${v.jobBuildingId}`);
+      errors.push(`ERROR: Villager ${v.id} orphaned job ${v.jobBuildingId}`);
     }
     if (v.homeBuildingId && !state.buildings.find(b => b.id === v.homeBuildingId)) {
-      errors.push(`ERROR: Villager ${v.id} assigned to nonexistent home ${v.homeBuildingId}`);
+      errors.push(`ERROR: Villager ${v.id} orphaned home ${v.homeBuildingId}`);
     }
   }
 
@@ -132,7 +139,7 @@ export function tick(state: GameState): GameState {
   const buildings = state.buildings.map(b => ({ ...b, assignedWorkers: [...b.assignedWorkers] }));
   const storageCap = computeStorageCap(buildings);
 
-  // 1. Auto-assign homeless villagers to houses
+  // 1. Auto-assign homeless
   for (const v of villagers) {
     if (!v.homeBuildingId) {
       const homeId = findHome(buildings, villagers);
@@ -140,39 +147,53 @@ export function tick(state: GameState): GameState {
     }
   }
 
-  // 2. Work — data-driven production
+  // 2. Work — data-driven production with inputs
   for (const v of villagers) {
-    if (v.jobBuildingId) {
-      const job = buildings.find(b => b.id === v.jobBuildingId);
-      if (job) {
-        const template = BUILDING_TEMPLATES[job.type];
-        const entrance = getBuildingEntrance(job);
-        const pathToWork = findPath(state.grid, state.width, state.height, v.x, v.y, entrance.x, entrance.y);
-        const canReach = (v.x === entrance.x && v.y === entrance.y) || pathToWork.length > 0;
+    if (!v.jobBuildingId) continue;
+    const job = buildings.find(b => b.id === v.jobBuildingId);
+    if (!job) continue;
 
-        if (canReach && pathToWork.length <= MAX_COMMUTE && template.production) {
-          v.x = entrance.x;
-          v.y = entrance.y;
-          v.state = 'working';
-          addResource(resources, template.production.output, template.production.amountPerWorker, storageCap);
-        } else {
-          v.state = 'idle';
-        }
-      }
+    const template = BUILDING_TEMPLATES[job.type];
+    if (!template.production) continue;
+
+    const entrance = getBuildingEntrance(job);
+    const pathToWork = findPath(state.grid, state.width, state.height, v.x, v.y, entrance.x, entrance.y);
+    const canReach = (v.x === entrance.x && v.y === entrance.y) || pathToWork.length > 0;
+
+    if (!canReach || pathToWork.length > MAX_COMMUTE) {
+      v.state = 'idle';
+      continue;
     }
+
+    // Check inputs
+    const prod = template.production;
+    if (prod.inputs && !hasInputs(resources, prod.inputs)) {
+      v.state = 'idle';
+      continue;
+    }
+
+    // Consume inputs
+    if (prod.inputs) consumeInputs(resources, prod.inputs);
+
+    // Produce output
+    v.x = entrance.x;
+    v.y = entrance.y;
+    v.state = 'working';
+    addResource(resources, prod.output, prod.amountPerWorker, storageCap);
   }
 
-  // 3. Eat — wheat counts as food, consume from wheat first then food
+  // 3. Eat — food priority: bread > flour > wheat > food
   for (const v of villagers) {
-    if (resources.wheat > 0) {
-      resources.wheat -= 1;
-      v.food = Math.min(10, v.food + 1);
-    } else if (resources.food > 0) {
-      resources.food -= 1;
-      v.food = Math.min(10, v.food + 1);
-    } else {
-      v.food -= 1;
+    let fed = false;
+    for (const { resource, satisfaction } of FOOD_PRIORITY) {
+      if (resources[resource] > 0) {
+        resources[resource] -= 1;
+        v.food = Math.min(10, v.food + satisfaction);
+        fed = true;
+        break;
+      }
     }
+    if (!fed) v.food -= 1;
   }
 
   // 4. Return home
@@ -192,25 +213,27 @@ export function tick(state: GameState): GameState {
 
   // 5. Housing check
   for (const v of villagers) {
-    if (!v.homeBuildingId) {
-      v.homeless += 1;
-    } else {
-      v.homeless = 0;
-    }
+    v.homeless = v.homeBuildingId ? 0 : v.homeless + 1;
   }
 
-  // 6. Departure
+  // 6. Spoilage
+  for (const [res, rate] of Object.entries(SPOILAGE)) {
+    const key = res as ResourceType;
+    const loss = Math.floor(resources[key] * rate);
+    resources[key] = Math.max(0, resources[key] - loss);
+  }
+
+  // 7. Departure
   const departing = villagers.filter(v => v.food <= 0 || v.homeless >= 5);
   for (const d of departing) {
-    for (const b of buildings) {
-      b.assignedWorkers = b.assignedWorkers.filter(id => id !== d.id);
-    }
+    for (const b of buildings) b.assignedWorkers = b.assignedWorkers.filter(id => id !== d.id);
   }
   villagers = villagers.filter(v => v.food > 0 && v.homeless < 5);
 
-  // 7. Immigration
-  const totalFood = resources.food + resources.wheat;
-  if (totalFood > villagers.length * 3) {
+  // 8. Immigration
+  let totalEdible = 0;
+  for (const { resource } of FOOD_PRIORITY) totalEdible += resources[resource];
+  if (totalEdible > villagers.length * 3) {
     const emptyHome = findHome(buildings, villagers);
     if (emptyHome) {
       const home = buildings.find(b => b.id === emptyHome)!;
@@ -224,19 +247,13 @@ export function tick(state: GameState): GameState {
 
   const newState: GameState = {
     ...state,
-    day: state.day + 1,
-    resources,
-    storageCap,
-    buildings,
-    villagers,
+    day: state.day + 1, resources, storageCap, buildings, villagers,
     nextVillagerId: villagers.length > state.villagers.length
-      ? state.nextVillagerId + 1
-      : state.nextVillagerId,
+      ? state.nextVillagerId + 1 : state.nextVillagerId,
   };
 
   const errors = validateState(newState);
   for (const err of errors) console.log(err);
-
   return newState;
 }
 
@@ -244,24 +261,20 @@ export function tick(state: GameState): GameState {
 export function placeBuilding(state: GameState, type: BuildingType, x: number, y: number): GameState {
   const template = BUILDING_TEMPLATES[type];
   if (!template) { console.log(`ERROR: Unknown building type '${type}'`); return state; }
-
   const { width: bw, height: bh } = template;
 
   if (x < 0 || y < 0 || x + bw > state.width || y + bh > state.height) {
-    console.log(`ERROR: Building ${type} at (${x},${y}) would be out of bounds`);
-    return state;
+    console.log(`ERROR: Building ${type} at (${x},${y}) out of bounds`); return state;
   }
 
   for (let dy = 0; dy < bh; dy++) {
     for (let dx = 0; dx < bw; dx++) {
       const tile = state.grid[y + dy][x + dx];
       if (!template.allowedTerrain.includes(tile.terrain)) {
-        console.log(`ERROR: Cannot place ${type} at (${x},${y}) — tile (${x + dx},${y + dy}) is ${tile.terrain}, needs ${template.allowedTerrain.join('/')}`);
-        return state;
+        console.log(`ERROR: Cannot place ${type} at (${x},${y}) — (${x + dx},${y + dy}) is ${tile.terrain}`); return state;
       }
-      if (tile.building !== null) {
-        console.log(`ERROR: Cannot place ${type} at (${x},${y}) — tile (${x + dx},${y + dy}) already has building ${tile.building.id}`);
-        return state;
+      if (tile.building) {
+        console.log(`ERROR: Cannot place ${type} at (${x},${y}) — (${x + dx},${y + dy}) occupied`); return state;
       }
     }
   }
@@ -270,35 +283,25 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
   for (const [res, amount] of Object.entries(template.cost)) {
     const key = res as keyof Resources;
     if (newResources[key] < (amount as number)) {
-      console.log(`ERROR: Cannot place ${type} — need ${amount} ${res}, have ${newResources[key]}`);
-      return state;
+      console.log(`ERROR: Cannot place ${type} — need ${amount} ${res}, have ${newResources[key]}`); return state;
     }
     newResources[key] -= amount as number;
   }
 
-  const building: Building = {
-    id: `b${state.nextBuildingId}`, type, x, y,
-    width: bw, height: bh, assignedWorkers: [],
-  };
-
+  const building: Building = { id: `b${state.nextBuildingId}`, type, x, y, width: bw, height: bh, assignedWorkers: [] };
   const newGrid: Tile[][] = state.grid.map((row, gy) =>
-    row.map((tile, gx) => {
-      if (gx >= x && gx < x + bw && gy >= y && gy < y + bh) return { ...tile, building };
-      return tile;
-    })
+    row.map((tile, gx) => (gx >= x && gx < x + bw && gy >= y && gy < y + bh) ? { ...tile, building } : tile)
   );
 
   return {
-    ...state,
-    grid: newGrid,
-    resources: newResources,
+    ...state, grid: newGrid, resources: newResources,
     buildings: [...state.buildings, building],
     nextBuildingId: state.nextBuildingId + 1,
     storageCap: computeStorageCap([...state.buildings, building]),
   };
 }
 
-// --- Assign Villager to Job ---
+// --- Assign Villager ---
 export function assignVillager(state: GameState, villagerId: string, buildingId: string): GameState {
   const villager = state.villagers.find(v => v.id === villagerId);
   if (!villager) { console.log(`ERROR: Villager ${villagerId} not found`); return state; }
@@ -308,34 +311,21 @@ export function assignVillager(state: GameState, villagerId: string, buildingId:
 
   const template = BUILDING_TEMPLATES[building.type];
   if (template.maxWorkers === 0) {
-    console.log(`ERROR: Building ${buildingId} (${building.type}) cannot have workers`);
-    return state;
+    console.log(`ERROR: ${buildingId} (${building.type}) has no worker slots`); return state;
   }
-
   if (building.assignedWorkers.length >= template.maxWorkers) {
-    console.log(`ERROR: Building ${buildingId} is full (${building.assignedWorkers.length}/${template.maxWorkers})`);
-    return state;
+    console.log(`ERROR: ${buildingId} is full`); return state;
   }
 
-  const newBuildings = state.buildings.map(b => {
-    if (b.assignedWorkers.includes(villagerId)) {
-      return { ...b, assignedWorkers: b.assignedWorkers.filter(id => id !== villagerId) };
-    }
-    return b;
-  });
+  const newBuildings = state.buildings.map(b =>
+    b.assignedWorkers.includes(villagerId) ? { ...b, assignedWorkers: b.assignedWorkers.filter(id => id !== villagerId) } : b
+  );
+  const idx = newBuildings.findIndex(b => b.id === buildingId);
+  newBuildings[idx] = { ...newBuildings[idx], assignedWorkers: [...newBuildings[idx].assignedWorkers, villagerId] };
 
-  const targetIdx = newBuildings.findIndex(b => b.id === buildingId);
-  newBuildings[targetIdx] = {
-    ...newBuildings[targetIdx],
-    assignedWorkers: [...newBuildings[targetIdx].assignedWorkers, villagerId],
-  };
-
-  const newVillagers = state.villagers.map(v => {
-    if (v.id === villagerId) {
-      return { ...v, jobBuildingId: buildingId, role: roleForBuilding(building.type) };
-    }
-    return v;
-  });
+  const newVillagers = state.villagers.map(v =>
+    v.id === villagerId ? { ...v, jobBuildingId: buildingId, role: roleForBuilding(building.type) } : v
+  );
 
   return { ...state, buildings: newBuildings, villagers: newVillagers };
 }
