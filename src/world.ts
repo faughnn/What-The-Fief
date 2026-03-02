@@ -10,7 +10,9 @@ export interface Tile {
 }
 
 // --- Building ---
-export type BuildingType = 'house' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse';
+export type BuildingType =
+  | 'house' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse'
+  | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine';
 
 export interface Building {
   id: string;
@@ -22,6 +24,35 @@ export interface Building {
   assignedWorkers: string[];
 }
 
+// --- Resources ---
+export type ResourceType = 'wood' | 'stone' | 'food' | 'wheat' | 'iron_ore' | 'herbs' | 'flax' | 'hemp';
+
+export interface Resources {
+  wood: number;
+  stone: number;
+  food: number;
+  wheat: number;
+  iron_ore: number;
+  herbs: number;
+  flax: number;
+  hemp: number;
+}
+
+export function emptyResources(): Resources {
+  return { wood: 0, stone: 0, food: 0, wheat: 0, iron_ore: 0, herbs: 0, flax: 0, hemp: 0 };
+}
+
+// --- Storage ---
+export const BASE_STORAGE_CAP = 100;
+export const STOREHOUSE_BONUS = 50;
+
+// --- Production ---
+export interface ProductionRule {
+  output: ResourceType;
+  amountPerWorker: number;
+}
+
+// --- Building Templates ---
 export interface BuildingTemplate {
   type: BuildingType;
   width: number;
@@ -30,40 +61,83 @@ export interface BuildingTemplate {
   cost: Partial<Resources>;
   description: string;
   maxWorkers: number;
+  production: ProductionRule | null;
+  mapChar: string;
 }
 
-// --- Resources ---
-export interface Resources {
-  wood: number;
-  stone: number;
-  food: number;
-}
+export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
+  house: {
+    type: 'house', width: 1, height: 1,
+    allowedTerrain: ['grass'], cost: { wood: 10 },
+    description: 'Shelter for villagers', maxWorkers: 0,
+    production: null, mapChar: 'H',
+  },
+  farm: {
+    type: 'farm', width: 2, height: 2,
+    allowedTerrain: ['grass'], cost: { wood: 5 },
+    description: 'Produces wheat', maxWorkers: 2,
+    production: { output: 'wheat', amountPerWorker: 3 }, mapChar: 'F',
+  },
+  woodcutter: {
+    type: 'woodcutter', width: 1, height: 1,
+    allowedTerrain: ['grass', 'forest'], cost: { wood: 5 },
+    description: 'Harvests wood', maxWorkers: 1,
+    production: { output: 'wood', amountPerWorker: 2 }, mapChar: 'W',
+  },
+  quarry: {
+    type: 'quarry', width: 2, height: 2,
+    allowedTerrain: ['stone', 'grass'], cost: { wood: 10 },
+    description: 'Extracts stone', maxWorkers: 2,
+    production: { output: 'stone', amountPerWorker: 2 }, mapChar: 'Q',
+  },
+  storehouse: {
+    type: 'storehouse', width: 2, height: 1,
+    allowedTerrain: ['grass'], cost: { wood: 15, stone: 5 },
+    description: 'Increases storage capacity', maxWorkers: 0,
+    production: null, mapChar: 'S',
+  },
+  herb_garden: {
+    type: 'herb_garden', width: 1, height: 1,
+    allowedTerrain: ['grass'], cost: { wood: 3 },
+    description: 'Grows herbs', maxWorkers: 1,
+    production: { output: 'herbs', amountPerWorker: 2 }, mapChar: 'G',
+  },
+  flax_field: {
+    type: 'flax_field', width: 2, height: 1,
+    allowedTerrain: ['grass'], cost: { wood: 4 },
+    description: 'Grows flax', maxWorkers: 1,
+    production: { output: 'flax', amountPerWorker: 2 }, mapChar: 'X',
+  },
+  hemp_field: {
+    type: 'hemp_field', width: 2, height: 1,
+    allowedTerrain: ['grass'], cost: { wood: 4 },
+    description: 'Grows hemp', maxWorkers: 1,
+    production: { output: 'hemp', amountPerWorker: 2 }, mapChar: 'P',
+  },
+  iron_mine: {
+    type: 'iron_mine', width: 1, height: 1,
+    allowedTerrain: ['stone'], cost: { wood: 15, stone: 5 },
+    description: 'Mines iron ore', maxWorkers: 2,
+    production: { output: 'iron_ore', amountPerWorker: 1 }, mapChar: 'I',
+  },
+};
 
 // --- Villager ---
-export type VillagerRole = 'idle' | 'farmer' | 'woodcutter' | 'quarrier';
+export type VillagerRole = 'idle' | 'farmer' | 'woodcutter' | 'quarrier' | 'herbalist' | 'flaxer' | 'hemper' | 'miner';
 
-export type VillagerState =
-  | 'sleeping'
-  | 'walking_to_work'
-  | 'working'
-  | 'walking_home'
-  | 'eating'
-  | 'idle';
+export type VillagerState = 'sleeping' | 'working' | 'idle';
 
 export interface Villager {
   id: string;
   name: string;
   x: number;
   y: number;
-  destX: number | null;
-  destY: number | null;
-  path: { x: number; y: number }[];
   role: VillagerRole;
   jobBuildingId: string | null;
   homeBuildingId: string | null;
   state: VillagerState;
-  food: number;       // 0-10, personal food reserve / satiation
-  homeless: number;   // consecutive days without a house
+  food: number;
+  homeless: number;
 }
 
 // --- Game State ---
@@ -73,55 +147,12 @@ export interface GameState {
   width: number;
   height: number;
   resources: Resources;
+  storageCap: number;
   buildings: Building[];
   nextBuildingId: number;
   villagers: Villager[];
   nextVillagerId: number;
 }
-
-// --- Building Templates ---
-export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
-  house: {
-    type: 'house',
-    width: 1, height: 1,
-    allowedTerrain: ['grass'],
-    cost: { wood: 10 },
-    description: 'Shelter for villagers',
-    maxWorkers: 0,
-  },
-  farm: {
-    type: 'farm',
-    width: 2, height: 2,
-    allowedTerrain: ['grass'],
-    cost: { wood: 5 },
-    description: 'Produces food',
-    maxWorkers: 2,
-  },
-  woodcutter: {
-    type: 'woodcutter',
-    width: 1, height: 1,
-    allowedTerrain: ['grass', 'forest'],
-    cost: { wood: 5 },
-    description: 'Harvests wood from nearby forests',
-    maxWorkers: 1,
-  },
-  quarry: {
-    type: 'quarry',
-    width: 2, height: 2,
-    allowedTerrain: ['stone', 'grass'],
-    cost: { wood: 10 },
-    description: 'Extracts stone',
-    maxWorkers: 2,
-  },
-  storehouse: {
-    type: 'storehouse',
-    width: 2, height: 1,
-    allowedTerrain: ['grass'],
-    cost: { wood: 15, stone: 5 },
-    description: 'Increases storage capacity',
-    maxWorkers: 0,
-  },
-};
 
 // --- Names ---
 const VILLAGER_NAMES = [
@@ -146,8 +177,6 @@ export function createVillager(id: number, x: number, y: number): Villager {
     id: `v${id}`,
     name: VILLAGER_NAMES[(id - 1) % VILLAGER_NAMES.length],
     x, y,
-    destX: null, destY: null,
-    path: [],
     role: 'idle',
     jobBuildingId: null,
     homeBuildingId: null,
@@ -169,7 +198,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     for (let x = 0; x < width; x++) {
       let terrain: Terrain = 'grass';
 
-      // River with ford crossings every ~4 rows
       if ((x === riverStart || x === riverStart + 1) && y % 4 !== 0) {
         terrain = 'water';
       } else if (rng() < 0.15) {
@@ -183,7 +211,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     grid.push(row);
   }
 
-  // Find 3 grass tiles near the center for starting villagers
   const cx = Math.floor(width / 4);
   const cy = Math.floor(height / 2);
   const villagers: Villager[] = [];
@@ -204,7 +231,8 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     grid,
     width,
     height,
-    resources: { wood: 50, stone: 20, food: 30 },
+    resources: { wood: 50, stone: 20, food: 30, wheat: 0, iron_ore: 0, herbs: 0, flax: 0, hemp: 0 },
+    storageCap: BASE_STORAGE_CAP,
     buildings: [],
     nextBuildingId: 1,
     villagers,
