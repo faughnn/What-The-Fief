@@ -444,6 +444,7 @@ export interface Villager {
   patrolIndex: number; // current waypoint index
   // Clothing
   clothed: boolean;
+  clothingDurability: number; // days remaining
 }
 
 // --- Combat ---
@@ -704,6 +705,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     patrolRoute: [],
     patrolIndex: 0,
     clothed: false,
+    clothingDurability: 0,
   };
 }
 

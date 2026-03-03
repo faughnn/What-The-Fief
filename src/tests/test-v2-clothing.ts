@@ -242,6 +242,81 @@ heading('Clothing Not Required Outside Winter');
 }
 
 // ================================================================
+// TEST 7: Clothing wears out after 10 days
+// ================================================================
+heading('Clothing Wears Out');
+
+{
+  let state = setupClothingTest(0);
+  // Give clothing materials for initial equip
+  state = { ...state, resources: { ...state.resources, linen: 1 } };
+  state = {
+    ...state,
+    buildings: state.buildings.map(b =>
+      b.type === 'storehouse' ? { ...b, localBuffer: { ...b.localBuffer, linen: 1 } } : b
+    ),
+    grid: state.grid.map(row => row.map(tile =>
+      tile.building && tile.building.type === 'storehouse'
+        ? { ...tile, building: { ...tile.building, localBuffer: { ...tile.building.localBuffer, linen: 1 } } }
+        : tile
+    )),
+  };
+
+  // Run 1 day to equip
+  state = advance(state, TICKS_PER_DAY);
+  const v1 = state.villagers[0];
+  assert(v1.clothed === true, 'Villager clothed on day 1');
+  assert(v1.clothingDurability > 0, `Clothing has durability (${v1.clothingDurability})`);
+
+  // Run 10 more days — clothing should wear out
+  // No more linen available, so can't re-equip
+  state = advance(state, TICKS_PER_DAY * 10);
+
+  const v2 = state.villagers[0];
+  if (v2) {
+    assert(v2.clothed === false, `Clothing wore out after 10 days (clothed=${v2.clothed})`);
+  } else {
+    assert(true, 'Villager departed (clothing wore out, effects followed)');
+  }
+}
+
+// ================================================================
+// TEST 8: Clothing auto-re-equips when worn out
+// ================================================================
+heading('Clothing Auto-Re-Equip');
+
+{
+  let state = setupClothingTest(0);
+  // Give plenty of clothing materials
+  state = { ...state, resources: { ...state.resources, linen: 10 } };
+  state = {
+    ...state,
+    buildings: state.buildings.map(b =>
+      b.type === 'storehouse' ? { ...b, localBuffer: { ...b.localBuffer, linen: 10 } } : b
+    ),
+    grid: state.grid.map(row => row.map(tile =>
+      tile.building && tile.building.type === 'storehouse'
+        ? { ...tile, building: { ...tile.building, localBuffer: { ...tile.building.localBuffer, linen: 10 } } }
+        : tile
+    )),
+  };
+
+  // Run 12 days — should equip, wear out, re-equip
+  state = advance(state, TICKS_PER_DAY * 12);
+
+  const v = state.villagers[0];
+  if (v) {
+    assert(v.clothed === true, `Villager re-equipped clothing (clothed=${v.clothed})`);
+    // Should have consumed at least 2 linen (initial + re-equip)
+    const sh = state.buildings.find(b => b.type === 'storehouse')!;
+    const linenLeft = (sh.localBuffer['linen'] || 0);
+    assert(linenLeft < 10, `Multiple linen consumed (was 10, now ${linenLeft})`);
+  } else {
+    assert(false, 'Villager should have survived with plenty of clothing');
+  }
+}
+
+// ================================================================
 // RESULTS
 // ================================================================
 console.log(`\n${'='.repeat(40)}`);

@@ -60,6 +60,17 @@ export function processDailyChecks(ts: TickState): void {
     v.lastAte = 'nothing' as FoodEaten;
   }
 
+  // Clothing durability — decrement daily, unclothed when worn out
+  for (const v of ts.villagers) {
+    if (v.clothed) {
+      v.clothingDurability -= 1;
+      if (v.clothingDurability <= 0) {
+        v.clothed = false;
+        v.clothingDurability = 0;
+      }
+    }
+  }
+
   // Clothing equip — try to clothe unclothed villagers from storehouse linen/leather
   for (const v of ts.villagers) {
     if (!v.clothed) {
@@ -72,6 +83,7 @@ export function processDailyChecks(ts: TickState): void {
             if ((b.localBuffer[mat] || 0) <= 0) delete b.localBuffer[mat];
             ts.resources[mat] -= 1;
             v.clothed = true;
+            v.clothingDurability = 10;
             break;
           }
         }
