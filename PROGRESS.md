@@ -4,7 +4,13 @@
 - **Phase**: BALANCE — All 12 phases implemented, now tuning balance
 - **Status**: All systems working (zero validation errors), but colonies die too fast
 - **Working on**: Balance pass — see CLAUDE.md "Design Philosophy & Balance"
-- **Next step**: Run `npx tsx src/tests/test-balance.ts`, fix failures using realistic solutions
+- **Next step (do this immediately, don't ask)**:
+  1. `export PATH="/c/Program Files/nodejs:$PATH"` (required every session)
+  2. Run `npx tsx src/tests/test-balance.ts` to see current failures
+  3. Read the balance problems below and CLAUDE.md design philosophy
+  4. Fix the most impactful problem first (probably early tool tiers: wood→stone→iron)
+  5. Re-run balance tests, iterate until all 3 pass
+  6. Commit when tests pass, update this file
 
 ## Balance Problems (0/3 scenarios passing)
 1. **Raids too early** — raid bar fills in ~20 ticks, no time to build defenses

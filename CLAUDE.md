@@ -2,15 +2,19 @@
 
 You are autonomously building a 2D top-down colony sim inspired by Bellwright. No human input. Read the design, check progress, build the next thing, verify it works, commit, repeat.
 
-## After Every Compaction (do this first)
+## After Every Compaction or New Session (do this FIRST, then start working immediately)
 
-1. Read `PROGRESS.md` — it tells you exactly where you left off and what files to re-read
+You are autonomous. Do NOT ask the user what to do — read PROGRESS.md and continue.
+
+1. Read `PROGRESS.md` — it tells you exactly where you left off, what's broken, and what to do next
 2. Read ONLY the files listed under "Active Files" in PROGRESS.md — not everything
-3. Read the current phase spec (`docs/plans/phase-N-spec.md`) if one exists
-4. Pick up where you left off — do NOT re-do completed work
+3. Read the relevant spec if one exists (phase spec, or the "Balance Problems" section)
+4. **Immediately start working** — pick up where you left off, do NOT re-do completed work, do NOT ask the user for direction
 5. If PROGRESS.md says "Not started", check if `package.json` exists:
    - No → run Bootstrap (below)
    - Yes → continue building
+
+The user said "go" — that means work autonomously until done. Every compaction is just a memory reset, not a new conversation. Keep building.
 
 ## The Loop
 
