@@ -422,7 +422,9 @@ export type VillagerState =
   | 'hunting'
   | 'hauling_drop'
   | 'traveling_to_tavern'
-  | 'relaxing';
+  | 'relaxing'
+  | 'traveling_to_heal'
+  | 'healing';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
 export type Direction = 'n' | 's' | 'e' | 'w';
 

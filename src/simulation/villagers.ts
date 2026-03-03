@@ -125,6 +125,21 @@ function tryVisitTavern(v: Villager, buildings: Building[], grid: Tile[][], widt
   return true;
 }
 
+function trySeekHealing(v: Villager, buildings: Building[], resources: Resources, grid: Tile[][], width: number, height: number): boolean {
+  if (!v.sick) return false;
+  // Find storehouse with herbs
+  for (const b of buildings) {
+    if (b.type !== 'storehouse' || !b.constructed) continue;
+    if ((b.localBuffer.herbs || 0) > 0 && resources.herbs > 0) {
+      const entrance = getBuildingEntrance(b);
+      planPath(v, grid, width, height, entrance.x, entrance.y);
+      v.state = 'traveling_to_heal';
+      return true;
+    }
+  }
+  return false;
+}
+
 // --- Helper: start going home ---
 function startGoingHome(v: Villager, buildings: Building[], grid: Tile[][], width: number, height: number): void {
   if (v.homeBuildingId) {
@@ -189,8 +204,13 @@ export function processVillagerStateMachine(ts: TickState): void {
       continue;
     }
 
-    // DAWN: wake up — eat first if hungry, then go to work
+    // DAWN: wake up — heal first if sick, eat if hungry, then go to work
     if (ts.isDawn) {
+      // Sick villagers seek healing at storehouse with herbs
+      if (v.sick && trySeekHealing(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) {
+        continue;
+      }
+
       // Hungry villagers eat before work (food <= 5)
       if (v.food <= 5) {
         if (startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) {
@@ -505,6 +525,41 @@ export function processVillagerStateMachine(ts: TickState): void {
         }
         // Head home after tavern visit
         startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
+        break;
+      }
+
+      case 'traveling_to_heal': {
+        if (atDestination(v)) {
+          v.state = 'healing';
+        } else {
+          moveOneStep(v);
+        }
+        break;
+      }
+
+      case 'healing': {
+        // At storehouse — consume 1 herb to cure disease
+        const sh = findStorehouseAt(ts.buildings, v.x, v.y);
+        if (sh && (sh.localBuffer.herbs || 0) > 0 && ts.resources.herbs > 0) {
+          sh.localBuffer.herbs = (sh.localBuffer.herbs || 0) - 1;
+          if ((sh.localBuffer.herbs || 0) <= 0) delete sh.localBuffer.herbs;
+          ts.resources.herbs = Math.max(0, ts.resources.herbs - 1);
+          v.sick = false;
+          v.sickDays = 0;
+        }
+        // Go to work or home after healing attempt
+        if (v.jobBuildingId) {
+          const job = ts.buildings.find(b => b.id === v.jobBuildingId);
+          if (job) {
+            const entrance = getBuildingEntrance(job);
+            planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
+            v.state = job.constructed ? 'traveling_to_work' : 'traveling_to_build';
+          } else {
+            v.state = 'idle';
+          }
+        } else {
+          v.state = 'idle';
+        }
         break;
       }
 
