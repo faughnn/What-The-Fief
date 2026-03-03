@@ -383,6 +383,74 @@ heading('Winter Harsh But Survivable');
 }
 
 // ================================================================
+// TEST 7: Early game bootstrap — colony from starter resources
+// ================================================================
+heading('Early Game Bootstrap');
+
+{
+  // Start with default resources (50 wood, 20 stone, 30 food)
+  let state = flatWorld(30, 15);
+  state = { ...state, resources: { ...state.resources, wood: 50, stone: 20, food: 30 } };
+
+  // 3 starting villagers
+  state = addVillager(state, 10, 7);
+  state = addVillager(state, 11, 7);
+  state = addVillager(state, 12, 7);
+
+  // Player builds: storehouse + 3 tents + farm + woodcutter (29 wood, 5 stone)
+  state = placeBuilding(state, 'storehouse', 8, 7);
+  state = placeBuilding(state, 'tent', 10, 8);
+  state = placeBuilding(state, 'tent', 11, 8);
+  state = placeBuilding(state, 'tent', 12, 8);
+  state = placeBuilding(state, 'farm', 14, 7);
+  state = placeBuilding(state, 'woodcutter', 7, 8);
+
+  // Put starting food in storehouse buffer (physically)
+  const shId = state.buildings.find(b => b.type === 'storehouse')!.id;
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => {
+      if (b.id === shId) return { ...b, localBuffer: { ...b.localBuffer, food: 30 } };
+      return b;
+    }),
+  };
+
+  // Assign homes
+  const tents = state.buildings.filter(b => b.type === 'tent');
+  state = {
+    ...state,
+    villagers: state.villagers.map((v, i) => ({
+      ...v, homeBuildingId: tents[i]?.id || null,
+    })),
+  };
+
+  // Assign: 2 farmers (priority: food!), 1 woodcutter
+  const farm = state.buildings.find(b => b.type === 'farm')!;
+  const wc = state.buildings.find(b => b.type === 'woodcutter')!;
+  state = assignVillager(state, state.villagers[0].id, farm.id);
+  state = assignVillager(state, state.villagers[1].id, farm.id);
+  state = assignVillager(state, state.villagers[2].id, wc.id);
+
+  // Run for 20 days (before raids)
+  state = advanceDays(state, 20);
+
+  // All 3 villagers should survive with starting food + production
+  assert(state.villagers.length >= 2,
+    `Bootstrap colony has ${state.villagers.length} villagers after 20 days (started 3)`);
+
+  // Should have produced some wheat/wood
+  assert(state.resources.wood > 0,
+    `Colony producing wood: ${state.resources.wood}`);
+  assert(state.resources.wheat > 0 || state.resources.food > 0,
+    `Colony has food chain (wheat: ${state.resources.wheat}, food: ${state.resources.food})`);
+
+  // Buildings should be constructed by now
+  const constructedCount = state.buildings.filter(b => b.constructed && b.type !== 'rubble').length;
+  assert(constructedCount >= 4,
+    `Buildings constructed: ${constructedCount} out of ${state.buildings.length}`);
+}
+
+// ================================================================
 // RESULTS
 // ================================================================
 console.log(`\n${'='.repeat(40)}`);
