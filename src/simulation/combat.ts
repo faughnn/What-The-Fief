@@ -68,6 +68,7 @@ function destroyBuilding(
           constructionProgress: 0,
           constructionRequired: CONSTRUCTION_TICKS['rubble'] || 30,
           localBuffer: {}, bufferCapacity: 0,
+          onFire: false,
         };
         buildings.push(rubble);
         grid[gy][gx].building = rubble;
@@ -109,10 +110,45 @@ export function processRaidAndCombat(ts: TickState): void {
       ts.enemies.push({
         id: `e${ts.nextEnemyId}`, type, x: ex, y: ey,
         hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
+        siege: 'none',
       });
       ts.nextEnemyId++;
     }
-    ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
+    // Siege equipment at higher raid levels
+    if (ts.raidLevel >= 3) {
+      const numRams = Math.min(ts.raidLevel - 2, 2);
+      for (let i = 0; i < numRams; i++) {
+        let ex: number, ey: number;
+        switch (edgeSide) {
+          case 0: ex = Math.min(ts.width - 1, ((numBandits + numWolves + i) * 3) % ts.width); ey = 0; break;
+          case 1: ex = Math.min(ts.width - 1, ((numBandits + numWolves + i) * 3) % ts.width); ey = ts.height - 1; break;
+          case 2: ex = 0; ey = Math.min(ts.height - 1, ((numBandits + numWolves + i) * 3) % ts.height); break;
+          default: ex = ts.width - 1; ey = Math.min(ts.height - 1, ((numBandits + numWolves + i) * 3) % ts.height); break;
+        }
+        ts.enemies.push({
+          id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
+          hp: 25, maxHp: 25, attack: 5, defense: 3,
+          siege: 'battering_ram',
+        });
+        ts.nextEnemyId++;
+      }
+    }
+    if (ts.raidLevel >= 5) {
+      let ex: number, ey: number;
+      switch (edgeSide) {
+        case 0: ex = Math.min(ts.width - 1, ((numBandits + numWolves + 5) * 3) % ts.width); ey = 0; break;
+        case 1: ex = Math.min(ts.width - 1, ((numBandits + numWolves + 5) * 3) % ts.width); ey = ts.height - 1; break;
+        case 2: ex = 0; ey = Math.min(ts.height - 1, ((numBandits + numWolves + 5) * 3) % ts.height); break;
+        default: ex = ts.width - 1; ey = Math.min(ts.height - 1, ((numBandits + numWolves + 5) * 3) % ts.height); break;
+      }
+      ts.enemies.push({
+        id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
+        hp: 20, maxHp: 20, attack: 2, defense: 2,
+        siege: 'siege_tower',
+      });
+      ts.nextEnemyId++;
+    }
+    ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${ts.raidLevel >= 3 ? ' with siege equipment' : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
   }
 
   // SPATIAL COMBAT (per-tick)
@@ -129,13 +165,23 @@ export function processRaidAndCombat(ts: TickState): void {
     );
     if (adjacentGuard) continue; // will fight below
 
+    // Siege tower: can bypass walls — use normal pathfinding instead of enemy pathfinding
+    if (e.siege === 'siege_tower') {
+      const path = findPath(ts.grid, ts.width, ts.height, e.x, e.y, center.x, center.y);
+      if (path.length > 0) {
+        e.x = path[0].x;
+        e.y = path[0].y;
+      }
+      continue;
+    }
+
     // Check if adjacent to a wall/building — attack it
     const adjTarget = findAdjacentTarget(e.x, e.y, ts.grid, ts.width, ts.height, ts.buildings);
-    if (adjTarget && (adjTarget.type === 'wall' || adjTarget.type === 'fence')) {
-      // Attack the wall/fence
-      adjTarget.hp -= Math.max(1, e.attack);
+    if (adjTarget && (adjTarget.type === 'wall' || adjTarget.type === 'fence' || adjTarget.type === 'gate')) {
+      // Battering ram deals 5 damage to structures
+      const siegeDmg = e.siege === 'battering_ram' ? 5 : Math.max(1, e.attack);
+      adjTarget.hp -= siegeDmg;
       if (adjTarget.hp <= 0) {
-        // Destroy the building
         destroyBuilding(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
       }
       continue;

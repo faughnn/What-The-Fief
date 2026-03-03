@@ -488,6 +488,8 @@ export const ENEMY_TEMPLATES: Record<EnemyType, Omit<Enemy, 'hp'> & { maxHp: num
 };
 
 // V2: Grid-based enemy entity (replaces abstract Enemy for simulation)
+export type SiegeType = 'none' | 'battering_ram' | 'siege_tower';
+
 export interface EnemyEntity {
   id: string;
   type: EnemyType;
@@ -497,6 +499,7 @@ export interface EnemyEntity {
   maxHp: number;
   attack: number;
   defense: number;
+  siege: SiegeType;
 }
 
 // V2: Wildlife — grid-based animals that roam the map
