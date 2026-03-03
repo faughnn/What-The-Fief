@@ -45,6 +45,73 @@ export function findPath(
   return [];
 }
 
+// --- Enemy pathfinding: walls and fences block ---
+export function findPathEnemy(
+  grid: Tile[][], width: number, height: number,
+  fromX: number, fromY: number, toX: number, toY: number,
+): { x: number; y: number }[] {
+  if (fromX === toX && fromY === toY) return [];
+  const visited = new Set<string>();
+  const queue: { x: number; y: number; path: { x: number; y: number }[] }[] = [];
+  queue.push({ x: fromX, y: fromY, path: [] });
+  visited.add(`${fromX},${fromY}`);
+  const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const { dx, dy } of dirs) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const key = `${nx},${ny}`;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      if (visited.has(key)) continue;
+      if (grid[ny][nx].terrain === 'water') continue;
+      // Enemies can't pass through walls or fences
+      const bld = grid[ny][nx].building;
+      if (bld && (bld.type === 'wall' || bld.type === 'fence')) continue;
+      const newPath = [...current.path, { x: nx, y: ny }];
+      if (nx === toX && ny === toY) return newPath;
+      visited.add(key);
+      queue.push({ x: nx, y: ny, path: newPath });
+    }
+  }
+  return [];
+}
+
+// --- Find settlement center (average building position) ---
+function findSettlementCenter(buildings: Building[]): { x: number; y: number } {
+  if (buildings.length === 0) return { x: 0, y: 0 };
+  let sx = 0, sy = 0;
+  for (const b of buildings) { sx += b.x; sy += b.y; }
+  return { x: Math.round(sx / buildings.length), y: Math.round(sy / buildings.length) };
+}
+
+// --- Find adjacent wall/building for enemy to attack ---
+function findAdjacentTarget(
+  x: number, y: number, grid: Tile[][], width: number, height: number, buildings: Building[],
+): Building | null {
+  const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+  // Priority: walls first, then fences, then other buildings
+  for (const prio of ['wall', 'fence', null] as (BuildingType | null)[]) {
+    for (const { dx, dy } of dirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const tile = grid[ny][nx];
+      if (tile.building) {
+        if (prio === null || tile.building.type === prio) {
+          return buildings.find(b => b.id === tile.building!.id) || null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// --- Check if two positions are adjacent (Manhattan distance <= 1) ---
+function isAdjacent(x1: number, y1: number, x2: number, y2: number): boolean {
+  return Math.abs(x1 - x2) + Math.abs(y1 - y2) <= 1;
+}
+
 // --- Helpers ---
 const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   farm: 'farmer', woodcutter: 'woodcutter', quarry: 'quarrier',
@@ -695,13 +762,14 @@ export function tick(state: GameState): GameState {
   }
 
   // ==============================================
-  // RAID CHECK (daily, after grace period)
+  // RAID CHECK (daily, spawn enemies at map edge)
   // ==============================================
   let raidBar = state.raidBar;
   let raidLevel = state.raidLevel;
   let activeRaid = state.activeRaid
     ? { enemies: state.activeRaid.enemies.map(e => ({ ...e })), resolved: state.activeRaid.resolved }
     : null;
+  let nextEnemyId = state.nextEnemyId;
 
   if (isNewDay && newDay > 20) {
     let totalRes = 0;
@@ -710,82 +778,131 @@ export function tick(state: GameState): GameState {
     raidBar += raidProsperity * 0.2;
   }
 
-  // Trigger raid
-  if (raidBar >= 100 && !activeRaid && isNewDay) {
+  // Trigger raid — spawn enemies at map edge
+  if (raidBar >= 100 && enemies.length === 0 && isNewDay) {
     raidLevel += 1;
     raidBar = 0;
-    const raidEnemies: { type: EnemyType; hp: number; attack: number; defense: number }[] = [];
     const numBandits = raidLevel + 1;
     const numWolves = raidLevel >= 4 ? raidLevel - 2 : 0;
-    for (let i = 0; i < numBandits; i++) {
-      const t = ENEMY_TEMPLATES.bandit;
-      raidEnemies.push({ type: 'bandit', hp: t.maxHp, attack: t.attack, defense: t.defense });
+    // Spawn at random edge based on day
+    const edgeSide = newDay % 4; // 0=north, 1=south, 2=west, 3=east
+    for (let i = 0; i < numBandits + numWolves; i++) {
+      const type: EnemyType = i < numBandits ? 'bandit' : 'wolf';
+      const t = ENEMY_TEMPLATES[type];
+      let ex: number, ey: number;
+      switch (edgeSide) {
+        case 0: ex = Math.min(state.width - 1, (i * 3) % state.width); ey = 0; break;
+        case 1: ex = Math.min(state.width - 1, (i * 3) % state.width); ey = state.height - 1; break;
+        case 2: ex = 0; ey = Math.min(state.height - 1, (i * 3) % state.height); break;
+        default: ex = state.width - 1; ey = Math.min(state.height - 1, (i * 3) % state.height); break;
+      }
+      enemies.push({
+        id: `e${nextEnemyId}`, type, x: ex, y: ey,
+        hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
+      });
+      nextEnemyId++;
     }
-    for (let i = 0; i < numWolves; i++) {
-      const t = ENEMY_TEMPLATES.wolf;
-      raidEnemies.push({ type: 'wolf', hp: t.maxHp, attack: t.attack, defense: t.defense });
-    }
-    activeRaid = { enemies: raidEnemies, resolved: false };
+    events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
   }
 
-  // Combat resolution (abstract for now — v2 will make this spatial)
-  if (activeRaid && !activeRaid.resolved && isNewDay) {
-    const guards = villagers.filter(v => v.role === 'guard');
-    const raidEnemies = activeRaid.enemies.filter(e => e.hp > 0);
-    const attackBonus = hasTech(research, 'military_tactics') ? 2 : 0;
-    const defenseBonus = hasTech(research, 'fortification') ? 1 : 0;
+  // ==============================================
+  // SPATIAL COMBAT (per-tick)
+  // ==============================================
 
-    for (let round = 0; round < 10 && guards.some(g => g.hp > 0) && raidEnemies.some(e => e.hp > 0); round++) {
-      for (const g of guards) {
-        if (g.hp <= 0) continue;
-        const stats = GUARD_COMBAT[g.tool];
-        const target = raidEnemies.find(e => e.hp > 0);
-        if (target) target.hp -= Math.max(1, stats.attack + attackBonus - target.defense);
+  // Enemy movement: 1 tile/tick toward settlement
+  const center = findSettlementCenter(buildings);
+  for (const e of enemies) {
+    if (e.hp <= 0) continue;
+
+    // Check if adjacent to a guard — if so, fight instead of moving
+    const adjacentGuard = villagers.find(v =>
+      v.role === 'guard' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
+    );
+    if (adjacentGuard) continue; // will fight below
+
+    // Check if adjacent to a wall/building — attack it
+    const adjTarget = findAdjacentTarget(e.x, e.y, grid, state.width, state.height, buildings);
+    if (adjTarget && (adjTarget.type === 'wall' || adjTarget.type === 'fence')) {
+      // Attack the wall/fence
+      adjTarget.hp -= Math.max(1, e.attack);
+      if (adjTarget.hp <= 0) {
+        // Destroy the building
+        destroyBuilding(adjTarget, buildings, grid, villagers, state.width, state.height);
       }
-      for (const e of raidEnemies) {
-        if (e.hp <= 0) continue;
-        const target = guards.find(g => g.hp > 0);
-        if (target) {
-          const guardDef = GUARD_COMBAT[target.tool].defense + defenseBonus;
-          target.hp -= Math.max(1, e.attack - guardDef);
-        }
-      }
+      continue;
     }
 
-    const enemiesAlive = raidEnemies.filter(e => e.hp > 0);
-    if (enemiesAlive.length === 0) {
-      raidBar = Math.max(0, raidBar - 20);
+    // Move toward settlement center
+    const path = findPathEnemy(grid, state.width, state.height, e.x, e.y, center.x, center.y);
+    if (path.length > 0) {
+      e.x = path[0].x;
+      e.y = path[0].y;
     } else {
-      if (buildings.length > 0) {
-        const idx = newDay % buildings.length;
-        const destroyed = buildings[idx];
-        for (let dy = 0; dy < destroyed.height; dy++) {
-          for (let dx = 0; dx < destroyed.width; dx++) {
-            if (destroyed.y + dy < state.height && destroyed.x + dx < state.width) {
-              grid[destroyed.y + dy][destroyed.x + dx].building = null;
-            }
-          }
-        }
-        buildings.splice(idx, 1);
-        for (const v of villagers) {
-          if (v.jobBuildingId === destroyed.id) { v.jobBuildingId = null; v.role = 'idle'; }
-          if (v.homeBuildingId === destroyed.id) v.homeBuildingId = null;
+      // Can't reach center — try to attack nearest adjacent building
+      if (adjTarget) {
+        adjTarget.hp -= Math.max(1, e.attack);
+        if (adjTarget.hp <= 0) {
+          destroyBuilding(adjTarget, buildings, grid, villagers, state.width, state.height);
         }
       }
-      resources.food = Math.max(0, resources.food - Math.floor(resources.food * 0.2));
-      resources.wheat = Math.max(0, resources.wheat - Math.floor(resources.wheat * 0.2));
     }
-
-    const deadGuardIds = new Set(guards.filter(g => g.hp <= 0).map(g => g.id));
-    if (deadGuardIds.size > 0) {
-      for (const b of buildings) b.assignedWorkers = b.assignedWorkers.filter(id => !deadGuardIds.has(id));
-      villagers = villagers.filter(v => !deadGuardIds.has(v.id));
-    }
-
-    activeRaid = { enemies: raidEnemies.filter(e => e.hp > 0), resolved: true };
   }
 
-  if (activeRaid?.resolved) activeRaid = null;
+  // Guard AI: detect enemies, move to intercept, fight adjacent
+  const attackBonus = hasTech(research, 'military_tactics') ? 2 : 0;
+  const defenseBonus = hasTech(research, 'fortification') ? 1 : 0;
+  const GUARD_DETECT_RANGE = 10;
+
+  for (const v of villagers) {
+    if (v.role !== 'guard' || v.hp <= 0) continue;
+
+    // Find nearest enemy
+    let nearestEnemy: EnemyEntity | null = null;
+    let nearestDist = Infinity;
+    for (const e of enemies) {
+      if (e.hp <= 0) continue;
+      const dist = Math.abs(e.x - v.x) + Math.abs(e.y - v.y);
+      if (dist < nearestDist) { nearestDist = dist; nearestEnemy = e; }
+    }
+
+    if (!nearestEnemy) continue; // no enemies alive
+    if (nearestDist > GUARD_DETECT_RANGE) continue; // too far to detect
+
+    // If adjacent — fight
+    if (isAdjacent(v.x, v.y, nearestEnemy.x, nearestEnemy.y)) {
+      const stats = GUARD_COMBAT[v.tool];
+      // Guard attacks enemy
+      nearestEnemy.hp -= Math.max(1, stats.attack + attackBonus - nearestEnemy.defense);
+      // Enemy attacks guard
+      const guardDef = stats.defense + defenseBonus;
+      v.hp -= Math.max(1, nearestEnemy.attack - guardDef);
+      continue;
+    }
+
+    // Move toward enemy (1 tile/tick)
+    const guardPath = findPath(grid, state.width, state.height, v.x, v.y, nearestEnemy.x, nearestEnemy.y);
+    if (guardPath.length > 0) {
+      v.x = guardPath[0].x;
+      v.y = guardPath[0].y;
+    }
+  }
+
+  // Remove dead enemies
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    if (enemies[i].hp <= 0) enemies.splice(i, 1);
+  }
+
+  // Remove dead guards
+  const deadGuardIds = new Set(villagers.filter(v => v.role === 'guard' && v.hp <= 0).map(v => v.id));
+  if (deadGuardIds.size > 0) {
+    for (const b of buildings) b.assignedWorkers = b.assignedWorkers.filter(id => !deadGuardIds.has(id));
+    villagers = villagers.filter(v => !deadGuardIds.has(v.id));
+  }
+
+  // If all enemies cleared, reduce raid bar
+  if (state.enemies.length > 0 && enemies.length === 0) {
+    raidBar = Math.max(0, raidBar - 20);
+  }
 
   // ==============================================
   // MERCHANT (daily check)
@@ -922,11 +1039,37 @@ export function tick(state: GameState): GameState {
     merchant, merchantTimer, prosperity, season, weather,
     renown, events, completedQuests,
     nextVillagerId: nextVId,
+    nextEnemyId,
   };
 
   const errors = validateState(newState);
   for (const err of errors) console.log(err);
   return newState;
+}
+
+// --- Helper: destroy a building ---
+function destroyBuilding(
+  building: Building, buildings: Building[], grid: Tile[][],
+  villagers: Villager[], width: number, height: number,
+): void {
+  // Clear from grid
+  for (let dy = 0; dy < building.height; dy++) {
+    for (let dx = 0; dx < building.width; dx++) {
+      const gy = building.y + dy;
+      const gx = building.x + dx;
+      if (gy < height && gx < width) {
+        grid[gy][gx].building = null;
+      }
+    }
+  }
+  // Remove from buildings array
+  const idx = buildings.findIndex(b => b.id === building.id);
+  if (idx >= 0) buildings.splice(idx, 1);
+  // Unassign workers/residents
+  for (const v of villagers) {
+    if (v.jobBuildingId === building.id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
+    if (v.homeBuildingId === building.id) v.homeBuildingId = null;
+  }
 }
 
 // --- Helper: start hauling from workplace to storage ---
