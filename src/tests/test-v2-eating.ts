@@ -57,10 +57,14 @@ heading('Hungry Villager Travels to Eat');
   state = placeBuilding(state, 'storehouse', 8, 5);
   const homeId = state.buildings[0].id;
 
+  const shId1 = state.buildings.find(b => b.type === 'storehouse')!.id;
   state = {
     ...state,
     villagers: state.villagers.map(v =>
       v.id === 'v1' ? { ...v, homeBuildingId: homeId, food: 3 } : v
+    ),
+    buildings: state.buildings.map(b =>
+      b.id === shId1 ? { ...b, constructed: true, constructionProgress: b.constructionRequired, localBuffer: { bread: 5 } } : b
     ),
     resources: { ...state.resources, bread: 5 },
   };
@@ -85,11 +89,15 @@ heading('Villager Eats at Storehouse');
   state = placeBuilding(state, 'tent', 3, 5);
   state = placeBuilding(state, 'storehouse', 5, 5);
   const homeId = state.buildings[0].id;
+  const shId2 = state.buildings.find(b => b.type === 'storehouse')!.id;
 
   state = {
     ...state,
     villagers: state.villagers.map(v =>
       v.id === 'v1' ? { ...v, homeBuildingId: homeId, food: 3 } : v
+    ),
+    buildings: state.buildings.map(b =>
+      b.id === shId2 ? { ...b, constructed: true, constructionProgress: b.constructionRequired, localBuffer: { bread: 5 } } : b
     ),
     resources: { ...state.resources, bread: 5 },
   };
@@ -118,11 +126,15 @@ heading('Eating Requires Physical Travel');
   state = placeBuilding(state, 'tent', 2, 5);
   state = placeBuilding(state, 'storehouse', 15, 5); // 13 tiles away
   const homeId = state.buildings[0].id;
+  const shId3 = state.buildings.find(b => b.type === 'storehouse')!.id;
 
   state = {
     ...state,
     villagers: state.villagers.map(v =>
       v.id === 'v1' ? { ...v, homeBuildingId: homeId, food: 3 } : v
+    ),
+    buildings: state.buildings.map(b =>
+      b.id === shId3 ? { ...b, constructed: true, constructionProgress: b.constructionRequired, localBuffer: { bread: 5 } } : b
     ),
     resources: { ...state.resources, bread: 5 },
   };
@@ -193,14 +205,17 @@ heading('Villager Resumes Work After Eating');
   const farmId = state.buildings.find(b => b.type === 'farm')!.id;
 
   state = assignVillager(state, 'v1', farmId);
+  const shId5e = state.buildings.find(b => b.type === 'storehouse')!.id;
   state = {
     ...state,
     villagers: state.villagers.map(v =>
       v.id === 'v1' ? { ...v, homeBuildingId: homeId, food: 3 } : v
     ),
-    buildings: state.buildings.map(b =>
-      b.id === farmId ? { ...b, constructed: true, constructionProgress: b.constructionRequired } : b
-    ),
+    buildings: state.buildings.map(b => {
+      if (b.id === farmId) return { ...b, constructed: true, constructionProgress: b.constructionRequired };
+      if (b.id === shId5e) return { ...b, constructed: true, constructionProgress: b.constructionRequired, localBuffer: { bread: 5 } };
+      return b;
+    }),
     resources: { ...state.resources, bread: 5 },
   };
 

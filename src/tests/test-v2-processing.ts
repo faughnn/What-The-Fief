@@ -158,16 +158,17 @@ heading('Worker Hauls Inputs From Storehouse');
     ),
   };
 
-  // Force mill to constructed
+  // Force all buildings to constructed; put wheat and bread in storehouse buffer
+  const storehouseId = state.buildings.find(b => b.type === 'storehouse')!.id;
   state = {
     ...state,
-    buildings: state.buildings.map(b =>
-      b.id === millId ? { ...b, constructed: true, constructionProgress: b.constructionRequired } : b
-    ),
+    buildings: state.buildings.map(b => {
+      if (b.id === millId) return { ...b, constructed: true, constructionProgress: b.constructionRequired };
+      if (b.id === storehouseId) return { ...b, constructed: true, constructionProgress: b.constructionRequired, localBuffer: { wheat: 20, bread: 10 } };
+      return { ...b, constructed: true, constructionProgress: b.constructionRequired };
+    }),
+    resources: { ...state.resources, wheat: 20, bread: 10 },
   };
-
-  // Put wheat in global storage (storehouse), plus bread for eating
-  state = { ...state, resources: { ...state.resources, wheat: 20, bread: 10 } };
 
   // Advance several days — worker should go to mill, find no inputs,
   // travel to storehouse, pick up wheat, bring it back, and process
@@ -259,12 +260,15 @@ heading('Worker Input Hauling Requires Physical Travel');
     ),
   };
 
-  // Force mill to constructed
+  // Force mill to constructed; put wheat in storehouse buffer
+  const shId5 = state.buildings.find(b => b.type === 'storehouse')!.id;
   state = {
     ...state,
-    buildings: state.buildings.map(b =>
-      b.id === millId ? { ...b, constructed: true, constructionProgress: b.constructionRequired } : b
-    ),
+    buildings: state.buildings.map(b => {
+      if (b.id === millId) return { ...b, constructed: true, constructionProgress: b.constructionRequired };
+      if (b.id === shId5) return { ...b, constructed: true, constructionProgress: b.constructionRequired, localBuffer: { wheat: 20 } };
+      return { ...b, constructed: true, constructionProgress: b.constructionRequired };
+    }),
     resources: { ...state.resources, wheat: 20 },
   };
 

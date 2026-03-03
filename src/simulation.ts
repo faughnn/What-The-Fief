@@ -318,6 +318,15 @@ function planPath(v: Villager, grid: Tile[][], width: number, height: number, to
 }
 
 // --- Find nearest storehouse ---
+function findStorehouseAt(buildings: Building[], x: number, y: number): Building | null {
+  for (const b of buildings) {
+    if (b.type !== 'storehouse' || !b.constructed) continue;
+    // Check if (x,y) is on any tile of this building
+    if (x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height) return b;
+  }
+  return null;
+}
+
 function findNearestStorehouse(buildings: Building[], grid: Tile[][], width: number, height: number, x: number, y: number): Building | null {
   let best: Building | null = null;
   let bestDist = Infinity;
@@ -762,13 +771,20 @@ export function tick(state: GameState): GameState {
               if (job) {
                 const template = BUILDING_TEMPLATES[job.type];
                 if (template.production?.inputs) {
-                  // Pick up needed inputs from global resources
+                  // Pick up needed inputs from storehouse local buffer
+                  const pickupSH = findStorehouseAt(buildings, v.x, v.y);
                   for (const [res, amt] of Object.entries(template.production.inputs)) {
                     const needed = amt as number;
-                    const available = Math.min(needed * 3, resources[res as ResourceType]); // pick up a few batches
+                    const shAmt = pickupSH ? (pickupSH.localBuffer[res as ResourceType] || 0) : 0;
+                    const available = Math.min(needed * 3, shAmt);
                     const canCarry = Math.min(available, CARRY_CAPACITY - v.carryTotal);
                     if (canCarry > 0) {
-                      resources[res as ResourceType] -= canCarry;
+                      if (pickupSH) {
+                        pickupSH.localBuffer[res as ResourceType] = (pickupSH.localBuffer[res as ResourceType] || 0) - canCarry;
+                        if ((pickupSH.localBuffer[res as ResourceType] || 0) <= 0) delete pickupSH.localBuffer[res as ResourceType];
+                      }
+                      // Keep global in sync
+                      resources[res as ResourceType] = Math.max(0, resources[res as ResourceType] - canCarry);
                       v.carrying[res as ResourceType] = (v.carrying[res as ResourceType] || 0) + canCarry;
                       v.carryTotal += canCarry;
                     }
@@ -788,9 +804,14 @@ export function tick(state: GameState): GameState {
               v.haulingToWork = false;
             }
           } else {
-            // Dropping off: deposit carried resources into global storage
+            // Dropping off: deposit carried resources into storehouse local buffer
+            const targetSH = findStorehouseAt(buildings, v.x, v.y);
             for (const [res, amt] of Object.entries(v.carrying)) {
               if (amt && amt > 0) {
+                if (targetSH) {
+                  addToBuffer(targetSH.localBuffer, res as ResourceType, amt, targetSH.bufferCapacity);
+                }
+                // Also keep global resources in sync
                 addResource(resources, res as ResourceType, amt, storageCap);
               }
             }
@@ -890,11 +911,16 @@ export function tick(state: GameState): GameState {
       }
 
       case 'eating': {
-        // At a storehouse — consume food from global resources
+        // At a storehouse — consume food from storehouse local buffer
+        const eatSH = findStorehouseAt(buildings, v.x, v.y);
         let fed = false;
         for (const { resource, satisfaction } of FOOD_PRIORITY) {
-          if (resources[resource] > 0) {
-            resources[resource] -= 1;
+          const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
+          if (bufAmt > 0) {
+            eatSH!.localBuffer[resource] = bufAmt - 1;
+            if ((eatSH!.localBuffer[resource] || 0) <= 0) delete eatSH!.localBuffer[resource];
+            // Keep global in sync
+            resources[resource] = Math.max(0, resources[resource] - 1);
             v.food = Math.min(10, v.food + satisfaction);
             v.lastAte = resource as FoodEaten;
             fed = true;
@@ -1610,33 +1636,55 @@ function startHauling(v: Villager, job: Building, buildings: Building[], grid: T
 
 // --- Helper: start picking up inputs from storehouse for a processing building ---
 function startPickupInputs(v: Villager, job: Building, buildings: Building[], resources: Resources, grid: Tile[][], width: number, height: number): void {
-  const storehouse = findNearestStorehouse(buildings, grid, width, height, v.x, v.y);
-  if (storehouse) {
-    const entrance = getBuildingEntrance(storehouse);
+  // Find nearest storehouse that has at least one needed input in its buffer
+  const template = BUILDING_TEMPLATES[job.type];
+  const inputTypes = template.production?.inputs ? Object.keys(template.production.inputs) : [];
+  let bestSH: Building | null = null;
+  let bestDist = Infinity;
+  for (const b of buildings) {
+    if (b.type !== 'storehouse' || !b.constructed) continue;
+    let hasInput = false;
+    for (const res of inputTypes) {
+      if ((b.localBuffer[res as ResourceType] || 0) > 0) { hasInput = true; break; }
+    }
+    if (!hasInput) continue;
+    const entrance = getBuildingEntrance(b);
+    const dist = Math.abs(entrance.x - v.x) + Math.abs(entrance.y - v.y);
+    if (dist < bestDist) { bestDist = dist; bestSH = b; }
+  }
+  if (bestSH) {
+    const entrance = getBuildingEntrance(bestSH);
     planPath(v, grid, width, height, entrance.x, entrance.y);
     v.state = 'traveling_to_storage';
     v.haulingToWork = true;
   } else {
-    // No storehouse — can't get inputs, stay idle
+    // No storehouse with inputs — stay idle
     v.state = 'idle';
   }
 }
 
-// --- Helper: start traveling to eat (nearest storehouse with food) ---
+// --- Helper: start traveling to eat (nearest storehouse with food in its buffer) ---
 function startEating(v: Villager, buildings: Building[], resources: Resources, grid: Tile[][], width: number, height: number): boolean {
-  const storehouse = findNearestStorehouse(buildings, grid, width, height, v.x, v.y);
-  if (storehouse) {
-    // Check if any food exists in global storage
+  // Find nearest storehouse that has food in its local buffer
+  let bestSH: Building | null = null;
+  let bestDist = Infinity;
+  for (const b of buildings) {
+    if (b.type !== 'storehouse' || !b.constructed) continue;
+    // Check if this storehouse has food in its buffer
     let hasFood = false;
     for (const { resource } of FOOD_PRIORITY) {
-      if (resources[resource] > 0) { hasFood = true; break; }
+      if ((b.localBuffer[resource] || 0) > 0) { hasFood = true; break; }
     }
-    if (hasFood) {
-      const entrance = getBuildingEntrance(storehouse);
-      planPath(v, grid, width, height, entrance.x, entrance.y);
-      v.state = 'traveling_to_eat';
-      return true;
-    }
+    if (!hasFood) continue;
+    const entrance = getBuildingEntrance(b);
+    const dist = Math.abs(entrance.x - v.x) + Math.abs(entrance.y - v.y);
+    if (dist < bestDist) { bestDist = dist; bestSH = b; }
+  }
+  if (bestSH) {
+    const entrance = getBuildingEntrance(bestSH);
+    planPath(v, grid, width, height, entrance.x, entrance.y);
+    v.state = 'traveling_to_eat';
+    return true;
   }
   return false;
 }
