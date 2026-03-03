@@ -413,6 +413,7 @@ export interface Villager {
   carrying: Partial<Record<ResourceType, number>>;
   carryTotal: number;
   workProgress: number;
+  haulingToWork: boolean; // true = picking up inputs for processing building
 }
 
 // --- Combat ---
@@ -613,6 +614,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     path: [], pathIndex: 0,
     carrying: {}, carryTotal: 0,
     workProgress: 0,
+    haulingToWork: false,
   };
 }
 

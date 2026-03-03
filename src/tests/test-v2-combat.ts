@@ -108,6 +108,8 @@ heading('Walls Block Enemies');
 
 {
   let state = flatWorld(20, 10);
+  // Give enough stone for 10 walls (3 stone each)
+  state = { ...state, resources: { ...state.resources, stone: 100 } };
   // Place a wall line across the middle at x=8
   for (let y = 0; y < 10; y++) {
     state = placeBuilding(state, 'wall', 8, y);

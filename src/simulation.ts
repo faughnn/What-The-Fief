@@ -620,7 +620,19 @@ export function tick(state: GameState): GameState {
 
       case 'traveling_to_work': {
         if (atDestination(v)) {
-          // Arrived at workplace
+          // Arrived at workplace — deposit any carried inputs into building's local buffer
+          if (v.carryTotal > 0 && v.jobBuildingId) {
+            const job = buildings.find(b => b.id === v.jobBuildingId);
+            if (job) {
+              for (const [res, amt] of Object.entries(v.carrying)) {
+                if (amt && amt > 0) {
+                  addToBuffer(job.localBuffer, res as ResourceType, amt, job.bufferCapacity);
+                }
+              }
+              v.carrying = {};
+              v.carryTotal = 0;
+            }
+          }
           v.state = 'working';
           v.workProgress = 0;
         } else {
@@ -675,15 +687,17 @@ export function tick(state: GameState): GameState {
         const effectiveTpu = Math.max(1, Math.round(tpu / mult));
 
         if (v.workProgress >= effectiveTpu) {
-          // Check inputs (from building's local buffer for processing, or no inputs for primary)
           const prod = template.production;
           if (prod.inputs) {
-            // Processing building: needs inputs in its local buffer
-            // For now, check global resources as input source (hauling inputs is a v2.1 feature)
-            if (hasInputs(resources, prod.inputs)) {
-              consumeInputs(resources, prod.inputs);
+            // Processing building: needs inputs in building's local buffer
+            if (hasBufferInputs(job.localBuffer, prod.inputs)) {
+              consumeBufferInputs(job.localBuffer, prod.inputs);
               const bonus = techProductionBonus(research, job.type);
               addToBuffer(job.localBuffer, prod.output, 1 + bonus, job.bufferCapacity);
+            } else {
+              // No inputs in local buffer — go pick them up from storehouse
+              startPickupInputs(v, job, buildings, resources, grid, state.width, state.height);
+              break;
             }
           } else {
             // Primary production: no inputs needed
@@ -704,15 +718,18 @@ export function tick(state: GameState): GameState {
           gainSkillXp(v, job.type);
         }
 
-        // Check if should start hauling (buffer has items and enough to carry)
-        if (bufferTotal(job.localBuffer) >= CARRY_CAPACITY) {
+        // Check if should start hauling (buffer has output items and enough to carry)
+        const outputCount = template.production?.inputs
+          ? bufferOutputTotal(job.localBuffer, job.type)
+          : bufferTotal(job.localBuffer);
+        if (outputCount >= CARRY_CAPACITY) {
           startHauling(v, job, buildings, grid, state.width, state.height);
         }
 
         // Check if should head home
         if (dayTick >= HOME_DEPARTURE_TICK) {
-          // Pick up whatever's in the buffer before leaving
-          if (bufferTotal(job.localBuffer) > 0) {
+          // Pick up whatever output is in the buffer before leaving
+          if (outputCount > 0) {
             startHauling(v, job, buildings, grid, state.width, state.height);
           } else {
             startGoingHome(v, buildings, grid, state.width, state.height);
@@ -723,29 +740,63 @@ export function tick(state: GameState): GameState {
 
       case 'traveling_to_storage': {
         if (atDestination(v)) {
-          // Deposit carried resources into global storage (storehouse)
-          for (const [res, amt] of Object.entries(v.carrying)) {
-            if (amt && amt > 0) {
-              addResource(resources, res as ResourceType, amt, storageCap);
+          if (v.haulingToWork) {
+            // Picking up inputs from storehouse for processing building
+            if (v.jobBuildingId) {
+              const job = buildings.find(b => b.id === v.jobBuildingId);
+              if (job) {
+                const template = BUILDING_TEMPLATES[job.type];
+                if (template.production?.inputs) {
+                  // Pick up needed inputs from global resources
+                  for (const [res, amt] of Object.entries(template.production.inputs)) {
+                    const needed = amt as number;
+                    const available = Math.min(needed * 3, resources[res as ResourceType]); // pick up a few batches
+                    const canCarry = Math.min(available, CARRY_CAPACITY - v.carryTotal);
+                    if (canCarry > 0) {
+                      resources[res as ResourceType] -= canCarry;
+                      v.carrying[res as ResourceType] = (v.carrying[res as ResourceType] || 0) + canCarry;
+                      v.carryTotal += canCarry;
+                    }
+                  }
+                }
+                // Head back to workplace
+                const entrance = getBuildingEntrance(job);
+                planPath(v, grid, state.width, state.height, entrance.x, entrance.y);
+                v.state = 'traveling_to_work';
+                v.haulingToWork = false;
+              } else {
+                v.state = 'idle';
+                v.haulingToWork = false;
+              }
+            } else {
+              v.state = 'idle';
+              v.haulingToWork = false;
             }
-          }
-          v.carrying = {};
-          v.carryTotal = 0;
+          } else {
+            // Dropping off: deposit carried resources into global storage
+            for (const [res, amt] of Object.entries(v.carrying)) {
+              if (amt && amt > 0) {
+                addResource(resources, res as ResourceType, amt, storageCap);
+              }
+            }
+            v.carrying = {};
+            v.carryTotal = 0;
 
-          // Should we go back to work or head home?
-          if (dayTick >= HOME_DEPARTURE_TICK) {
-            startGoingHome(v, buildings, grid, state.width, state.height);
-          } else if (v.jobBuildingId) {
-            const job = buildings.find(b => b.id === v.jobBuildingId);
-            if (job) {
-              const entrance = getBuildingEntrance(job);
-              planPath(v, grid, state.width, state.height, entrance.x, entrance.y);
-              v.state = 'traveling_to_work';
+            // Should we go back to work or head home?
+            if (dayTick >= HOME_DEPARTURE_TICK) {
+              startGoingHome(v, buildings, grid, state.width, state.height);
+            } else if (v.jobBuildingId) {
+              const job = buildings.find(b => b.id === v.jobBuildingId);
+              if (job) {
+                const entrance = getBuildingEntrance(job);
+                planPath(v, grid, state.width, state.height, entrance.x, entrance.y);
+                v.state = 'traveling_to_work';
+              } else {
+                v.state = 'idle';
+              }
             } else {
               v.state = 'idle';
             }
-          } else {
-            v.state = 'idle';
           }
         } else {
           moveOneStep(v);
@@ -1135,13 +1186,27 @@ function destroyBuilding(
   }
 }
 
+// --- Helper: count only output resources in buffer (for processing buildings) ---
+function bufferOutputTotal(buffer: Partial<Record<ResourceType, number>>, buildingType: BuildingType): number {
+  const template = BUILDING_TEMPLATES[buildingType];
+  const inputKeys = template.production?.inputs ? new Set(Object.keys(template.production.inputs)) : new Set<string>();
+  let total = 0;
+  for (const [res, amt] of Object.entries(buffer)) {
+    if (!inputKeys.has(res)) total += (amt || 0);
+  }
+  return total;
+}
+
 // --- Helper: start hauling from workplace to storage ---
 function startHauling(v: Villager, job: Building, buildings: Building[], grid: Tile[][], width: number, height: number): void {
-  // Pick up resources from building buffer
+  // Pick up resources from building buffer — for processing buildings, only haul outputs
+  const template = BUILDING_TEMPLATES[job.type];
+  const inputKeys = template.production?.inputs ? new Set(Object.keys(template.production.inputs)) : new Set<string>();
   let carried = 0;
   v.carrying = {};
   for (const [res, amt] of Object.entries(job.localBuffer)) {
     if (!amt || amt <= 0) continue;
+    if (inputKeys.has(res)) continue; // Don't haul inputs away from processing buildings
     const toCarry = Math.min(amt, CARRY_CAPACITY - carried);
     if (toCarry <= 0) break;
     v.carrying[res as ResourceType] = toCarry;
@@ -1161,6 +1226,20 @@ function startHauling(v: Villager, job: Building, buildings: Building[], grid: T
     // No storehouse — deposit at current location into global resources
     // (fallback: resources go to global pool directly)
     v.state = 'working';
+  }
+}
+
+// --- Helper: start picking up inputs from storehouse for a processing building ---
+function startPickupInputs(v: Villager, job: Building, buildings: Building[], resources: Resources, grid: Tile[][], width: number, height: number): void {
+  const storehouse = findNearestStorehouse(buildings, grid, width, height, v.x, v.y);
+  if (storehouse) {
+    const entrance = getBuildingEntrance(storehouse);
+    planPath(v, grid, width, height, entrance.x, entrance.y);
+    v.state = 'traveling_to_storage';
+    v.haulingToWork = true;
+  } else {
+    // No storehouse — can't get inputs, stay idle
+    v.state = 'idle';
   }
 }
 
