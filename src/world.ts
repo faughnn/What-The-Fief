@@ -486,6 +486,9 @@ export interface GameState {
   prosperity: number;
   season: Season;
   weather: WeatherType;
+  renown: number;
+  events: string[];
+  completedQuests: string[];
 }
 
 // --- Names ---
@@ -605,5 +608,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     research: { completed: [], current: null, progress: 0 },
     merchant: null, merchantTimer: 15, prosperity: 0,
     season: 'spring', weather: 'clear',
+    renown: 0, events: [], completedQuests: [],
   };
 }

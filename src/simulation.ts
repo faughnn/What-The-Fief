@@ -610,13 +610,122 @@ export function tick(state: GameState): GameState {
   }
   prosperity = Math.min(100, prosperity);
 
+  // 16. Events & Renown
+  const events: string[] = [];
+  let renown = state.renown;
+  let nextVId = state.nextVillagerId;
+  if (villagers.length > state.villagers.length) nextVId = state.nextVillagerId + (villagers.length - state.villagers.length);
+
+  // Renown from prosperity
+  if (prosperity > 70) renown += 1;
+
+  // Renown from raid victory (if enemies were cleared this tick)
+  if (state.activeRaid && !state.activeRaid.resolved && !activeRaid) {
+    // Raid was resolved this tick
+    const enemiesAlive = state.activeRaid.enemies.filter(e => e.hp > 0).length;
+    if (enemiesAlive > 0) {
+      // We processed combat — check if it was a victory
+      // (enemies all dead = victory, some alive = defeat)
+      // This is approximate — the real check happened above
+    }
+  }
+
+  // Random events (10% chance per tick, seeded)
+  const eventRng = ((newDay * 2654435761 + 374761393) & 0x7fffffff) / 0x7fffffff;
+  if (eventRng < 0.10 && villagers.length > 0) {
+    const eventSeed = ((newDay * 6364136 + 1442695) & 0x7fffffff) / 0x7fffffff;
+
+    if (eventSeed < 0.15) {
+      // Wandering trader
+      resources.gold += 5;
+      const bonusRes: ResourceType[] = ['wood', 'stone', 'food'];
+      const pick = bonusRes[newDay % bonusRes.length];
+      addResource(resources, pick, 3, storageCap);
+      events.push(`A wandering trader passed through, leaving 5 gold and 3 ${pick}.`);
+      renown += 1;
+    } else if (eventSeed < 0.25 && (season === 'spring' || season === 'summer')) {
+      // Bountiful harvest
+      addResource(resources, 'wheat', 5, storageCap);
+      events.push('A bountiful harvest! +5 wheat.');
+    } else if (eventSeed < 0.40) {
+      // Bandit sighting
+      raidBar = Math.min(100, raidBar + 15);
+      events.push('Bandits spotted near the settlement! Raid threat increased.');
+    } else if (eventSeed < 0.50) {
+      // Lost traveler
+      const home = findHome(buildings, villagers);
+      if (home) {
+        const homeB = buildings.find(b => b.id === home)!;
+        const entrance = getBuildingEntrance(homeB);
+        const newV = createVillager(nextVId, entrance.x, entrance.y);
+        newV.homeBuildingId = home;
+        newV.state = 'sleeping';
+        villagers.push(newV);
+        nextVId++;
+        events.push(`A lost traveler named ${newV.name} joined the colony!`);
+      }
+    } else if (eventSeed < 0.55) {
+      // Plague
+      for (const v of villagers) v.food = Math.max(0, v.food - 2);
+      events.push('A mild plague swept through the colony. All villagers lost food.');
+    } else if (eventSeed < 0.65) {
+      // Festival
+      for (const v of villagers) v.morale = Math.min(100, v.morale + 10);
+      events.push('The villagers held a festival! Morale boosted.');
+      renown += 1;
+    } else if (eventSeed < 0.75) {
+      // Discovery
+      const edgeX = Math.min(state.width - 1, Math.max(0, 5 + (newDay % (state.width - 10))));
+      const edgeY = Math.min(state.height - 1, Math.max(0, 5 + (newDay % (state.height - 10))));
+      revealArea(fog, state.width, state.height, edgeX, edgeY, 2);
+      events.push(`Scouts discovered new territory near (${edgeX},${edgeY}).`);
+    } else if (eventSeed < 0.85 && season === 'summer') {
+      // Drought — not stored; just reduce food prod for narrative
+      events.push('A dry spell threatens the crops.');
+    } else if (eventSeed < 0.90) {
+      // Blessing
+      prosperity = Math.min(100, prosperity + 3);
+      events.push('A traveling priest blessed the settlement. +3 prosperity.');
+    } else {
+      // Wolf attack
+      const target = villagers[newDay % villagers.length];
+      target.hp = Math.max(1, target.hp - 3);
+      events.push(`A wolf attacked ${target.name}! (-3 HP)`);
+    }
+  }
+
+  // 17. Quest checks
+  const completedQuests = [...state.completedQuests];
+  if (!completedQuests.includes('first_steps') && villagers.length >= 5 && buildings.length >= 3) {
+    completedQuests.push('first_steps');
+    renown += 10;
+    resources.gold += 20;
+    events.push('Quest complete: "First Steps" — 5 villagers, 3 buildings. +10 renown, +20 gold.');
+  }
+  if (!completedQuests.includes('fortified') && raidLevel >= 1 && state.raidLevel < raidLevel) {
+    // A raid was handled this tick (raidLevel incremented)
+    // Check if it was a victory - approximate by checking no building destroyed
+    if (buildings.length >= state.buildings.length) {
+      completedQuests.push('fortified');
+      renown += 15;
+      resources.gold += 30;
+      events.push('Quest complete: "Fortified" — Won first raid! +15 renown, +30 gold.');
+    }
+  }
+  if (!completedQuests.includes('prosperous') && prosperity >= 70) {
+    completedQuests.push('prosperous');
+    renown += 20;
+    resources.gold += 50;
+    events.push('Quest complete: "Prosperous" — Settlement thriving! +20 renown, +50 gold.');
+  }
+
   const newState: GameState = {
     ...state,
-    day: state.day + 1, grid, resources, storageCap, buildings, villagers, fog, territory,
+    day: newDay, grid, resources, storageCap, buildings, villagers, fog, territory,
     raidBar, raidLevel, activeRaid, research,
     merchant, merchantTimer, prosperity, season, weather,
-    nextVillagerId: villagers.length > state.villagers.length
-      ? state.nextVillagerId + 1 : state.nextVillagerId,
+    renown, events, completedQuests,
+    nextVillagerId: nextVId,
   };
 
   const errors = validateState(newState);

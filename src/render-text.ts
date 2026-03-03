@@ -102,9 +102,38 @@ export function renderSummary(state: GameState): string {
     lines.push(`Merchant: arrives in ${state.merchantTimer} days`);
   }
 
+  lines.push(`Renown: ${state.renown}`);
+
+  if (state.events.length > 0) {
+    lines.push('Events:');
+    for (const e of state.events) lines.push(`  * ${e}`);
+  }
+
   const errors = validateState(state);
   lines.push(errors.length === 0 ? 'Errors: (none)' : errors.join('\n'));
 
+  return lines.join('\n');
+}
+
+export function renderEvents(state: GameState): string {
+  const lines: string[] = ['Events & Quests:'];
+  lines.push(`  Renown: ${state.renown}`);
+  lines.push('  Quests:');
+  const allQuests = [
+    { id: 'first_steps', name: 'First Steps', desc: 'Have 5 villagers and 3 buildings' },
+    { id: 'fortified', name: 'Fortified', desc: 'Win your first raid' },
+    { id: 'prosperous', name: 'Prosperous', desc: 'Reach prosperity >= 70' },
+  ];
+  for (const q of allQuests) {
+    const done = state.completedQuests.includes(q.id);
+    lines.push(`    ${done ? '[x]' : '[ ]'} ${q.name} — ${q.desc}`);
+  }
+  lines.push('  Recent events:');
+  if (state.events.length === 0) {
+    lines.push('    (none this tick)');
+  } else {
+    for (const e of state.events) lines.push(`    * ${e}`);
+  }
   return lines.join('\n');
 }
 
@@ -191,7 +220,7 @@ export function renderResearch(state: GameState): string {
   return lines.join('\n');
 }
 
-export type ViewMode = 'map' | 'summary' | 'all' | 'villagers' | 'economy' | 'combat' | 'research';
+export type ViewMode = 'map' | 'summary' | 'all' | 'villagers' | 'economy' | 'combat' | 'research' | 'events';
 
 export function renderAll(state: GameState, viewMode: ViewMode): string {
   switch (viewMode) {
@@ -201,6 +230,7 @@ export function renderAll(state: GameState, viewMode: ViewMode): string {
     case 'economy': return renderEconomy(state);
     case 'combat': return renderCombat(state);
     case 'research': return renderResearch(state);
-    case 'all': return [renderMap(state), renderSummary(state), renderVillagers(state), renderEconomy(state), renderCombat(state), renderResearch(state)].join('\n\n');
+    case 'events': return renderEvents(state);
+    case 'all': return [renderMap(state), renderSummary(state), renderVillagers(state), renderEconomy(state), renderCombat(state), renderResearch(state), renderEvents(state)].join('\n\n');
   }
 }
