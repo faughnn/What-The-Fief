@@ -298,6 +298,40 @@ export function processLightning(ts: TickState): void {
   }
 }
 
+export function processCaravans(ts: TickState): void {
+  const marketplace = ts.buildings.find(b => b.type === 'marketplace' && b.constructed);
+
+  for (const c of ts.caravans) {
+    c.ticksLeft -= 1;
+
+    // Move toward marketplace (1 tile/tick)
+    if (marketplace) {
+      const mpEntrance = getBuildingEntrance(marketplace);
+      if (c.x !== mpEntrance.x || c.y !== mpEntrance.y) {
+        const path = findPath(ts.grid, ts.width, ts.height, c.x, c.y, mpEntrance.x, mpEntrance.y);
+        if (path.length > 0) {
+          c.x = path[0].x;
+          c.y = path[0].y;
+        }
+      } else {
+        // At marketplace — deposit goods into marketplace buffer
+        for (const [res, amount] of Object.entries(c.goods)) {
+          if (amount && amount > 0) {
+            const key = res as keyof typeof marketplace.localBuffer;
+            const space = Math.max(0, marketplace.bufferCapacity - Object.values(marketplace.localBuffer).reduce((a, b) => a + (b || 0), 0));
+            const deposited = Math.min(amount, space);
+            marketplace.localBuffer[key] = (marketplace.localBuffer[key] || 0) + deposited;
+            (c.goods as any)[res] = amount - deposited;
+          }
+        }
+      }
+    }
+  }
+
+  // Remove expired caravans
+  ts.caravans = ts.caravans.filter(c => c.ticksLeft > 0);
+}
+
 export function processMerchant(ts: TickState): void {
   if (ts.isNewDay) {
     const marketplace = ts.buildings.find(b => b.type === 'marketplace' && b.constructed);

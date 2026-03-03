@@ -703,6 +703,24 @@ export interface GameState {
   completedQuests: string[];
   banditUltimatum: { goldDemand: number; daysLeft: number } | null;
   graveyard: { name: string; day: number }[];
+  npcSettlements: NpcSettlement[];
+  caravans: Caravan[];
+}
+
+export interface NpcSettlement {
+  id: string;
+  name: string;
+  direction: 'n' | 's' | 'e' | 'w';
+  specialty: ResourceType;
+}
+
+export interface Caravan {
+  id: string;
+  settlementId: string;
+  x: number;
+  y: number;
+  goods: Partial<Record<ResourceType, number>>;
+  ticksLeft: number;
 }
 
 // --- Names ---
@@ -841,5 +859,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     merchant: null, merchantTimer: 15, prosperity: 0,
     season: 'spring', weather: 'clear',
     renown: 0, events: [], completedQuests: [], banditUltimatum: null, graveyard: [],
+    npcSettlements: [], caravans: [],
   };
 }

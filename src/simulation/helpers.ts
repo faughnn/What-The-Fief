@@ -52,6 +52,8 @@ export interface TickState {
   completedQuests: string[];
   banditUltimatum: { goldDemand: number; daysLeft: number } | null;
   graveyard: { name: string; day: number }[];
+  npcSettlements: { id: string; name: string; direction: string; specialty: string }[];
+  caravans: { id: string; settlementId: string; x: number; y: number; goods: Partial<Record<string, number>>; ticksLeft: number }[];
   nextEnemyId: number;
   nextAnimalId: number;
   nextDropId: number;

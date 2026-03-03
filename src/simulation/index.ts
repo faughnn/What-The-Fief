@@ -8,7 +8,7 @@ import {
 } from '../world.js';
 import { TickState, computeStorageCap, hasTech } from './helpers.js';
 import { validateState } from './validation.js';
-import { processSeasonAndWeather, processDailyChecks, processMerchant, processProsperity, processEventsAndQuests, processDisease, processLightning } from './daily.js';
+import { processSeasonAndWeather, processDailyChecks, processMerchant, processProsperity, processEventsAndQuests, processDisease, processLightning, processCaravans } from './daily.js';
 import { processVillagerStateMachine } from './villagers.js';
 import { processRaidAndCombat } from './combat.js';
 import { processAnimals } from './animals.js';
@@ -85,6 +85,8 @@ export function tick(state: GameState): GameState {
     completedQuests: [...state.completedQuests],
     banditUltimatum: state.banditUltimatum ? { ...state.banditUltimatum } : null,
     graveyard: state.graveyard.map(g => ({ ...g })),
+    npcSettlements: state.npcSettlements.map(s => ({ ...s })),
+    caravans: state.caravans.map(c => ({ ...c, goods: { ...c.goods } })),
     nextVillagerId: state.nextVillagerId,
   };
   ts.storageCap = computeStorageCap(ts.buildings);
@@ -115,6 +117,9 @@ export function tick(state: GameState): GameState {
 
   // Merchant (daily spawn + per-tick movement)
   processMerchant(ts);
+
+  // Trade caravans (per-tick movement)
+  processCaravans(ts);
 
   // Prosperity (daily)
   if (ts.isNewDay) processProsperity(ts);
@@ -150,6 +155,8 @@ export function tick(state: GameState): GameState {
     completedQuests: ts.completedQuests,
     banditUltimatum: ts.banditUltimatum,
     graveyard: ts.graveyard,
+    npcSettlements: ts.npcSettlements,
+    caravans: ts.caravans,
     nextVillagerId: ts.nextVillagerId,
     nextEnemyId: ts.nextEnemyId,
     nextAnimalId: ts.nextAnimalId,
