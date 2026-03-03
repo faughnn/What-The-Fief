@@ -431,30 +431,13 @@ export function tick(state: GameState): GameState {
       }
     }
 
-    // Eat — food priority: bread > flour > wheat > food
+    // Hunger decay — villagers get hungrier each day (eating is now physical)
     for (const v of villagers) {
       const isGlutton = v.traits.includes('glutton');
       const isFrugal = v.traits.includes('frugal');
-      const meals = isGlutton ? 2 : (isFrugal && newDay % 2 === 0) ? 0 : 1;
-
+      const decay = isGlutton ? 2 : (isFrugal ? 0.5 : 1);
+      v.food = Math.max(0, v.food - decay);
       v.lastAte = 'nothing' as FoodEaten;
-      for (let m = 0; m < meals; m++) {
-        let fed = false;
-        for (const { resource, satisfaction } of FOOD_PRIORITY) {
-          if (resources[resource] > 0) {
-            resources[resource] -= 1;
-            v.food = Math.min(10, v.food + satisfaction);
-            if (m === 0) v.lastAte = resource as FoodEaten;
-            fed = true;
-            break;
-          }
-        }
-        if (!fed && m === 0) { v.food -= 1; v.lastAte = 'nothing'; }
-      }
-      if (meals === 0) {
-        v.lastAte = 'food';
-        v.food = Math.max(0, v.food - 0.5);
-      }
     }
 
     // Calculate morale
@@ -567,8 +550,16 @@ export function tick(state: GameState): GameState {
       continue;
     }
 
-    // DAWN: wake up and plan route to work (or construction site)
+    // DAWN: wake up — eat first if hungry, then go to work
     if (isDawn) {
+      // Hungry villagers eat before work (food <= 5)
+      if (v.food <= 5) {
+        if (startEating(v, buildings, resources, grid, state.width, state.height)) {
+          continue;
+        }
+        // No food available — go to work anyway (will starve)
+      }
+
       if (v.jobBuildingId) {
         const job = buildings.find(b => b.id === v.jobBuildingId);
         if (job) {
@@ -649,6 +640,11 @@ export function tick(state: GameState): GameState {
         if (!v.jobBuildingId) { v.state = 'idle'; break; }
         const job = buildings.find(b => b.id === v.jobBuildingId);
         if (!job) { v.state = 'idle'; break; }
+
+        // Hunger interrupt — very hungry workers stop to eat
+        if (v.food <= 2) {
+          if (startEating(v, buildings, resources, grid, state.width, state.height)) break;
+        }
 
         const template = BUILDING_TEMPLATES[job.type];
         if (!template.production) {
@@ -850,8 +846,58 @@ export function tick(state: GameState): GameState {
         break;
       }
 
+      case 'traveling_to_eat': {
+        if (atDestination(v)) {
+          v.state = 'eating';
+        } else {
+          moveOneStep(v);
+          if (dayTick >= HOME_DEPARTURE_TICK) {
+            startGoingHome(v, buildings, grid, state.width, state.height);
+          }
+        }
+        break;
+      }
+
+      case 'eating': {
+        // At a storehouse — consume food from global resources
+        let fed = false;
+        for (const { resource, satisfaction } of FOOD_PRIORITY) {
+          if (resources[resource] > 0) {
+            resources[resource] -= 1;
+            v.food = Math.min(10, v.food + satisfaction);
+            v.lastAte = resource as FoodEaten;
+            fed = true;
+            break;
+          }
+        }
+        if (!fed) {
+          v.food = Math.max(0, v.food - 0.5);
+          v.lastAte = 'nothing' as FoodEaten;
+        }
+
+        // Done eating — resume work or go home
+        if (dayTick >= HOME_DEPARTURE_TICK) {
+          startGoingHome(v, buildings, grid, state.width, state.height);
+        } else if (v.jobBuildingId) {
+          const job = buildings.find(b => b.id === v.jobBuildingId);
+          if (job) {
+            const entrance = getBuildingEntrance(job);
+            planPath(v, grid, state.width, state.height, entrance.x, entrance.y);
+            v.state = job.constructed ? 'traveling_to_work' : 'traveling_to_build';
+          } else {
+            v.state = 'idle';
+          }
+        } else {
+          v.state = 'idle';
+        }
+        break;
+      }
+
       case 'idle': {
-        // Idle villagers do nothing during the day
+        // Idle villagers check if hungry, otherwise do nothing
+        if (v.food <= 3) {
+          startEating(v, buildings, resources, grid, state.width, state.height);
+        }
         if (dayTick >= HOME_DEPARTURE_TICK && v.homeBuildingId) {
           startGoingHome(v, buildings, grid, state.width, state.height);
         }
@@ -1241,6 +1287,25 @@ function startPickupInputs(v: Villager, job: Building, buildings: Building[], re
     // No storehouse — can't get inputs, stay idle
     v.state = 'idle';
   }
+}
+
+// --- Helper: start traveling to eat (nearest storehouse with food) ---
+function startEating(v: Villager, buildings: Building[], resources: Resources, grid: Tile[][], width: number, height: number): boolean {
+  const storehouse = findNearestStorehouse(buildings, grid, width, height, v.x, v.y);
+  if (storehouse) {
+    // Check if any food exists in global storage
+    let hasFood = false;
+    for (const { resource } of FOOD_PRIORITY) {
+      if (resources[resource] > 0) { hasFood = true; break; }
+    }
+    if (hasFood) {
+      const entrance = getBuildingEntrance(storehouse);
+      planPath(v, grid, width, height, entrance.x, entrance.y);
+      v.state = 'traveling_to_eat';
+      return true;
+    }
+  }
+  return false;
 }
 
 // --- Helper: start going home ---
