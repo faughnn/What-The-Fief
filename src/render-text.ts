@@ -16,7 +16,7 @@ const ROLE_CHARS: Record<VillagerRole, string> = {
   sawyer: 's', smelter: 'e', miller: 'l', baker: 'b',
   tanner_worker: 'n', weaver_worker: 'a', ropemaker_worker: 'r',
   blacksmith_worker: 'k', toolmaker_worker: 'o', armorer_worker: 'z',
-  scout: 'c',
+  scout: 'c', guard: 'g',
 };
 
 export function renderMap(state: GameState): string {
@@ -137,7 +137,25 @@ export function renderEconomy(state: GameState): string {
   return lines.join('\n');
 }
 
-export type ViewMode = 'map' | 'summary' | 'all' | 'villagers' | 'economy';
+export function renderCombat(state: GameState): string {
+  const lines: string[] = ['Combat:'];
+  lines.push(`  Raid bar: ${Math.floor(state.raidBar)}/100`);
+  lines.push(`  Raid level: ${state.raidLevel}`);
+  const guards = state.villagers.filter(v => v.role === 'guard');
+  lines.push(`  Guards: ${guards.length}`);
+  if (guards.length > 0) {
+    for (const g of guards) {
+      lines.push(`    ${g.name} hp=${g.hp}/${g.maxHp} tool=${g.tool}`);
+    }
+  }
+  if (state.activeRaid) {
+    const alive = state.activeRaid.enemies.filter(e => e.hp > 0);
+    lines.push(`  Active raid: ${alive.length} enemies remaining`);
+  }
+  return lines.join('\n');
+}
+
+export type ViewMode = 'map' | 'summary' | 'all' | 'villagers' | 'economy' | 'combat';
 
 export function renderAll(state: GameState, viewMode: ViewMode): string {
   switch (viewMode) {
@@ -145,6 +163,7 @@ export function renderAll(state: GameState, viewMode: ViewMode): string {
     case 'summary': return renderSummary(state);
     case 'villagers': return renderVillagers(state);
     case 'economy': return renderEconomy(state);
-    case 'all': return [renderMap(state), renderSummary(state), renderVillagers(state), renderEconomy(state)].join('\n\n');
+    case 'combat': return renderCombat(state);
+    case 'all': return [renderMap(state), renderSummary(state), renderVillagers(state), renderEconomy(state), renderCombat(state)].join('\n\n');
   }
 }

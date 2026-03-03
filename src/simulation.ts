@@ -6,6 +6,7 @@ import {
   SPOILAGE, FOOD_PRIORITY, ALL_RESOURCES, SkillType, BUILDING_SKILL_MAP,
   skillMultiplier, FoodEaten, ToolTier, TOOL_MULTIPLIER, TOOL_DURABILITY,
   TOOL_RESOURCE, TOOL_EQUIP_PRIORITY, Direction,
+  Enemy, ActiveRaid, ENEMY_TEMPLATES, GUARD_COMBAT, EnemyType,
 } from './world.js';
 
 // --- BFS Pathfinding ---
@@ -221,6 +222,7 @@ export function tick(state: GameState): GameState {
   const storageCap = computeStorageCap(buildings);
   const fog = state.fog.map(row => [...row]);
   const territory = state.territory.map(row => [...row]);
+  const grid = state.grid.map(row => row.map(t => ({ ...t })));
 
   // 1. Auto-assign homeless
   for (const v of villagers) {
@@ -240,7 +242,7 @@ export function tick(state: GameState): GameState {
     if (!template.production) continue;
 
     const entrance = getBuildingEntrance(job);
-    const pathToWork = findPath(state.grid, state.width, state.height, v.x, v.y, entrance.x, entrance.y);
+    const pathToWork = findPath(grid, state.width, state.height, v.x, v.y, entrance.x, entrance.y);
     const canReach = (v.x === entrance.x && v.y === entrance.y) || pathToWork.length > 0;
 
     if (!canReach || pathToWork.length > MAX_COMMUTE) { v.state = 'idle'; continue; }
@@ -366,9 +368,126 @@ export function tick(state: GameState): GameState {
     }
   }
 
+  // 10. Guard equip tools
+  for (const v of villagers) {
+    if (v.role === 'guard' && v.tool === 'none') autoEquipTool(v, resources);
+  }
+
+  // 11. Raid check
+  let raidBar = state.raidBar;
+  let raidLevel = state.raidLevel;
+  let activeRaid: ActiveRaid | null = state.activeRaid
+    ? { enemies: state.activeRaid.enemies.map(e => ({ ...e })), resolved: state.activeRaid.resolved }
+    : null;
+
+  // Prosperity drives raid bar
+  let totalRes = 0;
+  for (const key of ALL_RESOURCES) totalRes += resources[key];
+  const prosperity = totalRes / 50 + buildings.length + villagers.length;
+  raidBar += prosperity * 0.5;
+
+  // Trigger raid
+  if (raidBar >= 100 && !activeRaid) {
+    raidLevel += 1;
+    raidBar = 0;
+    const enemies: Enemy[] = [];
+    const numBandits = raidLevel <= 2 ? raidLevel * 2 + 1 : raidLevel * 2;
+    const numWolves = raidLevel >= 3 ? raidLevel : 0;
+    for (let i = 0; i < numBandits; i++) {
+      const t = ENEMY_TEMPLATES.bandit;
+      enemies.push({ type: 'bandit', hp: t.maxHp, attack: t.attack, defense: t.defense });
+    }
+    for (let i = 0; i < numWolves; i++) {
+      const t = ENEMY_TEMPLATES.wolf;
+      enemies.push({ type: 'wolf', hp: t.maxHp, attack: t.attack, defense: t.defense });
+    }
+    activeRaid = { enemies, resolved: false };
+  }
+
+  // 12. Combat resolution
+  if (activeRaid && !activeRaid.resolved) {
+    const guards = villagers.filter(v => v.role === 'guard');
+    const enemies = activeRaid.enemies.filter(e => e.hp > 0);
+
+    // Resolve rounds until one side is eliminated (max 10 rounds)
+    for (let round = 0; round < 10 && guards.some(g => g.hp > 0) && enemies.some(e => e.hp > 0); round++) {
+      // Guards attack
+      for (const g of guards) {
+        if (g.hp <= 0) continue;
+        const stats = GUARD_COMBAT[g.tool];
+        const target = enemies.find(e => e.hp > 0);
+        if (target) target.hp -= Math.max(1, stats.attack - target.defense);
+      }
+      // Enemies attack
+      for (const e of enemies) {
+        if (e.hp <= 0) continue;
+        const target = guards.find(g => g.hp > 0);
+        if (target) {
+          const guardDef = GUARD_COMBAT[target.tool].defense;
+          target.hp -= Math.max(1, e.attack - guardDef);
+        }
+      }
+    }
+
+    const guardsAlive = guards.filter(g => g.hp > 0);
+    const enemiesAlive = enemies.filter(e => e.hp > 0);
+
+    if (enemiesAlive.length === 0) {
+      // Victory
+      raidBar = Math.max(0, raidBar - 20);
+    } else {
+      // Defeat — destroy a random building, steal food
+      if (buildings.length > 0) {
+        const idx = state.day % buildings.length;
+        const destroyed = buildings[idx];
+        // Clear building from grid
+        for (let dy = 0; dy < destroyed.height; dy++) {
+          for (let dx = 0; dx < destroyed.width; dx++) {
+            grid[destroyed.y + dy][destroyed.x + dx].building = null;
+          }
+        }
+        buildings.splice(idx, 1);
+        // Unassign workers
+        for (const v of villagers) {
+          if (v.jobBuildingId === destroyed.id) { v.jobBuildingId = null; v.role = 'idle'; }
+          if (v.homeBuildingId === destroyed.id) v.homeBuildingId = null;
+        }
+      }
+      // Steal 20% food/wheat
+      const foodStolen = Math.floor(resources.food * 0.2);
+      const wheatStolen = Math.floor(resources.wheat * 0.2);
+      resources.food -= foodStolen;
+      resources.wheat -= wheatStolen;
+    }
+
+    // Remove dead guards from villagers
+    const deadGuardIds = new Set(guards.filter(g => g.hp <= 0).map(g => g.id));
+    if (deadGuardIds.size > 0) {
+      for (const b of buildings) b.assignedWorkers = b.assignedWorkers.filter(id => !deadGuardIds.has(id));
+      villagers = villagers.filter(v => !deadGuardIds.has(v.id));
+    }
+
+    activeRaid = { enemies: enemies.filter(e => e.hp > 0), resolved: true };
+  }
+
+  // Clear resolved raids
+  if (activeRaid?.resolved) activeRaid = null;
+
+  // 13. Guard maxHp recalculation and healing (2 HP/day)
+  for (const v of villagers) {
+    if (v.role === 'guard') {
+      v.maxHp = 10 + Math.floor(v.morale / 10);
+    } else {
+      v.maxHp = 10;
+    }
+    if (v.hp < v.maxHp) v.hp = Math.min(v.maxHp, v.hp + 2);
+    v.hp = Math.min(v.hp, v.maxHp);
+  }
+
   const newState: GameState = {
     ...state,
-    day: state.day + 1, resources, storageCap, buildings, villagers, fog, territory,
+    day: state.day + 1, grid, resources, storageCap, buildings, villagers, fog, territory,
+    raidBar, raidLevel, activeRaid,
     nextVillagerId: villagers.length > state.villagers.length
       ? state.nextVillagerId + 1 : state.nextVillagerId,
   };
@@ -455,6 +574,27 @@ export function assignVillager(state: GameState, villagerId: string, buildingId:
   const newVillagers = state.villagers.map(v =>
     v.id === villagerId ? { ...v, jobBuildingId: buildingId, role: roleForBuilding(building.type) } : v
   );
+
+  return { ...state, buildings: newBuildings, villagers: newVillagers };
+}
+
+// --- Set Guard ---
+export function setGuard(state: GameState, villagerId: string): GameState {
+  const villager = state.villagers.find(v => v.id === villagerId);
+  if (!villager) { console.log(`ERROR: Villager ${villagerId} not found`); return state; }
+
+  // Remove from current job
+  const newBuildings = state.buildings.map(b =>
+    b.assignedWorkers.includes(villagerId) ? { ...b, assignedWorkers: b.assignedWorkers.filter(id => id !== villagerId) } : b
+  );
+
+  const newVillagers = state.villagers.map(v => {
+    if (v.id === villagerId) {
+      const maxHp = 10 + Math.floor(v.morale / 10);
+      return { ...v, skills: { ...v.skills }, traits: [...v.traits], role: 'guard' as const, jobBuildingId: null, hp: maxHp, maxHp };
+    }
+    return v;
+  });
 
   return { ...state, buildings: newBuildings, villagers: newVillagers };
 }

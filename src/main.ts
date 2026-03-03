@@ -1,7 +1,7 @@
 // main.ts — CLI entry point
 
 import { createWorld, BuildingType, Direction } from './world.js';
-import { tick, placeBuilding, assignVillager, sendScout, claimTerritory } from './simulation.js';
+import { tick, placeBuilding, assignVillager, sendScout, claimTerritory, setGuard } from './simulation.js';
 import { renderAll, ViewMode } from './render-text.js';
 
 function parseArgs(argv: string[]) {
@@ -13,6 +13,7 @@ function parseArgs(argv: string[]) {
     assign: [] as { villagerId: string; buildingId: string }[],
     scout: [] as { villagerId: string; direction: Direction }[],
     claim: [] as { x: number; y: number }[],
+    guard: [] as string[],
     width: 20,
     height: 20,
     seed: 42,
@@ -41,6 +42,7 @@ function parseArgs(argv: string[]) {
         result.claim.push({ x, y });
         break;
       }
+      case '--guard': result.guard.push(args[++i]); break;
       case '--width': result.width = parseInt(args[++i], 10); break;
       case '--height': result.height = parseInt(args[++i], 10); break;
       case '--seed': result.seed = parseInt(args[++i], 10); break;
@@ -58,6 +60,7 @@ function main() {
   for (const a of opts.assign) state = assignVillager(state, a.villagerId, a.buildingId);
   for (const s of opts.scout) state = sendScout(state, s.villagerId, s.direction);
   for (const c of opts.claim) state = claimTerritory(state, c.x, c.y);
+  for (const g of opts.guard) state = setGuard(state, g);
 
   for (let i = 0; i < opts.ticks; i++) state = tick(state);
 

@@ -18,7 +18,7 @@ export type BuildingType =
   | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine'
   | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker'
   | 'blacksmith' | 'toolmaker' | 'armorer'
-  | 'town_hall';
+  | 'town_hall' | 'wall' | 'fence';
 
 export interface Building {
   id: string;
@@ -229,6 +229,16 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 30, stone: 20, planks: 10 }, description: 'Enables territory expansion',
     maxWorkers: 0, production: null, mapChar: 'T',
   },
+  wall: {
+    type: 'wall', width: 1, height: 1, allowedTerrain: ['grass', 'stone'],
+    cost: { stone: 3 }, description: 'Stone wall — blocks enemies',
+    maxWorkers: 0, production: null, mapChar: '#',
+  },
+  fence: {
+    type: 'fence', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 2 }, description: 'Wooden fence',
+    maxWorkers: 0, production: null, mapChar: '=',
+  },
 };
 
 // --- Skills ---
@@ -263,7 +273,7 @@ export type VillagerRole =
   | 'flaxer' | 'hemper' | 'miner' | 'sawyer' | 'smelter'
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
   | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker'
-  | 'scout';
+  | 'scout' | 'guard';
 
 export type VillagerState = 'sleeping' | 'working' | 'idle' | 'scouting';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
@@ -288,7 +298,37 @@ export interface Villager {
   toolDurability: number;
   scoutDirection: Direction | null;
   scoutTicksLeft: number;
+  hp: number;
+  maxHp: number;
 }
+
+// --- Combat ---
+export type EnemyType = 'bandit' | 'wolf' | 'boar';
+
+export interface Enemy {
+  type: EnemyType;
+  hp: number;
+  attack: number;
+  defense: number;
+}
+
+export interface ActiveRaid {
+  enemies: Enemy[];
+  resolved: boolean;
+}
+
+export const ENEMY_TEMPLATES: Record<EnemyType, Omit<Enemy, 'hp'> & { maxHp: number }> = {
+  bandit: { type: 'bandit', maxHp: 10, attack: 3, defense: 1 },
+  wolf: { type: 'wolf', maxHp: 6, attack: 4, defense: 0 },
+  boar: { type: 'boar', maxHp: 15, attack: 2, defense: 2 },
+};
+
+export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }> = {
+  none: { attack: 1, defense: 0 },
+  basic: { attack: 2, defense: 1 },
+  sturdy: { attack: 3, defense: 2 },
+  iron: { attack: 5, defense: 3 },
+};
 
 // --- Game State ---
 export interface GameState {
@@ -302,8 +342,11 @@ export interface GameState {
   nextBuildingId: number;
   villagers: Villager[];
   nextVillagerId: number;
-  fog: boolean[][];       // true = revealed
-  territory: boolean[][]; // true = claimed
+  fog: boolean[][];
+  territory: boolean[][];
+  raidBar: number;
+  raidLevel: number;
+  activeRaid: ActiveRaid | null;
 }
 
 // --- Names ---
@@ -349,6 +392,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     skills: emptySkills(), traits: rollTraits(id), morale: 50, lastAte: 'nothing',
     tool: 'none', toolDurability: 0,
     scoutDirection: null, scoutTicksLeft: 0,
+    hp: 10, maxHp: 10,
   };
 }
 
@@ -418,5 +462,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     buildings: [], nextBuildingId: 1,
     villagers, nextVillagerId: placed + 1,
     fog, territory,
+    raidBar: 0, raidLevel: 0, activeRaid: null,
   };
 }
