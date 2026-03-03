@@ -7,7 +7,7 @@ export type WeatherType = 'clear' | 'rain' | 'storm';
 export const SEASON_NAMES: Season[] = ['spring', 'summer', 'autumn', 'winter'];
 
 export const SEASON_FARM_MULT: Record<Season, number> = {
-  spring: 1.0, summer: 1.3, autumn: 1.0, winter: 0.5,
+  spring: 1.0, summer: 1.3, autumn: 0.7, winter: 0,
 };
 
 export const SEASON_MORALE: Record<Season, number> = {

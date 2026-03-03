@@ -338,7 +338,11 @@ export function processVillagerStateMachine(ts: TickState): void {
             // Season/weather multipliers for outdoor buildings
             if (OUTDOOR_BUILDINGS.includes(job.type)) {
               const isFarm = ['farm', 'flax_field', 'hemp_field', 'chicken_coop'].includes(job.type);
-              if (isFarm) amount = Math.max(1, Math.floor(amount * SEASON_FARM_MULT[ts.season]));
+              if (isFarm) {
+                const farmMult = SEASON_FARM_MULT[ts.season];
+                if (farmMult === 0) { v.workProgress = 0; break; } // No farming in winter
+                amount = Math.max(1, Math.floor(amount * farmMult));
+              }
               amount = Math.max(1, Math.floor(amount * WEATHER_OUTDOOR_MULT[ts.weather]));
             }
             addToBuffer(job.localBuffer, prod.output, amount, job.bufferCapacity);
