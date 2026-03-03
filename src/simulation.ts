@@ -1412,21 +1412,39 @@ export function tick(state: GameState): GameState {
   }
 
   // ==============================================
-  // MERCHANT (daily check)
+  // MERCHANT (daily spawn + per-tick movement)
   // ==============================================
   let merchant: MerchantState | null = state.merchant ? { ...state.merchant } : null;
   let merchantTimer = state.merchantTimer;
   if (isNewDay) {
-    const hasMarketplace = buildings.some(b => b.type === 'marketplace');
+    const marketplace = buildings.find(b => b.type === 'marketplace' && b.constructed);
     if (merchant) {
       merchant.ticksLeft -= 1;
       if (merchant.ticksLeft <= 0) merchant = null;
     }
-    if (!merchant && hasMarketplace) {
+    if (!merchant && marketplace) {
       merchantTimer -= 1;
       if (merchantTimer <= 0) {
-        merchant = { ticksLeft: 3 };
+        // Spawn merchant at map edge, heading toward marketplace
+        const edge = newDay % 2 === 0 ? 0 : state.width - 1;
+        merchant = { ticksLeft: TICKS_PER_DAY * 3, x: edge, y: marketplace.y };
         merchantTimer = 15;
+        events.push(`A merchant arrives from the ${edge === 0 ? 'west' : 'east'}!`);
+      }
+    }
+  }
+  // Per-tick: merchant walks toward marketplace (1 tile/tick)
+  if (merchant) {
+    const marketplace = buildings.find(b => b.type === 'marketplace' && b.constructed);
+    if (marketplace) {
+      const mpEntrance = getBuildingEntrance(marketplace);
+      if (merchant.x !== mpEntrance.x || merchant.y !== mpEntrance.y) {
+        // Move one step toward marketplace
+        const path = findPath(grid, state.width, state.height, merchant.x, merchant.y, mpEntrance.x, mpEntrance.y);
+        if (path.length > 0) {
+          merchant.x = path[0].x;
+          merchant.y = path[0].y;
+        }
       }
     }
   }
@@ -1812,6 +1830,13 @@ export function assignVillager(state: GameState, villagerId: string, buildingId:
 // ================================================================
 export function buyResource(state: GameState, resource: ResourceType, amount: number): GameState {
   if (!state.merchant) { console.log('ERROR: No merchant present'); return state; }
+  // Merchant must be at the marketplace
+  const marketplace = state.buildings.find(b => b.type === 'marketplace' && b.constructed);
+  if (!marketplace) { console.log('ERROR: No constructed marketplace'); return state; }
+  const mpEntrance = { x: marketplace.x, y: marketplace.y };
+  if (state.merchant.x !== mpEntrance.x || state.merchant.y !== mpEntrance.y) {
+    console.log('ERROR: Merchant not at marketplace yet'); return state;
+  }
   const price = TRADE_PRICES[resource];
   if (!price) { console.log(`ERROR: Cannot trade ${resource}`); return state; }
   const totalCost = price.buy * amount;
@@ -1820,23 +1845,50 @@ export function buyResource(state: GameState, resource: ResourceType, amount: nu
   }
   const newResources = { ...state.resources };
   newResources.gold -= totalCost;
-  const added = Math.min(amount, Math.max(0, state.storageCap - newResources[resource]));
-  newResources[resource] += added;
-  if (added < amount) console.log(`Warning: Storage full, only bought ${added} ${resource}`);
-  return { ...state, resources: newResources };
+  // Deposit bought goods into marketplace local buffer
+  const newBuildings = state.buildings.map(b => {
+    if (b.id === marketplace.id) {
+      const newBuffer = { ...b.localBuffer };
+      const added = Math.min(amount, Math.max(0, b.bufferCapacity - bufferTotal(newBuffer)));
+      newBuffer[resource] = (newBuffer[resource] || 0) + added;
+      if (added < amount) console.log(`Warning: Marketplace buffer full, only bought ${added} ${resource}`);
+      return { ...b, localBuffer: newBuffer };
+    }
+    return b;
+  });
+  return { ...state, resources: newResources, buildings: newBuildings };
 }
 
 export function sellResource(state: GameState, resource: ResourceType, amount: number): GameState {
   if (!state.merchant) { console.log('ERROR: No merchant present'); return state; }
+  // Merchant must be at the marketplace
+  const marketplace = state.buildings.find(b => b.type === 'marketplace' && b.constructed);
+  if (!marketplace) { console.log('ERROR: No constructed marketplace'); return state; }
+  const mpEntrance = { x: marketplace.x, y: marketplace.y };
+  if (state.merchant.x !== mpEntrance.x || state.merchant.y !== mpEntrance.y) {
+    console.log('ERROR: Merchant not at marketplace yet'); return state;
+  }
   const price = TRADE_PRICES[resource];
   if (!price) { console.log(`ERROR: Cannot trade ${resource}`); return state; }
-  if (state.resources[resource] < amount) {
-    console.log(`ERROR: Have ${state.resources[resource]} ${resource}, need ${amount}`); return state;
+  // Sell from marketplace local buffer (goods must be physically present)
+  const mpBuffer = marketplace.localBuffer[resource] || 0;
+  if (mpBuffer < amount) {
+    console.log(`ERROR: Marketplace has ${mpBuffer} ${resource}, need ${amount}`); return state;
   }
   const newResources = { ...state.resources };
-  newResources[resource] -= amount;
+  newResources[resource] = Math.max(0, newResources[resource] - amount);
   newResources.gold += price.sell * amount;
-  return { ...state, resources: newResources };
+  // Remove from marketplace buffer
+  const newBuildings = state.buildings.map(b => {
+    if (b.id === marketplace.id) {
+      const newBuffer = { ...b.localBuffer };
+      newBuffer[resource] = (newBuffer[resource] || 0) - amount;
+      if ((newBuffer[resource] || 0) <= 0) delete newBuffer[resource];
+      return { ...b, localBuffer: newBuffer };
+    }
+    return b;
+  });
+  return { ...state, resources: newResources, buildings: newBuildings };
 }
 
 // ================================================================

@@ -580,6 +580,8 @@ export interface ResearchState {
 // --- Trade ---
 export interface MerchantState {
   ticksLeft: number;
+  x: number;
+  y: number;
 }
 
 export const TRADE_PRICES: Partial<Record<ResourceType, { buy: number; sell: number }>> = {
