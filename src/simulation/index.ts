@@ -18,7 +18,7 @@ import { processFire } from './buildings.js';
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
 export { placeBuilding, claimTerritory, processFire } from './buildings.js';
-export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, sendScout, upgradeBuilding } from './commands.js';
+export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, sendScout, upgradeBuilding, payTribute } from './commands.js';
 
 // ================================================================
 // TICK — V2 spatial simulation

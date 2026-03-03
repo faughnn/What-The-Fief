@@ -166,6 +166,19 @@ export function sendScout(state: GameState, villagerId: string, direction: Direc
   return { ...state, villagers: newVillagers, buildings: newBuildings };
 }
 
+export function payTribute(state: GameState): GameState {
+  if (!state.banditUltimatum) { console.log('ERROR: No active bandit ultimatum'); return state; }
+  const cost = state.banditUltimatum.goldDemand;
+  if (state.resources.gold < cost) {
+    console.log(`ERROR: Need ${cost} gold for tribute, have ${state.resources.gold}`); return state;
+  }
+  return {
+    ...state,
+    resources: { ...state.resources, gold: state.resources.gold - cost },
+    banditUltimatum: null,
+  };
+}
+
 export function upgradeBuilding(state: GameState, buildingId: string): GameState {
   const building = state.buildings.find(b => b.id === buildingId);
   if (!building) { console.log(`ERROR: Building ${buildingId} not found`); return state; }
