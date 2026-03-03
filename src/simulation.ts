@@ -39,10 +39,10 @@ export function findPath(
       if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
       if (visited.has(key)) continue;
       if (grid[ny][nx].terrain === 'water') continue;
-      // Buildings block movement — except the destination tile (workers can enter)
+      // Buildings block movement — except destination tile, gates, and rubble (passable)
       if (nx !== toX || ny !== toY) {
         const tile = grid[ny][nx];
-        if (tile.building) continue;
+        if (tile.building && tile.building.type !== 'gate' && tile.building.type !== 'rubble') continue;
       }
       const newPath = [...current.path, { x: nx, y: ny }];
       if (nx === toX && ny === toY) return newPath;
@@ -73,9 +73,9 @@ export function findPathEnemy(
       if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
       if (visited.has(key)) continue;
       if (grid[ny][nx].terrain === 'water') continue;
-      // Enemies can't pass through walls or fences
+      // Enemies can't pass through walls, fences, or gates
       const bld = grid[ny][nx].building;
-      if (bld && (bld.type === 'wall' || bld.type === 'fence')) continue;
+      if (bld && (bld.type === 'wall' || bld.type === 'fence' || bld.type === 'gate')) continue;
       const newPath = [...current.path, { x: nx, y: ny }];
       if (nx === toX && ny === toY) return newPath;
       visited.add(key);
@@ -414,6 +414,7 @@ export function tick(state: GameState): GameState {
   let resourceDrops = state.resourceDrops.map(d => ({ ...d, resources: { ...d.resources } }));
   let nextAnimalId = state.nextAnimalId;
   let nextDropId = state.nextDropId;
+  let nextBuildingId = state.nextBuildingId;
   const events: string[] = [];
 
   const toolDurBonus = hasTech(research, 'improved_tools') ? 0.2 : 0;
@@ -852,10 +853,22 @@ export function tick(state: GameState): GameState {
         // Build: increment construction progress
         job.constructionProgress++;
         if (job.constructionProgress >= job.constructionRequired) {
-          job.constructed = true;
-          // Switch to production on next tick
-          v.state = 'working';
-          v.workProgress = 0;
+          if (job.type === 'rubble') {
+            // Rubble cleared — remove it entirely
+            const ridx = buildings.findIndex(b => b.id === job.id);
+            if (ridx >= 0) buildings.splice(ridx, 1);
+            if (job.y < state.height && job.x < state.width) {
+              grid[job.y][job.x].building = null;
+            }
+            v.jobBuildingId = null;
+            v.role = 'idle';
+            v.state = 'idle';
+          } else {
+            job.constructed = true;
+            // Switch to production on next tick
+            v.state = 'working';
+            v.workProgress = 0;
+          }
         }
         // Head home when needed
         if (dayTick >= HOME_DEPARTURE_TICK) {
@@ -986,6 +999,7 @@ export function tick(state: GameState): GameState {
   // ==============================================
   // SPATIAL COMBAT (per-tick)
   // ==============================================
+  const nextBldIdRef = { value: nextBuildingId };
 
   // Enemy movement: 1 tile/tick toward settlement
   const center = findSettlementCenter(buildings);
@@ -1005,7 +1019,7 @@ export function tick(state: GameState): GameState {
       adjTarget.hp -= Math.max(1, e.attack);
       if (adjTarget.hp <= 0) {
         // Destroy the building
-        destroyBuilding(adjTarget, buildings, grid, villagers, state.width, state.height);
+        destroyBuilding(adjTarget, buildings, grid, villagers, state.width, state.height, nextBldIdRef);
       }
       continue;
     }
@@ -1020,7 +1034,7 @@ export function tick(state: GameState): GameState {
       if (adjTarget) {
         adjTarget.hp -= Math.max(1, e.attack);
         if (adjTarget.hp <= 0) {
-          destroyBuilding(adjTarget, buildings, grid, villagers, state.width, state.height);
+          destroyBuilding(adjTarget, buildings, grid, villagers, state.width, state.height, nextBldIdRef);
         }
       }
     }
@@ -1043,8 +1057,24 @@ export function tick(state: GameState): GameState {
       if (dist < nearestDist) { nearestDist = dist; nearestEnemy = e; }
     }
 
-    if (!nearestEnemy) continue; // no enemies alive
-    if (nearestDist > GUARD_DETECT_RANGE) continue; // too far to detect
+    // No enemies or too far — patrol
+    if (!nearestEnemy || nearestDist > GUARD_DETECT_RANGE) {
+      if (v.patrolRoute.length > 0 && !isNight) {
+        const waypoint = v.patrolRoute[v.patrolIndex % v.patrolRoute.length];
+        if (v.x === waypoint.x && v.y === waypoint.y) {
+          // Reached waypoint — advance to next
+          v.patrolIndex = (v.patrolIndex + 1) % v.patrolRoute.length;
+        } else {
+          // Move toward current waypoint (1 tile/tick)
+          const patrolPath = findPath(grid, state.width, state.height, v.x, v.y, waypoint.x, waypoint.y);
+          if (patrolPath.length > 0) {
+            v.x = patrolPath[0].x;
+            v.y = patrolPath[0].y;
+          }
+        }
+      }
+      continue;
+    }
 
     // If adjacent — fight
     if (isAdjacent(v.x, v.y, nearestEnemy.x, nearestEnemy.y)) {
@@ -1097,6 +1127,40 @@ export function tick(state: GameState): GameState {
   // If all enemies cleared, reduce raid bar
   if (state.enemies.length > 0 && enemies.length === 0) {
     raidBar = Math.max(0, raidBar - 20);
+  }
+  nextBuildingId = nextBldIdRef.value;
+
+  // Convert any 0-hp buildings to rubble (handles externally-damaged buildings)
+  for (let i = buildings.length - 1; i >= 0; i--) {
+    const b = buildings[i];
+    if (b.hp <= 0 && b.type !== 'rubble') {
+      // Unassign workers/residents
+      for (const v of villagers) {
+        if (v.jobBuildingId === b.id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
+        if (v.homeBuildingId === b.id) v.homeBuildingId = null;
+      }
+      buildings.splice(i, 1);
+      for (let dy = 0; dy < b.height; dy++) {
+        for (let dx = 0; dx < b.width; dx++) {
+          const gy = b.y + dy;
+          const gx = b.x + dx;
+          if (gy < state.height && gx < state.width) {
+            const rubble: Building = {
+              id: `b${nextBuildingId++}`,
+              type: 'rubble', x: gx, y: gy, width: 1, height: 1,
+              assignedWorkers: [],
+              hp: 1, maxHp: 1,
+              constructed: false,
+              constructionProgress: 0,
+              constructionRequired: CONSTRUCTION_TICKS['rubble'] || 30,
+              localBuffer: {}, bufferCapacity: 0,
+            };
+            buildings.push(rubble);
+            grid[gy][gx].building = rubble;
+          }
+        }
+      }
+    }
   }
 
   // ==============================================
@@ -1456,7 +1520,7 @@ export function tick(state: GameState): GameState {
     merchant, merchantTimer, prosperity, season, weather,
     renown, events, completedQuests,
     nextVillagerId: nextVId,
-    nextEnemyId, nextAnimalId, nextDropId,
+    nextEnemyId, nextAnimalId, nextDropId, nextBuildingId,
   };
 
   const errors = validateState(newState);
@@ -1468,24 +1532,36 @@ export function tick(state: GameState): GameState {
 function destroyBuilding(
   building: Building, buildings: Building[], grid: Tile[][],
   villagers: Villager[], width: number, height: number,
+  nextBuildingIdRef: { value: number },
 ): void {
-  // Clear from grid
+  // Unassign workers/residents
+  for (const v of villagers) {
+    if (v.jobBuildingId === building.id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
+    if (v.homeBuildingId === building.id) v.homeBuildingId = null;
+  }
+  // Remove original building from array
+  const idx = buildings.findIndex(b => b.id === building.id);
+  if (idx >= 0) buildings.splice(idx, 1);
+  // Create rubble at each tile the building occupied
   for (let dy = 0; dy < building.height; dy++) {
     for (let dx = 0; dx < building.width; dx++) {
       const gy = building.y + dy;
       const gx = building.x + dx;
       if (gy < height && gx < width) {
-        grid[gy][gx].building = null;
+        const rubble: Building = {
+          id: `b${nextBuildingIdRef.value++}`,
+          type: 'rubble', x: gx, y: gy, width: 1, height: 1,
+          assignedWorkers: [],
+          hp: 1, maxHp: 1,
+          constructed: false,
+          constructionProgress: 0,
+          constructionRequired: CONSTRUCTION_TICKS['rubble'] || 30,
+          localBuffer: {}, bufferCapacity: 0,
+        };
+        buildings.push(rubble);
+        grid[gy][gx].building = rubble;
       }
     }
-  }
-  // Remove from buildings array
-  const idx = buildings.findIndex(b => b.id === building.id);
-  if (idx >= 0) buildings.splice(idx, 1);
-  // Unassign workers/residents
-  for (const v of villagers) {
-    if (v.jobBuildingId === building.id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
-    if (v.homeBuildingId === building.id) v.homeBuildingId = null;
   }
 }
 
@@ -1747,6 +1823,21 @@ export function setGuard(state: GameState, villagerId: string): GameState {
   });
 
   return { ...state, buildings: newBuildings, villagers: newVillagers };
+}
+
+export function setPatrol(state: GameState, villagerId: string, waypoints: { x: number; y: number }[]): GameState {
+  const villager = state.villagers.find(v => v.id === villagerId);
+  if (!villager) { console.log(`ERROR: Villager ${villagerId} not found`); return state; }
+  if (villager.role !== 'guard') { console.log(`ERROR: ${villagerId} is not a guard`); return state; }
+
+  const newVillagers = state.villagers.map(v => {
+    if (v.id === villagerId) {
+      return { ...v, skills: { ...v.skills }, traits: [...v.traits], patrolRoute: [...waypoints], patrolIndex: 0 };
+    }
+    return v;
+  });
+
+  return { ...state, villagers: newVillagers };
 }
 
 // ================================================================

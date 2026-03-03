@@ -54,7 +54,9 @@ export type BuildingType =
   | 'blacksmith' | 'toolmaker' | 'armorer'
   | 'town_hall' | 'wall' | 'fence'
   | 'research_desk'
-  | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace' | 'hunting_lodge';
+  | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace' | 'hunting_lodge'
+  | 'gate'
+  | 'rubble';
 
 export interface Building {
   id: string;
@@ -335,6 +337,16 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 10 }, description: 'Hunters track and kill wildlife',
     maxWorkers: 2, production: null, mapChar: 'H',
   },
+  gate: {
+    type: 'gate', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 5, stone: 2 }, description: 'Lets allies through, blocks enemies',
+    maxWorkers: 0, production: null, mapChar: '=',
+  },
+  rubble: {
+    type: 'rubble', width: 1, height: 1, allowedTerrain: ['grass', 'stone'],
+    cost: {}, description: 'Clearable rubble from a destroyed building',
+    maxWorkers: 1, production: null, mapChar: '%',
+  },
 };
 
 // --- Skills ---
@@ -421,6 +433,9 @@ export interface Villager {
   carryTotal: number;
   workProgress: number;
   haulingToWork: boolean; // true = picking up inputs for processing building
+  // Guard patrol
+  patrolRoute: { x: number; y: number }[]; // waypoints for guard patrol
+  patrolIndex: number; // current waypoint index
 }
 
 // --- Combat ---
@@ -503,7 +518,8 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   blacksmith: 45, toolmaker: 45, armorer: 50,
   town_hall: 100, wall: 100, fence: 30,
   research_desk: 30, chicken_coop: 25, livestock_barn: 40,
-  apiary: 20, marketplace: 60, hunting_lodge: 30,
+  apiary: 20, marketplace: 60, hunting_lodge: 30, gate: 80,
+  rubble: 1,
 };
 
 // V2: Construction time (work ticks needed to complete a building)
@@ -516,7 +532,8 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   blacksmith: 80, toolmaker: 100, armorer: 120,
   town_hall: 240, wall: 20, fence: 10,
   research_desk: 60, chicken_coop: 45, livestock_barn: 75,
-  apiary: 35, marketplace: 120, hunting_lodge: 50,
+  apiary: 35, marketplace: 120, hunting_lodge: 50, gate: 15,
+  rubble: 30,
 };
 
 export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }> = {
@@ -663,6 +680,8 @@ export function createVillager(id: number, x: number, y: number): Villager {
     carrying: {}, carryTotal: 0,
     workProgress: 0,
     haulingToWork: false,
+    patrolRoute: [],
+    patrolIndex: 0,
   };
 }
 
