@@ -14,7 +14,7 @@ import {
 } from './helpers.js';
 import { findPath, planPath } from './movement.js';
 
-function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType): number {
+function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean): number {
   let morale = 50;
   morale += housingMorale;
   switch (v.lastAte) {
@@ -29,6 +29,10 @@ function calculateMorale(v: Villager, housingMorale: number, season: Season, wea
   morale += WEATHER_MORALE[weather];
   // Clothing: unclothed in winter = severe penalty
   if (season === 'winter' && !v.clothed) morale -= 15;
+  // Grief penalty
+  if (v.grief > 0) morale -= 15;
+  // Family proximity bonus
+  if (familyNearby) morale += 10;
   // Food variety bonus — unique food types in recent meals
   const uniqueFoods = new Set(v.recentMeals.filter(m => m !== 'nothing'));
   if (uniqueFoods.size >= 3) morale += 10;
@@ -67,6 +71,11 @@ export function processDailyChecks(ts: TickState): void {
   // Tavern visit cooldown — decrement daily
   for (const v of ts.villagers) {
     if (v.tavernVisitCooldown > 0) v.tavernVisitCooldown -= 1;
+  }
+
+  // Grief countdown — decrement daily
+  for (const v of ts.villagers) {
+    if (v.grief > 0) v.grief -= 1;
   }
 
   // Clothing durability — decrement daily, unclothed when worn out
@@ -108,7 +117,10 @@ export function processDailyChecks(ts: TickState): void {
       const home = ts.buildings.find(b => b.id === v.homeBuildingId);
       if (home) housingMorale = HOUSING_INFO[home.type]?.morale ?? 0;
     }
-    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather);
+    // Check if any family member shares the same home
+    const familyNearby = v.family.length > 0 && v.homeBuildingId !== null &&
+      ts.villagers.some(other => other.id !== v.id && v.family.includes(other.id) && other.homeBuildingId === v.homeBuildingId);
+    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather, familyNearby);
   }
 
   // Housing check
@@ -134,10 +146,31 @@ export function processDailyChecks(ts: TickState): void {
     }
   }
 
+  // Death from HP=0 (disease, combat overflow, etc.)
+  const dead = ts.villagers.filter(v => v.hp <= 0);
+  for (const d of dead) {
+    for (const b of ts.buildings) b.assignedWorkers = b.assignedWorkers.filter(id => id !== d.id);
+    // Apply grief to family members
+    for (const other of ts.villagers) {
+      if (other.family.includes(d.id)) {
+        other.grief = 5; // 5 days of grief
+        other.family = other.family.filter(id => id !== d.id);
+      }
+    }
+  }
+  ts.villagers = ts.villagers.filter(v => v.hp > 0);
+
   // Departure — food<=0 OR homeless>=5 OR morale<=10
   const departing = ts.villagers.filter(v => v.food <= 0 || v.homeless >= 5 || v.morale <= 10);
   for (const d of departing) {
     for (const b of ts.buildings) b.assignedWorkers = b.assignedWorkers.filter(id => id !== d.id);
+    // Apply grief to family members when someone leaves
+    for (const other of ts.villagers) {
+      if (other.family.includes(d.id)) {
+        other.grief = 3; // 3 days of grief for departure (less than death)
+        other.family = other.family.filter(id => id !== d.id);
+      }
+    }
   }
   ts.villagers = ts.villagers.filter(v => v.food > 0 && v.homeless < 5 && v.morale > 10);
 
@@ -154,6 +187,13 @@ export function processDailyChecks(ts: TickState): void {
       const edgeY = ts.newDay % 2 === 0 ? entrance.y : ts.height - 1;
       const newV = createVillager(ts.nextVillagerId, edgeX, edgeY);
       newV.homeBuildingId = emptyHome;
+      // 20% chance new settler has family bond with existing villager
+      const famRng = ((ts.newDay * 48271 + ts.nextVillagerId * 16807) & 0x7fffffff) / 0x7fffffff;
+      if (famRng < 0.20 && ts.villagers.length > 0) {
+        const partner = ts.villagers[ts.nextVillagerId % ts.villagers.length];
+        newV.family = [partner.id];
+        partner.family = [...partner.family, newV.id];
+      }
       // Walk home instead of spawning at home
       planPath(newV, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
       newV.state = 'traveling_home';

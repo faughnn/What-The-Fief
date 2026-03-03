@@ -469,6 +469,9 @@ export interface Villager {
   // Disease
   sick: boolean;
   sickDays: number; // days remaining of sickness
+  // Relationships
+  family: string[]; // IDs of family members
+  grief: number; // days of grief remaining after family member death
 }
 
 // --- Combat ---
@@ -742,6 +745,8 @@ export function createVillager(id: number, x: number, y: number): Villager {
     tavernVisitCooldown: 0,
     sick: false,
     sickDays: 0,
+    family: [],
+    grief: 0,
   };
 }
 
