@@ -535,6 +535,8 @@ export function processVillagerStateMachine(ts: TickState): void {
             ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
             v.food = Math.min(10, v.food + satisfaction);
             v.lastAte = resource as FoodEaten;
+            v.recentMeals.push(resource as FoodEaten);
+            if (v.recentMeals.length > 5) v.recentMeals.shift();
             fed = true;
             break;
           }
@@ -542,6 +544,8 @@ export function processVillagerStateMachine(ts: TickState): void {
         if (!fed) {
           v.food = Math.max(0, v.food - 0.5);
           v.lastAte = 'nothing' as FoodEaten;
+          v.recentMeals.push('nothing' as FoodEaten);
+          if (v.recentMeals.length > 5) v.recentMeals.shift();
         }
 
         // Done eating — resume work or go home

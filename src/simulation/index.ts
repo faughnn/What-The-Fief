@@ -43,6 +43,8 @@ export function tick(state: GameState): GameState {
       traits: [...v.traits],
       path: [...v.path],
       carrying: { ...v.carrying },
+      patrolRoute: [...v.patrolRoute],
+      recentMeals: [...v.recentMeals],
     })),
     resources: { ...state.resources },
     buildings: state.buildings.map(b => ({

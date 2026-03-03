@@ -445,6 +445,8 @@ export interface Villager {
   // Clothing
   clothed: boolean;
   clothingDurability: number; // days remaining
+  // Food variety
+  recentMeals: FoodEaten[]; // last 5 meals for variety bonus
 }
 
 // --- Combat ---
@@ -706,6 +708,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     patrolIndex: 0,
     clothed: false,
     clothingDurability: 0,
+    recentMeals: [],
   };
 }
 

@@ -29,6 +29,10 @@ function calculateMorale(v: Villager, housingMorale: number, season: Season, wea
   morale += WEATHER_MORALE[weather];
   // Clothing: unclothed in winter = severe penalty
   if (season === 'winter' && !v.clothed) morale -= 15;
+  // Food variety bonus — unique food types in recent meals
+  const uniqueFoods = new Set(v.recentMeals.filter(m => m !== 'nothing'));
+  if (uniqueFoods.size >= 3) morale += 10;
+  else if (uniqueFoods.size >= 2) morale += 5;
   return Math.max(0, Math.min(100, morale));
 }
 
