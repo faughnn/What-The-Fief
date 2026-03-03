@@ -1,0 +1,281 @@
+// combat.ts — Raid spawning, enemy movement, guard AI, melee combat
+
+import {
+  Building, BuildingType, Villager, Tile,
+  EnemyEntity, EnemyType, ENEMY_TEMPLATES, GUARD_COMBAT,
+  CONSTRUCTION_TICKS, BUILDING_MAX_HP, ALL_RESOURCES,
+} from '../world.js';
+import { TickState, isAdjacent, hasTech } from './helpers.js';
+import { findPath, findPathEnemy } from './movement.js';
+
+// --- Find settlement center (average building position) ---
+function findSettlementCenter(buildings: Building[]): { x: number; y: number } {
+  if (buildings.length === 0) return { x: 0, y: 0 };
+  let sx = 0, sy = 0;
+  for (const b of buildings) { sx += b.x; sy += b.y; }
+  return { x: Math.round(sx / buildings.length), y: Math.round(sy / buildings.length) };
+}
+
+// --- Find adjacent wall/building for enemy to attack ---
+function findAdjacentTarget(
+  x: number, y: number, grid: Tile[][], width: number, height: number, buildings: Building[],
+): Building | null {
+  const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+  // Priority: walls first, then fences, then other buildings
+  for (const prio of ['wall', 'fence', null] as (BuildingType | null)[]) {
+    for (const { dx, dy } of dirs) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+      const tile = grid[ny][nx];
+      if (tile.building) {
+        if (prio === null || tile.building.type === prio) {
+          return buildings.find(b => b.id === tile.building!.id) || null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// --- Helper: destroy a building ---
+function destroyBuilding(
+  building: Building, buildings: Building[], grid: Tile[][],
+  villagers: Villager[], width: number, height: number,
+  nextBuildingIdRef: { value: number },
+): void {
+  // Unassign workers/residents
+  for (const v of villagers) {
+    if (v.jobBuildingId === building.id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
+    if (v.homeBuildingId === building.id) v.homeBuildingId = null;
+  }
+  // Remove original building from array
+  const idx = buildings.findIndex(b => b.id === building.id);
+  if (idx >= 0) buildings.splice(idx, 1);
+  // Create rubble at each tile the building occupied
+  for (let dy = 0; dy < building.height; dy++) {
+    for (let dx = 0; dx < building.width; dx++) {
+      const gy = building.y + dy;
+      const gx = building.x + dx;
+      if (gy < height && gx < width) {
+        const rubble: Building = {
+          id: `b${nextBuildingIdRef.value++}`,
+          type: 'rubble', x: gx, y: gy, width: 1, height: 1,
+          assignedWorkers: [],
+          hp: 1, maxHp: 1,
+          constructed: false,
+          constructionProgress: 0,
+          constructionRequired: CONSTRUCTION_TICKS['rubble'] || 30,
+          localBuffer: {}, bufferCapacity: 0,
+        };
+        buildings.push(rubble);
+        grid[gy][gx].building = rubble;
+      }
+    }
+  }
+}
+
+export function processRaidAndCombat(ts: TickState): void {
+  // Track original enemy count (before raid spawning) for cleared check
+  const enemyCountBefore = ts.enemies.length;
+
+  // RAID CHECK (daily, spawn enemies at map edge)
+  if (ts.isNewDay && ts.newDay > 20) {
+    let totalRes = 0;
+    for (const key of ALL_RESOURCES) totalRes += ts.resources[key];
+    const raidProsperity = totalRes / 50 + ts.buildings.length + ts.villagers.length;
+    ts.raidBar += raidProsperity * 0.2;
+  }
+
+  // Trigger raid — spawn enemies at map edge
+  if (ts.raidBar >= 100 && ts.enemies.length === 0 && ts.isNewDay) {
+    ts.raidLevel += 1;
+    ts.raidBar = 0;
+    const numBandits = ts.raidLevel + 1;
+    const numWolves = ts.raidLevel >= 4 ? ts.raidLevel - 2 : 0;
+    // Spawn at random edge based on day
+    const edgeSide = ts.newDay % 4; // 0=north, 1=south, 2=west, 3=east
+    for (let i = 0; i < numBandits + numWolves; i++) {
+      const type: EnemyType = i < numBandits ? 'bandit' : 'wolf';
+      const t = ENEMY_TEMPLATES[type];
+      let ex: number, ey: number;
+      switch (edgeSide) {
+        case 0: ex = Math.min(ts.width - 1, (i * 3) % ts.width); ey = 0; break;
+        case 1: ex = Math.min(ts.width - 1, (i * 3) % ts.width); ey = ts.height - 1; break;
+        case 2: ex = 0; ey = Math.min(ts.height - 1, (i * 3) % ts.height); break;
+        default: ex = ts.width - 1; ey = Math.min(ts.height - 1, (i * 3) % ts.height); break;
+      }
+      ts.enemies.push({
+        id: `e${ts.nextEnemyId}`, type, x: ex, y: ey,
+        hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
+      });
+      ts.nextEnemyId++;
+    }
+    ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
+  }
+
+  // SPATIAL COMBAT (per-tick)
+  const nextBldIdRef = { value: ts.nextBuildingId };
+
+  // Enemy movement: 1 tile/tick toward settlement
+  const center = findSettlementCenter(ts.buildings);
+  for (const e of ts.enemies) {
+    if (e.hp <= 0) continue;
+
+    // Check if adjacent to a guard — if so, fight instead of moving
+    const adjacentGuard = ts.villagers.find(v =>
+      v.role === 'guard' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
+    );
+    if (adjacentGuard) continue; // will fight below
+
+    // Check if adjacent to a wall/building — attack it
+    const adjTarget = findAdjacentTarget(e.x, e.y, ts.grid, ts.width, ts.height, ts.buildings);
+    if (adjTarget && (adjTarget.type === 'wall' || adjTarget.type === 'fence')) {
+      // Attack the wall/fence
+      adjTarget.hp -= Math.max(1, e.attack);
+      if (adjTarget.hp <= 0) {
+        // Destroy the building
+        destroyBuilding(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
+      }
+      continue;
+    }
+
+    // Move toward settlement center
+    const path = findPathEnemy(ts.grid, ts.width, ts.height, e.x, e.y, center.x, center.y);
+    if (path.length > 0) {
+      e.x = path[0].x;
+      e.y = path[0].y;
+    } else {
+      // Can't reach center — try to attack nearest adjacent building
+      if (adjTarget) {
+        adjTarget.hp -= Math.max(1, e.attack);
+        if (adjTarget.hp <= 0) {
+          destroyBuilding(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
+        }
+      }
+    }
+  }
+
+  // Guard AI: detect enemies, move to intercept, fight adjacent
+  const attackBonus = hasTech(ts.research, 'military_tactics') ? 2 : 0;
+  const defenseBonus = hasTech(ts.research, 'fortification') ? 1 : 0;
+  const GUARD_DETECT_RANGE = 10;
+
+  for (const v of ts.villagers) {
+    if (v.role !== 'guard' || v.hp <= 0) continue;
+
+    // Find nearest enemy
+    let nearestEnemy: EnemyEntity | null = null;
+    let nearestDist = Infinity;
+    for (const e of ts.enemies) {
+      if (e.hp <= 0) continue;
+      const dist = Math.abs(e.x - v.x) + Math.abs(e.y - v.y);
+      if (dist < nearestDist) { nearestDist = dist; nearestEnemy = e; }
+    }
+
+    // No enemies or too far — patrol
+    if (!nearestEnemy || nearestDist > GUARD_DETECT_RANGE) {
+      if (v.patrolRoute.length > 0 && !ts.isNight) {
+        const waypoint = v.patrolRoute[v.patrolIndex % v.patrolRoute.length];
+        if (v.x === waypoint.x && v.y === waypoint.y) {
+          // Reached waypoint — advance to next
+          v.patrolIndex = (v.patrolIndex + 1) % v.patrolRoute.length;
+        } else {
+          // Move toward current waypoint (1 tile/tick)
+          const patrolPath = findPath(ts.grid, ts.width, ts.height, v.x, v.y, waypoint.x, waypoint.y);
+          if (patrolPath.length > 0) {
+            v.x = patrolPath[0].x;
+            v.y = patrolPath[0].y;
+          }
+        }
+      }
+      continue;
+    }
+
+    // If adjacent — fight
+    if (isAdjacent(v.x, v.y, nearestEnemy.x, nearestEnemy.y)) {
+      const stats = GUARD_COMBAT[v.tool];
+      // Guard attacks enemy
+      nearestEnemy.hp -= Math.max(1, stats.attack + attackBonus - nearestEnemy.defense);
+      // Enemy attacks guard
+      const guardDef = stats.defense + defenseBonus;
+      v.hp -= Math.max(1, nearestEnemy.attack - guardDef);
+      continue;
+    }
+
+    // Move toward enemy (1 tile/tick)
+    const guardPath = findPath(ts.grid, ts.width, ts.height, v.x, v.y, nearestEnemy.x, nearestEnemy.y);
+    if (guardPath.length > 0) {
+      v.x = guardPath[0].x;
+      v.y = guardPath[0].y;
+    }
+  }
+
+  // Enemies attack adjacent non-guard villagers (after guards/walls/buildings)
+  for (const e of ts.enemies) {
+    if (e.hp <= 0) continue;
+    // Already fighting a guard? Skip
+    const fightingGuard = ts.villagers.some(v =>
+      v.role === 'guard' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
+    );
+    if (fightingGuard) continue;
+    // Attack adjacent non-guard villager
+    const adjacentVillager = ts.villagers.find(v =>
+      v.role !== 'guard' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
+    );
+    if (adjacentVillager) {
+      adjacentVillager.hp -= Math.max(1, e.attack);
+    }
+  }
+
+  // Remove dead enemies
+  for (let i = ts.enemies.length - 1; i >= 0; i--) {
+    if (ts.enemies[i].hp <= 0) ts.enemies.splice(i, 1);
+  }
+
+  // Remove dead villagers (guards and non-guards)
+  const deadVillagerIds = new Set(ts.villagers.filter(v => v.hp <= 0).map(v => v.id));
+  if (deadVillagerIds.size > 0) {
+    for (const b of ts.buildings) b.assignedWorkers = b.assignedWorkers.filter(id => !deadVillagerIds.has(id));
+    ts.villagers = ts.villagers.filter(v => !deadVillagerIds.has(v.id));
+  }
+
+  // If all enemies cleared, reduce raid bar
+  if (enemyCountBefore > 0 && ts.enemies.length === 0) {
+    ts.raidBar = Math.max(0, ts.raidBar - 20);
+  }
+  ts.nextBuildingId = nextBldIdRef.value;
+
+  // Convert any 0-hp buildings to rubble (handles externally-damaged buildings)
+  for (let i = ts.buildings.length - 1; i >= 0; i--) {
+    const b = ts.buildings[i];
+    if (b.hp <= 0 && b.type !== 'rubble') {
+      // Unassign workers/residents
+      for (const v of ts.villagers) {
+        if (v.jobBuildingId === b.id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
+        if (v.homeBuildingId === b.id) v.homeBuildingId = null;
+      }
+      ts.buildings.splice(i, 1);
+      for (let dy = 0; dy < b.height; dy++) {
+        for (let dx = 0; dx < b.width; dx++) {
+          const gy = b.y + dy;
+          const gx = b.x + dx;
+          if (gy < ts.height && gx < ts.width) {
+            const rubble: Building = {
+              id: `b${ts.nextBuildingId++}`,
+              type: 'rubble', x: gx, y: gy, width: 1, height: 1,
+              assignedWorkers: [],
+              hp: 1, maxHp: 1,
+              constructed: false,
+              constructionProgress: 0,
+              constructionRequired: CONSTRUCTION_TICKS['rubble'] || 30,
+              localBuffer: {}, bufferCapacity: 0,
+            };
+            ts.buildings.push(rubble);
+            ts.grid[gy][gx].building = rubble;
+          }
+        }
+      }
+    }
+  }
+}
