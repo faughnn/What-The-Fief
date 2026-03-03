@@ -18,6 +18,7 @@ import {
 } from './world.js';
 
 // --- BFS Pathfinding ---
+// Buildings block movement except for the destination tile (workers enter their workplace)
 export function findPath(
   grid: Tile[][], width: number, height: number,
   fromX: number, fromY: number, toX: number, toY: number,
@@ -37,6 +38,11 @@ export function findPath(
       if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
       if (visited.has(key)) continue;
       if (grid[ny][nx].terrain === 'water') continue;
+      // Buildings block movement — except the destination tile (workers can enter)
+      if (nx !== toX || ny !== toY) {
+        const tile = grid[ny][nx];
+        if (tile.building) continue;
+      }
       const newPath = [...current.path, { x: nx, y: ny }];
       if (nx === toX && ny === toY) return newPath;
       visited.add(key);
@@ -641,6 +647,12 @@ export function tick(state: GameState): GameState {
         const job = buildings.find(b => b.id === v.jobBuildingId);
         if (!job) { v.state = 'idle'; break; }
 
+        // Repair: if building is damaged, repair 1 HP/tick before producing
+        if (job.hp < job.maxHp) {
+          job.hp = Math.min(job.maxHp, job.hp + 1);
+          break; // spent this tick repairing
+        }
+
         // Hunger interrupt — very hungry workers stop to eat
         if (v.food <= 2) {
           if (startEating(v, buildings, resources, grid, state.width, state.height)) break;
@@ -1047,16 +1059,33 @@ export function tick(state: GameState): GameState {
     }
   }
 
+  // Enemies attack adjacent non-guard villagers (after guards/walls/buildings)
+  for (const e of enemies) {
+    if (e.hp <= 0) continue;
+    // Already fighting a guard? Skip
+    const fightingGuard = villagers.some(v =>
+      v.role === 'guard' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
+    );
+    if (fightingGuard) continue;
+    // Attack adjacent non-guard villager
+    const adjacentVillager = villagers.find(v =>
+      v.role !== 'guard' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
+    );
+    if (adjacentVillager) {
+      adjacentVillager.hp -= Math.max(1, e.attack);
+    }
+  }
+
   // Remove dead enemies
   for (let i = enemies.length - 1; i >= 0; i--) {
     if (enemies[i].hp <= 0) enemies.splice(i, 1);
   }
 
-  // Remove dead guards
-  const deadGuardIds = new Set(villagers.filter(v => v.role === 'guard' && v.hp <= 0).map(v => v.id));
-  if (deadGuardIds.size > 0) {
-    for (const b of buildings) b.assignedWorkers = b.assignedWorkers.filter(id => !deadGuardIds.has(id));
-    villagers = villagers.filter(v => !deadGuardIds.has(v.id));
+  // Remove dead villagers (guards and non-guards)
+  const deadVillagerIds = new Set(villagers.filter(v => v.hp <= 0).map(v => v.id));
+  if (deadVillagerIds.size > 0) {
+    for (const b of buildings) b.assignedWorkers = b.assignedWorkers.filter(id => !deadVillagerIds.has(id));
+    villagers = villagers.filter(v => !deadVillagerIds.has(v.id));
   }
 
   // If all enemies cleared, reduce raid bar

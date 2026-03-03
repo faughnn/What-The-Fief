@@ -1,25 +1,23 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation with combat, construction, and processing input hauling.
-- **What exists**: 120 ticks/day. Villagers walk 1 tile/tick with BFS pathfinding. Production → local buffer → haul to storehouse. Processing buildings (mill, bakery, etc.) consume inputs from local buffer; workers haul inputs from storehouse. Spatial combat: enemies march 1 tile/tick, attack walls/buildings, guards intercept. Construction: buildings start as sites, workers build tick-by-tick. Full day/night cycle with state machine. 63 tests all passing.
-- **What's next**: Apply Bellwright Question, identify remaining gaps, build next priority.
+- **Status**: V2 spatial simulation substantially complete. All core invariants enforced.
+- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, guards intercept, melee per-tick). Construction sites. Local buffer production + physical hauling. Processing buildings consume local inputs. Physical eating (travel to food source). Building repair. Villager death. 81 tests all passing.
+- **What's next**: Animals, guard patrol routes, then comprehensive Bellwright assessment.
 
 ## The Bellwright Question
 
 **Is this a complete 2D Bellwright? Be extremely strict and pedantic.**
 
-No. Significant progress — spatial foundation is solid, but gaps remain:
+No, but much closer. The spatial foundation is nearly complete:
 
-1. **No animals on the map.** Wildlife doesn't exist as grid entities. Deer, wolves, boars should roam. Hunters should track and kill them. Drops at death location, hauled to storage.
-2. **Eating doesn't require physical travel.** Food is consumed from global pool at dawn, not by villagers physically traveling to a food source.
-3. **Buildings don't block movement.** Buildings occupy grid tiles but pathfinding doesn't treat them as obstacles (except walls for enemies).
-4. **No guard patrol routes.** Guards intercept enemies reactively but have no patrol behavior or configurable routes.
-5. **No building repair.** Buildings take damage from enemies but workers can't repair them.
-6. **No villager death from combat.** Villagers have HP but aren't removed on death.
-7. **Eating teleports food.** The invariant says "To eat: must be at a building that has food." Currently food is consumed globally.
+1. **No animals on the map.** Wildlife (deer, wolves, boars) doesn't exist as grid entities. Hunters can't track/kill them. No resource drops at death location.
+2. **No guard patrol routes.** Guards intercept enemies reactively but have no configurable patrol behavior.
+3. **No marketplace/trading requires presence.** Trading is still instant (buy/sell from anywhere).
+4. **No gate logic.** Gates should let allies through but block enemies.
+5. **No fog of war exploration.** Map starts revealed in tests; scout reveal works but fog isn't fully integrated.
 
-**What IS proven by tests (63 passing):**
+**What IS proven by tests (81 passing):**
 - ✅ 120 ticks = 1 day (tick model)
 - ✅ Villagers move max 1 tile per tick (no teleportation)
 - ✅ 15 tiles takes ≥15 ticks to traverse
@@ -27,6 +25,8 @@ No. Significant progress — spatial foundation is solid, but gaps remain:
 - ✅ Production goes to building local buffer, not global
 - ✅ Hauling moves resources from building to storehouse
 - ✅ Water blocks movement / pathfinding around obstacles
+- ✅ Buildings block movement (pathfind around)
+- ✅ Workers can enter their workplace (destination exception)
 - ✅ Villagers sleep at night
 - ✅ Buildings have HP and local buffers
 - ✅ Seasons change every 10 days
@@ -36,6 +36,7 @@ No. Significant progress — spatial foundation is solid, but gaps remain:
 - ✅ Guards intercept enemies
 - ✅ Melee combat: adjacent entities exchange damage per tick
 - ✅ Dead enemies removed from map
+- ✅ Dead villagers removed from map (combat death)
 - ✅ Wall destroyed at 0 HP
 - ✅ Buildings start as construction sites
 - ✅ Workers build construction sites tick-by-tick (requires physical presence)
@@ -43,18 +44,25 @@ No. Significant progress — spatial foundation is solid, but gaps remain:
 - ✅ Completed buildings become functional
 - ✅ Processing buildings consume inputs from local buffer (not global)
 - ✅ Workers haul inputs from storehouse to processing building
-- ✅ Processing input hauling requires physical travel
+- ✅ Eating requires physical travel to food source (no instant feeding)
+- ✅ Hungry villagers prioritize eating over work
+- ✅ Well-fed villagers skip eating, go to work
+- ✅ Workers repair damaged buildings (1 HP/tick)
+- ✅ Repair completes before production resumes
+- ✅ Enemies attack adjacent non-guard villagers
 
 ## Active Files
 - `CLAUDE.md` — autonomous instructions, invariants, the Bellwright Question
-- `src/world.ts` — data types (~700 lines): types, templates, constants, v2 fields
-- `src/simulation.ts` — v2 game rules (~1350 lines): tick(), actions, validation
+- `src/world.ts` — data types (~700 lines)
+- `src/simulation.ts` — v2 game rules (~1400 lines)
 - `src/render-text.ts` — text renderers (~240 lines)
 - `src/main.ts` — CLI entry point (~80 lines)
-- `src/tests/test-v2-core.ts` — v2 core tests (35 tests)
-- `src/tests/test-v2-combat.ts` — v2 combat tests (10 tests)
-- `src/tests/test-v2-construction.ts` — v2 construction tests (11 tests)
-- `src/tests/test-v2-processing.ts` — v2 processing input hauling tests (7 tests)
+- `src/tests/test-v2-core.ts` — 35 tests
+- `src/tests/test-v2-combat.ts` — 10 tests
+- `src/tests/test-v2-construction.ts` — 11 tests
+- `src/tests/test-v2-processing.ts` — 7 tests
+- `src/tests/test-v2-eating.ts` — 9 tests
+- `src/tests/test-v2-physics.ts` — 9 tests
 
 ## Key Decisions
 - Grid convention: grid[y][x]
@@ -65,6 +73,8 @@ No. Significant progress — spatial foundation is solid, but gaps remain:
 - Tools are bonuses not necessities (none=1.0x baseline)
 - Player is god-like overseer, no character on grid
 - Production → local buffer → haul to storehouse → global resources
-- Processing buildings: inputs hauled from storehouse → local buffer → consumed → output to local buffer → hauled to storehouse
-- Hauling from processing buildings only carries outputs, preserves inputs in local buffer
-- Tents/fences are instant construction for early game viability
+- Processing buildings: inputs hauled from storehouse → local buffer → consumed → output hauled
+- Buildings block pathfinding (destination tile is exception for workers)
+- Eating is physical: travel to storehouse, consume food from global resources there
+- Villagers die at 0 HP (removed from map)
+- Workers repair damaged buildings before producing (1 HP/tick)
