@@ -68,6 +68,8 @@ export interface Building {
   hp: number;
   maxHp: number;
   constructed: boolean;
+  constructionProgress: number;
+  constructionRequired: number;
   localBuffer: Partial<Record<ResourceType, number>>;
   bufferCapacity: number;
 }
@@ -378,7 +380,9 @@ export type VillagerState =
   | 'eating'
   | 'traveling_home'
   | 'idle'
-  | 'scouting';
+  | 'scouting'
+  | 'traveling_to_build'
+  | 'constructing';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
 export type Direction = 'n' | 's' | 'e' | 'w';
 
@@ -455,6 +459,19 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   town_hall: 100, wall: 100, fence: 30,
   research_desk: 30, chicken_coop: 25, livestock_barn: 40,
   apiary: 20, marketplace: 60,
+};
+
+// V2: Construction time (work ticks needed to complete a building)
+export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
+  tent: 30, house: 90, manor: 180,
+  farm: 60, woodcutter: 45, quarry: 90, storehouse: 90,
+  herb_garden: 40, flax_field: 40, hemp_field: 40, iron_mine: 120,
+  sawmill: 75, smelter: 100, mill: 60, bakery: 60,
+  tanner: 60, weaver: 60, ropemaker: 50,
+  blacksmith: 80, toolmaker: 100, armorer: 120,
+  town_hall: 240, wall: 20, fence: 10,
+  research_desk: 60, chicken_coop: 45, livestock_barn: 75,
+  apiary: 35, marketplace: 120,
 };
 
 export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }> = {

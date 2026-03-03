@@ -14,6 +14,7 @@ import {
   WEATHER_MORALE, WEATHER_OUTDOOR_MULT, OUTDOOR_BUILDINGS, HOUSING_INFO,
   TICKS_PER_DAY, NIGHT_TICKS, CARRY_CAPACITY, DEFAULT_BUFFER_CAP,
   STOREHOUSE_BUFFER_CAP, BUILDING_MAX_HP, HOME_DEPARTURE_TICK,
+  CONSTRUCTION_TICKS,
 } from './world.js';
 
 // --- BFS Pathfinding ---
@@ -543,23 +544,34 @@ export function tick(state: GameState): GameState {
       continue;
     }
 
-    // DAWN: wake up and plan route to work
+    // DAWN: wake up and plan route to work (or construction site)
     if (isDawn) {
       if (v.jobBuildingId) {
         const job = buildings.find(b => b.id === v.jobBuildingId);
-        if (job && job.constructed) {
+        if (job) {
           const entrance = getBuildingEntrance(job);
           planPath(v, grid, state.width, state.height, entrance.x, entrance.y);
-          v.state = 'traveling_to_work';
-          v.workProgress = 0;
-
-          // Auto-equip tool at dawn
-          if (v.tool === 'none') autoEquipTool(v, resources, toolDurBonus);
+          if (job.constructed) {
+            v.state = 'traveling_to_work';
+            v.workProgress = 0;
+            if (v.tool === 'none') autoEquipTool(v, resources, toolDurBonus);
+          } else {
+            v.state = 'traveling_to_build';
+          }
         } else {
           v.state = 'idle';
         }
       } else {
-        v.state = 'idle';
+        // No job — check if any unconstructed buildings need a builder
+        const site = buildings.find(b => !b.constructed && b.assignedWorkers.length === 0);
+        if (site) {
+          const entrance = getBuildingEntrance(site);
+          planPath(v, grid, state.width, state.height, entrance.x, entrance.y);
+          v.state = 'traveling_to_build';
+          v.jobBuildingId = site.id;
+        } else {
+          v.state = 'idle';
+        }
       }
       continue;
     }
@@ -570,10 +582,10 @@ export function tick(state: GameState): GameState {
         // Shouldn't be sleeping during day — wake up
         if (v.jobBuildingId) {
           const job = buildings.find(b => b.id === v.jobBuildingId);
-          if (job && job.constructed) {
+          if (job) {
             const entrance = getBuildingEntrance(job);
             planPath(v, grid, state.width, state.height, entrance.x, entrance.y);
-            v.state = 'traveling_to_work';
+            v.state = job.constructed ? 'traveling_to_work' : 'traveling_to_build';
           } else {
             v.state = 'idle';
           }
@@ -727,17 +739,45 @@ export function tick(state: GameState): GameState {
         break;
       }
 
-      case 'idle': {
-        // Idle villagers do nothing during the day
-        // Check if they have a job they should be going to
-        if (isDawn && v.jobBuildingId) {
-          const job = buildings.find(b => b.id === v.jobBuildingId);
-          if (job && job.constructed) {
-            const entrance = getBuildingEntrance(job);
-            planPath(v, grid, state.width, state.height, entrance.x, entrance.y);
-            v.state = 'traveling_to_work';
+      case 'traveling_to_build': {
+        if (atDestination(v)) {
+          v.state = 'constructing';
+        } else {
+          moveOneStep(v);
+          if (dayTick >= HOME_DEPARTURE_TICK) {
+            startGoingHome(v, buildings, grid, state.width, state.height);
           }
         }
+        break;
+      }
+
+      case 'constructing': {
+        if (!v.jobBuildingId) { v.state = 'idle'; break; }
+        const job = buildings.find(b => b.id === v.jobBuildingId);
+        if (!job) { v.state = 'idle'; break; }
+        if (job.constructed) {
+          // Building finished — switch to production
+          v.state = 'working';
+          v.workProgress = 0;
+          break;
+        }
+        // Build: increment construction progress
+        job.constructionProgress++;
+        if (job.constructionProgress >= job.constructionRequired) {
+          job.constructed = true;
+          // Switch to production on next tick
+          v.state = 'working';
+          v.workProgress = 0;
+        }
+        // Head home when needed
+        if (dayTick >= HOME_DEPARTURE_TICK) {
+          startGoingHome(v, buildings, grid, state.width, state.height);
+        }
+        break;
+      }
+
+      case 'idle': {
+        // Idle villagers do nothing during the day
         if (dayTick >= HOME_DEPARTURE_TICK && v.homeBuildingId) {
           startGoingHome(v, buildings, grid, state.width, state.height);
         }
@@ -1162,10 +1202,17 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
   const maxHp = BUILDING_MAX_HP[type] || 50;
   const bufCap = type === 'storehouse' ? STOREHOUSE_BUFFER_CAP : DEFAULT_BUFFER_CAP;
 
+  const constructionReq = CONSTRUCTION_TICKS[type] || 60;
+  // Small/simple structures (tent, fence) are instant for early game viability
+  const isInstant = type === 'tent' || type === 'fence';
+
   const building: Building = {
     id: `b${state.nextBuildingId}`, type, x, y, width: bw, height: bh,
     assignedWorkers: [],
-    hp: maxHp, maxHp, constructed: true,
+    hp: maxHp, maxHp,
+    constructed: isInstant,
+    constructionProgress: isInstant ? constructionReq : 0,
+    constructionRequired: constructionReq,
     localBuffer: {}, bufferCapacity: bufCap,
   };
 

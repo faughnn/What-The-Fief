@@ -270,15 +270,14 @@ heading('Local Buffers — Production Into Building');
 
   const initialGlobalWheat = state.resources.wheat;
 
-  // Advance past dawn + travel (2 tiles) + enough work ticks to produce
-  state = advance(state, NIGHT_TICKS + 2 + 40); // dawn + 2 travel + 40 work
+  // Advance past dawn + travel (2 tiles) + construction (60 ticks for farm) + work ticks
+  state = advance(state, TICKS_PER_DAY * 2); // 2 full days: build + produce
 
   // Check: production should be in the farm's local buffer, NOT (only) in global resources
   const farm = state.buildings.find(b => b.id === farmId)!;
   const localWheat = farm.localBuffer['wheat'] || 0;
 
-  // The farm should have some wheat in its local buffer
-  // (global resources may also have some if hauling happened, but local buffer must have been used)
+  // The farm should have some wheat in its local buffer or hauled to global
   assert(localWheat > 0 || state.resources.wheat > initialGlobalWheat,
     'Production generated wheat (in local buffer or hauled to global)');
 
@@ -316,24 +315,23 @@ heading('Hauling — Physical Resource Transport');
 
   const initialWheat = state.resources.wheat;
 
-  // Run for a full day — villager should: travel to farm, work, haul to storehouse
-  state = advance(state, TICKS_PER_DAY);
+  // Run for 2 days — villager needs to: build farm (60 ticks), then produce + haul
+  state = advance(state, TICKS_PER_DAY * 2);
 
-  // After a full day, some wheat should have been produced
+  // After 2 days, construction should be done and some wheat produced
   const farm = state.buildings.find(b => b.id === farmId)!;
   const localWheat = farm.localBuffer['wheat'] || 0;
   const globalWheat = state.resources.wheat;
 
   assert(localWheat > 0 || globalWheat > initialWheat,
-    'After 1 day, wheat was produced (in local buffer or hauled to global)');
+    'After 2 days, wheat was produced (construction + production)');
 
   // Run for another day
   state = advance(state, TICKS_PER_DAY);
 
   // By now, hauling should have moved some wheat to global storage
-  // (storehouse exists, villager should haul)
   assert(state.resources.wheat > initialWheat || localWheat > 0,
-    'Over 2 days, wheat produced and accessible');
+    'Over 3 days, wheat produced and accessible');
 }
 
 // ================================================================
@@ -408,7 +406,7 @@ heading('Building HP and Local Buffer');
 
   assert(farm.hp === BUILDING_MAX_HP['farm'], `Farm starts with max HP (${BUILDING_MAX_HP['farm']})`);
   assert(farm.maxHp === BUILDING_MAX_HP['farm'], 'Farm maxHp matches template');
-  assert(farm.constructed === true, 'Placed building starts constructed (v2 phase 1)');
+  assert(farm.constructed === false, 'Farm starts as construction site (requires worker to build)');
   assert(typeof farm.localBuffer === 'object', 'Farm has a local buffer');
   assert(farm.bufferCapacity === DEFAULT_BUFFER_CAP, `Farm buffer capacity is ${DEFAULT_BUFFER_CAP}`);
 
