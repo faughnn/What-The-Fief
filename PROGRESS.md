@@ -1,9 +1,9 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation complete. Simulation refactored into `src/simulation/` directory. 125 tests passing.
-- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates block enemies/let allies through, guards intercept + patrol routes, melee per-tick). Construction sites. Local buffer production + physical hauling to storehouse buffers. Processing buildings consume local inputs (hauled from storehouse buffer). Physical eating from storehouse buffer. Building repair. Villager death. Rubble/clearing. Wildlife (deer, wolves, boars). Hunters track and kill animals. Physical storehouse resources. Physical marketplace trading (merchants walk to marketplace, buy/sell from marketplace buffer). Building costs deduct from nearest storehouse. Spoilage on storehouse buffers. Hunter drops to storehouse buffer. Immigration at map edge.
-- **What's next**: Marketplace worker hauling (marketplace buffer ↔ storehouse buffer), then remaining Bellwright gaps.
+- **Status**: V2 spatial simulation with marketplace hauling. Simulation refactored into `src/simulation/` directory. 128 tests passing.
+- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates block enemies/let allies through, guards intercept + patrol routes, melee per-tick). Construction sites. Local buffer production + physical hauling to storehouse buffers. Processing buildings consume local inputs (hauled from storehouse buffer). Physical eating from storehouse buffer. Building repair. Villager death. Rubble/clearing. Wildlife (deer, wolves, boars). Hunters track and kill animals. Physical storehouse resources. Physical marketplace trading (merchants walk to marketplace, buy/sell from marketplace buffer, trader hauls goods to storehouse). Building costs deduct from nearest storehouse. Spoilage on storehouse buffers. Hunter drops to storehouse buffer. Immigration at map edge.
+- **What's next**: Next Bellwright gap assessment — tool crafting, multi-tile buildings, or balance pass.
 
 ## The Bellwright Question
 
@@ -14,7 +14,7 @@ Almost. All major systems are physically grounded:
 **Remaining issues (strict pedantry):**
 1. ~~Building placement costs deduct from global pool.~~ **FIXED** — deducts from nearest storehouse buffer.
 2. ~~Spoilage operates on global pool.~~ **FIXED** — operates on storehouse buffers.
-3. **No marketplace worker hauling.** Marketplace has a buffer but no worker hauls goods between marketplace and storehouses.
+3. ~~No marketplace worker hauling.~~ **FIXED** — trader role hauls marketplace buffer → storehouse.
 4. ~~No immigration physical presence.~~ **FIXED** — immigrants spawn at map edge.
 5. ~~Hunter drop hauling goes to global pool.~~ **FIXED** — deposits into storehouse buffer.
 6. **No tool crafting or equipping mechanics.** Guards auto-equip but no crafting workflow.
@@ -24,7 +24,7 @@ Almost. All major systems are physically grounded:
 10. **No fire/disaster system.**
 11. **No diplomacy/trade routes.**
 
-**What IS proven by tests (125 passing):**
+**What IS proven by tests (128 passing):**
 - ✅ 120 ticks = 1 day
 - ✅ Max 1 tile/tick movement (villagers, enemies, animals, merchants — all anti-teleportation tested)
 - ✅ 15 tiles takes ≥15 ticks
@@ -66,6 +66,8 @@ Almost. All major systems are physically grounded:
 - ✅ Trading requires merchant physically at marketplace
 - ✅ Buying deposits into marketplace buffer
 - ✅ Selling takes from marketplace buffer
+- ✅ Marketplace trader hauls goods from marketplace buffer to storehouse (physical)
+- ✅ Marketplace trader anti-teleportation (1 tile/tick max)
 
 ## Active Files
 - `CLAUDE.md` — autonomous instructions, invariants
@@ -93,7 +95,7 @@ Almost. All major systems are physically grounded:
 - `src/tests/test-v2-gates-patrol.ts` — 6 tests
 - `src/tests/test-v2-rubble.ts` — 10 tests
 - `src/tests/test-v2-storehouse.ts` — 8 tests
-- `src/tests/test-v2-marketplace.ts` — 10 tests
+- `src/tests/test-v2-marketplace.ts` — 13 tests
 
 ## Key Decisions
 - Grid convention: grid[y][x]
@@ -114,3 +116,4 @@ Almost. All major systems are physically grounded:
 - Animals spawn every 3 days, max 10 on map
 - Hunters attack animals (3 damage/tick), haul drops to storehouse
 - Passive animals flee within 3 tiles, hostile attack within 5 tiles
+- Marketplace trader role: hauls goods from marketplace buffer to storehouse
