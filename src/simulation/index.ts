@@ -12,11 +12,12 @@ import { processSeasonAndWeather, processDailyChecks, processMerchant, processPr
 import { processVillagerStateMachine } from './villagers.js';
 import { processRaidAndCombat } from './combat.js';
 import { processAnimals } from './animals.js';
+import { processFire } from './buildings.js';
 
 // Re-export public API
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
-export { placeBuilding, claimTerritory } from './buildings.js';
+export { placeBuilding, claimTerritory, processFire } from './buildings.js';
 export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, sendScout, upgradeBuilding } from './commands.js';
 
 // ================================================================
@@ -96,6 +97,9 @@ export function tick(state: GameState): GameState {
 
   // Raid & combat (per-tick)
   processRaidAndCombat(ts);
+
+  // Fire (per-tick)
+  processFire(ts);
 
   // Wildlife (per-tick)
   processAnimals(ts);

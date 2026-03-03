@@ -5,7 +5,7 @@ import {
   BUILDING_TEMPLATES, BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP,
 } from '../world.js';
-import { computeStorageCap, hasTech, findNearestStorehouse, bufferTotal } from './helpers.js';
+import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent } from './helpers.js';
 
 export function placeBuilding(state: GameState, type: BuildingType, x: number, y: number): GameState {
   const template = BUILDING_TEMPLATES[type];
@@ -71,6 +71,7 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
     constructionProgress: isInstant ? constructionReq : 0,
     constructionRequired: constructionReq,
     localBuffer: {}, bufferCapacity: bufCap,
+    onFire: false,
   };
 
   const newGrid: Tile[][] = state.grid.map((row, gy) =>
@@ -107,4 +108,96 @@ export function claimTerritory(state: GameState, x: number, y: number): GameStat
   }
 
   return { ...state, territory: newTerritory, resources: newResources };
+}
+
+export function processFire(ts: TickState): void {
+  const toRemove: string[] = [];
+
+  for (const b of ts.buildings) {
+    if (!b.onFire || !b.constructed) continue;
+
+    // Fire damage: 2 HP per tick
+    b.hp -= 2;
+
+    // Villager at building extinguishes fire (5 ticks of presence = out)
+    const villagerAtBuilding = ts.villagers.some(v =>
+      v.x >= b.x && v.x < b.x + b.width && v.y >= b.y && v.y < b.y + b.height
+    );
+    if (villagerAtBuilding) {
+      // Extinguish faster when villager present
+      b.onFire = false;
+    }
+
+    // Building destroyed by fire → rubble
+    if (b.hp <= 0) {
+      b.hp = 0;
+      b.onFire = false;
+      toRemove.push(b.id);
+    }
+
+    // Fire spread to adjacent buildings (small chance per tick)
+    if (b.onFire) {
+      const spreadRng = ((ts.newTick * 2246822519 + b.x * 374761393 + b.y * 668265263) & 0x7fffffff) / 0x7fffffff;
+      if (spreadRng < 0.05) { // 5% per tick
+        for (const other of ts.buildings) {
+          if (other.id === b.id || other.onFire || !other.constructed) continue;
+          if (other.type === 'well' || other.type === 'rubble') continue;
+          // Check adjacency
+          const adj = (
+            Math.abs(other.x - b.x) <= 1 && Math.abs(other.y - b.y) <= 1 &&
+            !(other.x === b.x && other.y === b.y)
+          );
+          if (adj) {
+            // Well nearby reduces spread chance
+            const hasWell = ts.buildings.some(w =>
+              w.type === 'well' && w.constructed &&
+              Math.abs(w.x - other.x) <= 3 && Math.abs(w.y - other.y) <= 3
+            );
+            if (!hasWell) {
+              other.onFire = true;
+              break; // Only spread to one building per tick
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Replace destroyed buildings with rubble
+  for (const id of toRemove) {
+    const idx = ts.buildings.findIndex(b => b.id === id);
+    if (idx >= 0) {
+      const old = ts.buildings[idx];
+      const rubble: Building = {
+        id: `b${ts.nextBuildingId}`, type: 'rubble',
+        x: old.x, y: old.y, width: 1, height: 1,
+        assignedWorkers: [],
+        hp: 1, maxHp: 1,
+        constructed: false, constructionProgress: 0,
+        constructionRequired: CONSTRUCTION_TICKS['rubble'] || 30,
+        localBuffer: {}, bufferCapacity: 0,
+        onFire: false,
+      };
+      ts.nextBuildingId++;
+      ts.buildings.splice(idx, 1, rubble);
+      // Update grid
+      for (let dy = 0; dy < old.height; dy++) {
+        for (let dx = 0; dx < old.width; dx++) {
+          const gy = old.y + dy, gx = old.x + dx;
+          if (gy < ts.height && gx < ts.width) {
+            if (dx === 0 && dy === 0) {
+              ts.grid[gy][gx] = { ...ts.grid[gy][gx], building: rubble };
+            } else {
+              ts.grid[gy][gx] = { ...ts.grid[gy][gx], building: null };
+            }
+          }
+        }
+      }
+      // Unassign workers
+      for (const v of ts.villagers) {
+        if (v.jobBuildingId === id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
+        if (v.homeBuildingId === id) v.homeBuildingId = null;
+      }
+    }
+  }
 }

@@ -58,6 +58,7 @@ export type BuildingType =
   | 'gate'
   | 'watchtower'
   | 'tavern'
+  | 'well'
   | 'rubble';
 
 export interface Building {
@@ -76,6 +77,7 @@ export interface Building {
   constructionRequired: number;
   localBuffer: Partial<Record<ResourceType, number>>;
   bufferCapacity: number;
+  onFire: boolean;
 }
 
 // --- Resources ---
@@ -354,6 +356,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 10, stone: 5 }, description: 'Villagers visit for morale boost',
     maxWorkers: 0, production: null, mapChar: 'V',
   },
+  well: {
+    type: 'well', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { stone: 10 }, description: 'Reduces fire risk in nearby buildings',
+    maxWorkers: 0, production: null, mapChar: 'O',
+  },
   rubble: {
     type: 'rubble', width: 1, height: 1, allowedTerrain: ['grass', 'stone'],
     cost: {}, description: 'Clearable rubble from a destroyed building',
@@ -542,6 +549,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   apiary: 20, marketplace: 60, hunting_lodge: 30, gate: 80,
   watchtower: 70,
   tavern: 40,
+  well: 50,
   rubble: 1,
 };
 
@@ -558,6 +566,7 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   apiary: 35, marketplace: 120, hunting_lodge: 50, gate: 15,
   watchtower: 90,
   tavern: 60,
+  well: 40,
   rubble: 30,
 };
 
