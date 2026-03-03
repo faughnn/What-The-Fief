@@ -73,6 +73,7 @@ export const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   chicken_coop: 'chicken_keeper', livestock_barn: 'rancher', apiary: 'beekeeper',
   hunting_lodge: 'hunter',
   marketplace: 'trader',
+  watchtower: 'guard',
 };
 
 export function roleForBuilding(type: BuildingType): VillagerRole {

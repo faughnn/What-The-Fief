@@ -4,6 +4,7 @@ import {
   Building, BuildingType, Villager, Tile,
   EnemyEntity, EnemyType, ENEMY_TEMPLATES, GUARD_COMBAT,
   CONSTRUCTION_TICKS, BUILDING_MAX_HP, ALL_RESOURCES,
+  WATCHTOWER_RANGE, WATCHTOWER_DAMAGE,
 } from '../world.js';
 import { TickState, isAdjacent, hasTech } from './helpers.js';
 import { findPath, findPathEnemy } from './movement.js';
@@ -157,6 +158,7 @@ export function processRaidAndCombat(ts: TickState): void {
   }
 
   // Guard AI: detect enemies, move to intercept, fight adjacent
+  // Watchtower guards: stay at tower, shoot enemies within WATCHTOWER_RANGE
   const attackBonus = hasTech(ts.research, 'military_tactics') ? 2 : 0;
   const defenseBonus = hasTech(ts.research, 'fortification') ? 1 : 0;
   const GUARD_DETECT_RANGE = 10;
@@ -164,6 +166,43 @@ export function processRaidAndCombat(ts: TickState): void {
   for (const v of ts.villagers) {
     if (v.role !== 'guard' || v.hp <= 0) continue;
 
+    // Check if guard is assigned to a watchtower
+    const towerJob = v.jobBuildingId
+      ? ts.buildings.find(b => b.id === v.jobBuildingId && b.type === 'watchtower' && b.constructed)
+      : null;
+
+    if (towerJob) {
+      // WATCHTOWER GUARD: stay at tower, shoot at range
+      // Move to tower if not there
+      if (v.x !== towerJob.x || v.y !== towerJob.y) {
+        const towerPath = findPath(ts.grid, ts.width, ts.height, v.x, v.y, towerJob.x, towerJob.y);
+        if (towerPath.length > 0) {
+          v.x = towerPath[0].x;
+          v.y = towerPath[0].y;
+        }
+        continue;
+      }
+
+      // At tower — shoot nearest enemy within range
+      let nearestEnemy: EnemyEntity | null = null;
+      let nearestDist = Infinity;
+      for (const e of ts.enemies) {
+        if (e.hp <= 0) continue;
+        const dist = Math.abs(e.x - v.x) + Math.abs(e.y - v.y);
+        if (dist <= WATCHTOWER_RANGE && dist < nearestDist) {
+          nearestDist = dist;
+          nearestEnemy = e;
+        }
+      }
+
+      if (nearestEnemy) {
+        // Ranged attack — flat damage, enemy can't retaliate
+        nearestEnemy.hp -= WATCHTOWER_DAMAGE;
+      }
+      continue;
+    }
+
+    // NON-TOWER GUARD: standard melee behavior
     // Find nearest enemy
     let nearestEnemy: EnemyEntity | null = null;
     let nearestDist = Infinity;

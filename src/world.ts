@@ -56,6 +56,7 @@ export type BuildingType =
   | 'research_desk'
   | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace' | 'hunting_lodge'
   | 'gate'
+  | 'watchtower'
   | 'rubble';
 
 export interface Building {
@@ -342,6 +343,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 5, stone: 2 }, description: 'Lets allies through, blocks enemies',
     maxWorkers: 0, production: null, mapChar: '=',
   },
+  watchtower: {
+    type: 'watchtower', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 15, stone: 10 }, description: 'Guards shoot enemies at range (5 tiles)',
+    maxWorkers: 1, production: null, mapChar: 'T',
+  },
   rubble: {
     type: 'rubble', width: 1, height: 1, allowedTerrain: ['grass', 'stone'],
     cost: {}, description: 'Clearable rubble from a destroyed building',
@@ -519,6 +525,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   town_hall: 100, wall: 100, fence: 30,
   research_desk: 30, chicken_coop: 25, livestock_barn: 40,
   apiary: 20, marketplace: 60, hunting_lodge: 30, gate: 80,
+  watchtower: 70,
   rubble: 1,
 };
 
@@ -533,6 +540,7 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   town_hall: 240, wall: 20, fence: 10,
   research_desk: 60, chicken_coop: 45, livestock_barn: 75,
   apiary: 35, marketplace: 120, hunting_lodge: 50, gate: 15,
+  watchtower: 90,
   rubble: 30,
 };
 
@@ -541,6 +549,9 @@ export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cos
   tent: { to: 'house', cost: { wood: 7 } },
   house: { to: 'manor', cost: { wood: 15, stone: 15, planks: 10 } },
 };
+
+export const WATCHTOWER_RANGE = 5;
+export const WATCHTOWER_DAMAGE = 2;
 
 export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }> = {
   none: { attack: 3, defense: 2 },
