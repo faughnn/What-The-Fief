@@ -1,32 +1,25 @@
 # ColonySim — Progress
 
 ## Current State
-- **Phase**: BALANCE — All 12 phases implemented, now tuning balance
-- **Status**: All systems working (zero validation errors), but colonies die too fast
-- **Working on**: Balance pass — see CLAUDE.md "Design Philosophy & Balance"
-- **Next step (do this immediately, don't ask)**:
-  1. `export PATH="/c/Program Files/nodejs:$PATH"` (required every session)
-  2. Run `npx tsx src/tests/test-balance.ts` to see current failures
-  3. Read the balance problems below and CLAUDE.md design philosophy
-  4. Fix the most impactful problem first (probably early tool tiers: wood→stone→iron)
-  5. Re-run balance tests, iterate until all 3 pass
-  6. Commit when tests pass, update this file
+- **Phase**: COMPLETE — All 12 phases + balance pass done
+- **Status**: All systems working, all tests passing (3/3 balance, 6/6 combat, 0 validation errors)
+- **Next step**: Project is complete per CLAUDE.md completion criteria
 
-## Balance Problems (0/3 scenarios passing)
-1. **Raids too early** — raid bar fills in ~20 ticks, no time to build defenses
-2. **No early tools** — jump from nothing (0.5x) to iron chain is too steep; need wood/stone tool tiers
-3. **Unarmed guards useless** — attack=1 vs bandit defense=1 = guaranteed loss
-4. **Winter + spoilage** — 0.3x farming + 5% food spoilage = starvation
-5. **Production too low** — 0.5x no-tool penalty makes early economy non-viable
+## Balance Changes Applied
+1. **Tool multiplier rebalanced**: none 0.5→1.0 (no penalty), basic 1.0→1.3, sturdy 1.25→1.6, iron 1.5→2.0
+2. **Blacksmith accessible early**: uses wood+stone (not iron ingots), cost 8w+5s (was 15w+10s)
+3. **Guards buffed**: none {3,2}, basic {4,3}, sturdy {5,4}, iron {7,5} + base HP 15 (was 10)
+4. **Raid timing fixed**: 20-day grace period, 0.2x accumulation rate (was 0.5x), level+1 bandits (was level*2+1)
+5. **Winter less harsh**: farm mult 0.3→0.5
+6. **Spoilage reduced**: food 5%→2%, wheat 2%→1%
 
 ## Active Files (re-read these after compaction)
 - `src/world.ts` — data types (~560 lines): all types, templates, constants
 - `src/simulation.ts` — game rules (~740 lines): tick(), all actions, validation
 - `src/render-text.ts` — text renderers (~230 lines): 8 view modes
 - `src/main.ts` — CLI entry point (~80 lines)
-- `src/tests/test-balance.ts` — balance test scenarios (3 scenarios, all failing)
+- `src/tests/test-balance.ts` — balance test scenarios (3 scenarios, all passing)
 - `src/tests/test-combat.ts` — combat unit tests (6 tests, all passing)
-- `CLAUDE.md` — has "Design Philosophy & Balance" section with principles
 
 ## File Manifest
 - `src/world.ts` — types, templates, constants, factories
@@ -49,7 +42,7 @@
 - [x] Phase 10: Advanced Economy — animal husbandry, gold, trade, prosperity, marketplace
 - [x] Phase 11: World Systems — seasons (4), weather (3 types), housing tiers (tent/house/manor)
 - [x] Phase 12: Narrative — events (10 types), renown, 3 milestone quests
-- [ ] Balance Pass — tune numbers, add early tool tiers, fix raid timing
+- [x] Balance Pass — all 3 scenarios passing, realistic early game
 
 ## Key Decisions
 - Grid convention: grid[y][x]
@@ -61,3 +54,7 @@
 - Combat resolves same tick as triggered
 - Events seeded from day number for determinism
 - Gold exempt from storage cap
+- Tools are bonuses, not necessities (none=1.0x baseline)
+- Blacksmith uses wood+stone for basic tools (realistic: wooden/stone implements)
+- Guards get +5 base HP for combat role
+- 20-day grace period before raids start
