@@ -1,9 +1,9 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation with marketplace hauling. Simulation refactored into `src/simulation/` directory. 128 tests passing.
-- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates block enemies/let allies through, guards intercept + patrol routes, melee per-tick). Construction sites. Local buffer production + physical hauling to storehouse buffers. Processing buildings consume local inputs (hauled from storehouse buffer). Physical eating from storehouse buffer. Building repair. Villager death. Rubble/clearing. Wildlife (deer, wolves, boars). Hunters track and kill animals. Physical storehouse resources. Physical marketplace trading (merchants walk to marketplace, buy/sell from marketplace buffer, trader hauls goods to storehouse). Building costs deduct from nearest storehouse. Spoilage on storehouse buffers. Hunter drops to storehouse buffer. Immigration at map edge.
-- **What's next**: Next Bellwright gap assessment — tool crafting, multi-tile buildings, or balance pass.
+- **Status**: V2 spatial simulation with balance pass. Simulation refactored into `src/simulation/` directory. 139 tests passing.
+- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates block enemies/let allies through, guards intercept + patrol routes, melee per-tick). Construction sites. Local buffer production + physical hauling to storehouse buffers. Processing buildings consume local inputs (hauled from storehouse buffer). Physical eating from storehouse buffer. Building repair. Villager death. Rubble/clearing. Wildlife (deer, wolves, boars). Hunters track and kill animals. Physical storehouse resources. Physical marketplace trading (merchants walk to marketplace, buy/sell from marketplace buffer, trader hauls goods to storehouse). Building costs deduct from nearest storehouse. Spoilage on storehouse buffers. Hunter drops to storehouse buffer. Immigration at map edge. Balance proven by tests.
+- **What's next**: Remaining Bellwright gaps — see Bellwright Question below.
 
 ## The Bellwright Question
 
@@ -17,14 +17,16 @@ Almost. All major systems are physically grounded:
 3. ~~No marketplace worker hauling.~~ **FIXED** — trader role hauls marketplace buffer → storehouse.
 4. ~~No immigration physical presence.~~ **FIXED** — immigrants spawn at map edge.
 5. ~~Hunter drop hauling goes to global pool.~~ **FIXED** — deposits into storehouse buffer.
-6. **No tool crafting or equipping mechanics.** Guards auto-equip but no crafting workflow.
-7. **No multi-tile building footprints in pathfinding.** Buildings occupy tiles but some templates have larger footprints.
+6. ~~No tool crafting or equipping mechanics.~~ Tools work: blacksmith→basic_tools, toolmaker→sturdy_tools. Auto-equip from global pool.
+7. ~~No multi-tile building footprints in pathfinding.~~ Multi-tile buildings correctly block all tiles via placeBuilding.
 8. **No building upgrade system.** Bellwright has building tiers/upgrades.
-9. **No villager housing assignment.** Villagers just go to nearest tent.
+9. **No villager housing assignment.** Villagers auto-assigned to nearest empty home.
 10. **No fire/disaster system.**
 11. **No diplomacy/trade routes.**
+12. **Tool equipping from global pool.** autoEquipTool takes from global resources instead of nearest storehouse buffer. Minor physical invariant gap.
+13. **No balanced early game progression test.** Have 30-day survival but no proof that a new player can bootstrap from nothing.
 
-**What IS proven by tests (128 passing):**
+**What IS proven by tests (139 passing):**
 - ✅ 120 ticks = 1 day
 - ✅ Max 1 tile/tick movement (villagers, enemies, animals, merchants — all anti-teleportation tested)
 - ✅ 15 tiles takes ≥15 ticks
@@ -68,6 +70,12 @@ Almost. All major systems are physically grounded:
 - ✅ Selling takes from marketplace buffer
 - ✅ Marketplace trader hauls goods from marketplace buffer to storehouse (physical)
 - ✅ Marketplace trader anti-teleportation (1 tile/tick max)
+- ✅ Well-laid colony survives 30 days (3/3 villagers)
+- ✅ Poorly-laid colony struggles (doesn't grow)
+- ✅ Distance measurably affects productivity (tight > distant wheat)
+- ✅ Guarded colony survives raids (3/4 survive raid level 1)
+- ✅ Undefended colony gets wiped out by raids (2→0)
+- ✅ Winter survivable with stored food
 
 ## Active Files
 - `CLAUDE.md` — autonomous instructions, invariants
@@ -96,6 +104,7 @@ Almost. All major systems are physically grounded:
 - `src/tests/test-v2-rubble.ts` — 10 tests
 - `src/tests/test-v2-storehouse.ts` — 8 tests
 - `src/tests/test-v2-marketplace.ts` — 13 tests
+- `src/tests/test-v2-balance.ts` — 11 tests
 
 ## Key Decisions
 - Grid convention: grid[y][x]
