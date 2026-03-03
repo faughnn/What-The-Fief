@@ -267,6 +267,56 @@ heading('Empty Storehouse — No Food');
 }
 
 // ================================================================
+// TEST 6: Tool equipping consumes from storehouse buffer
+// ================================================================
+heading('Tool Equip From Storehouse Buffer');
+
+{
+  let state = flatWorld(20, 10);
+  state = { ...state, resources: { ...state.resources, wood: 50, stone: 50, basic_tools: 3 } };
+
+  state = placeBuilding(state, 'storehouse', 5, 5);
+  state = placeBuilding(state, 'tent', 3, 5);
+  state = placeBuilding(state, 'woodcutter', 8, 5);
+
+  const storehouseId = state.buildings.find(b => b.type === 'storehouse')!.id;
+  const tentId = state.buildings.find(b => b.type === 'tent')!.id;
+  const wcId = state.buildings.find(b => b.type === 'woodcutter')!.id;
+
+  // Put tools in storehouse buffer (matching global)
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => {
+      if (b.id === storehouseId) {
+        return { ...b, constructed: true, constructionProgress: b.constructionRequired, localBuffer: { basic_tools: 3 } };
+      }
+      return { ...b, constructed: true, constructionProgress: b.constructionRequired };
+    }),
+  };
+
+  state = addVillager(state, 3, 5);
+  state = assignVillager(state, 'v1', wcId);
+  state = {
+    ...state,
+    villagers: state.villagers.map(v => ({ ...v, homeBuildingId: tentId, food: 10 })),
+  };
+
+  // Advance through dawn — villager should equip a tool
+  state = advance(state, NIGHT_TICKS + 1);
+
+  // Check: storehouse buffer should have lost a tool
+  const storehouse = state.buildings.find(b => b.id === storehouseId);
+  const bufferTools = storehouse ? (storehouse.localBuffer['basic_tools'] || 0) : 0;
+
+  assert(bufferTools < 3,
+    `Tool consumed from storehouse buffer: was 3, now ${bufferTools}`);
+
+  // Global should also be decremented
+  assert(state.resources.basic_tools < 3,
+    `Global basic_tools decremented: was 3, now ${state.resources.basic_tools}`);
+}
+
+// ================================================================
 // RESULTS
 // ================================================================
 console.log(`\n${'='.repeat(40)}`);

@@ -121,7 +121,7 @@ export function processDailyChecks(ts: TickState): void {
 
   // Guard equip tools
   for (const v of ts.villagers) {
-    if (v.role === 'guard' && v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus);
+    if (v.role === 'guard' && v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
   }
 
   // HP regen (2 HP per day)

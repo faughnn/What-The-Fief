@@ -162,11 +162,21 @@ export function productionMultiplier(v: Villager, buildingType: BuildingType, re
   return mult;
 }
 
-export function autoEquipTool(v: Villager, resources: Resources, durabilityBonus: number = 0): void {
+export function autoEquipTool(v: Villager, resources: Resources, durabilityBonus: number = 0, buildings?: Building[]): void {
   for (const tier of TOOL_EQUIP_PRIORITY) {
     const res = TOOL_RESOURCE[tier];
     if (resources[res] > 0) {
       resources[res] -= 1;
+      // Also deduct from nearest storehouse buffer (physical)
+      if (buildings) {
+        for (const b of buildings) {
+          if (b.type === 'storehouse' && b.constructed && (b.localBuffer[res] || 0) > 0) {
+            b.localBuffer[res] = (b.localBuffer[res] || 0) - 1;
+            if ((b.localBuffer[res] || 0) <= 0) delete b.localBuffer[res];
+            break;
+          }
+        }
+      }
       v.tool = tier;
       v.toolDurability = Math.floor(TOOL_DURABILITY[tier] * (1 + durabilityBonus));
       return;
@@ -176,11 +186,11 @@ export function autoEquipTool(v: Villager, resources: Resources, durabilityBonus
   v.toolDurability = 0;
 }
 
-export function degradeTool(v: Villager, resources: Resources, durabilityBonus: number = 0): void {
+export function degradeTool(v: Villager, resources: Resources, durabilityBonus: number = 0, buildings?: Building[]): void {
   if (v.tool === 'none') return;
   v.toolDurability -= 1;
   if (v.toolDurability <= 0) {
-    autoEquipTool(v, resources, durabilityBonus);
+    autoEquipTool(v, resources, durabilityBonus, buildings);
   }
 }
 

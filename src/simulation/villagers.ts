@@ -194,7 +194,7 @@ export function processVillagerStateMachine(ts: TickState): void {
           if (job.constructed) {
             v.state = 'traveling_to_work';
             v.workProgress = 0;
-            if (v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus);
+            if (v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
           } else {
             v.state = 'traveling_to_build';
           }
@@ -346,7 +346,7 @@ export function processVillagerStateMachine(ts: TickState): void {
           v.workProgress = 0;
 
           // Tool wear & skill XP
-          degradeTool(v, ts.resources, ts.toolDurBonus);
+          degradeTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
           gainSkillXp(v, job.type);
         }
 
