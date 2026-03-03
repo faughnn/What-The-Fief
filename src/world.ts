@@ -54,7 +54,7 @@ export type BuildingType =
   | 'blacksmith' | 'toolmaker' | 'armorer'
   | 'town_hall' | 'wall' | 'fence'
   | 'research_desk'
-  | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace';
+  | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace' | 'hunting_lodge';
 
 export interface Building {
   id: string;
@@ -330,6 +330,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 20, stone: 10, planks: 5 }, description: 'Enables merchant trading',
     maxWorkers: 0, production: null, mapChar: '$',
   },
+  hunting_lodge: {
+    type: 'hunting_lodge', width: 1, height: 1, allowedTerrain: ['grass', 'forest'],
+    cost: { wood: 10 }, description: 'Hunters track and kill wildlife',
+    maxWorkers: 2, production: null, mapChar: 'H',
+  },
 };
 
 // --- Skills ---
@@ -368,7 +373,7 @@ export type VillagerRole =
   | 'flaxer' | 'hemper' | 'miner' | 'sawyer' | 'smelter'
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
   | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker'
-  | 'scout' | 'guard' | 'researcher'
+  | 'scout' | 'guard' | 'researcher' | 'hunter'
   | 'chicken_keeper' | 'rancher' | 'beekeeper';
 
 export type VillagerState =
@@ -382,7 +387,9 @@ export type VillagerState =
   | 'idle'
   | 'scouting'
   | 'traveling_to_build'
-  | 'constructing';
+  | 'constructing'
+  | 'hunting'
+  | 'hauling_drop';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
 export type Direction = 'n' | 's' | 'e' | 'w';
 
@@ -449,6 +456,43 @@ export interface EnemyEntity {
   defense: number;
 }
 
+// V2: Wildlife — grid-based animals that roam the map
+export type AnimalType = 'deer' | 'rabbit' | 'wild_wolf' | 'wild_boar';
+
+export interface AnimalEntity {
+  id: string;
+  type: AnimalType;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  behavior: 'passive' | 'hostile'; // passive = flee, hostile = attack
+}
+
+export interface AnimalTemplate {
+  type: AnimalType;
+  maxHp: number;
+  attack: number;
+  behavior: 'passive' | 'hostile';
+  drops: Partial<Record<ResourceType, number>>; // what they drop on death
+}
+
+export const ANIMAL_TEMPLATES: Record<AnimalType, AnimalTemplate> = {
+  deer: { type: 'deer', maxHp: 8, attack: 0, behavior: 'passive', drops: { food: 3, leather: 1 } },
+  rabbit: { type: 'rabbit', maxHp: 3, attack: 0, behavior: 'passive', drops: { food: 1 } },
+  wild_wolf: { type: 'wild_wolf', maxHp: 8, attack: 4, behavior: 'hostile', drops: { food: 1 } },
+  wild_boar: { type: 'wild_boar', maxHp: 12, attack: 3, behavior: 'hostile', drops: { food: 4, leather: 2 } },
+};
+
+// V2: Resource drops on the ground (from animal kills, etc.)
+export interface ResourceDrop {
+  id: string;
+  x: number;
+  y: number;
+  resources: Partial<Record<ResourceType, number>>;
+}
+
 // V2: Building max HP by type
 export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   tent: 20, house: 50, manor: 80,
@@ -459,7 +503,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   blacksmith: 45, toolmaker: 45, armorer: 50,
   town_hall: 100, wall: 100, fence: 30,
   research_desk: 30, chicken_coop: 25, livestock_barn: 40,
-  apiary: 20, marketplace: 60,
+  apiary: 20, marketplace: 60, hunting_lodge: 30,
 };
 
 // V2: Construction time (work ticks needed to complete a building)
@@ -472,7 +516,7 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   blacksmith: 80, toolmaker: 100, armorer: 120,
   town_hall: 240, wall: 20, fence: 10,
   research_desk: 60, chicken_coop: 45, livestock_barn: 75,
-  apiary: 35, marketplace: 120,
+  apiary: 35, marketplace: 120, hunting_lodge: 50,
 };
 
 export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }> = {
@@ -550,6 +594,10 @@ export interface GameState {
   nextVillagerId: number;
   enemies: EnemyEntity[];  // V2: grid-based enemies
   nextEnemyId: number;
+  animals: AnimalEntity[];  // V2: wildlife on the map
+  nextAnimalId: number;
+  resourceDrops: ResourceDrop[];  // V2: items on the ground
+  nextDropId: number;
   fog: boolean[][];
   territory: boolean[][];
   raidBar: number;
@@ -684,6 +732,8 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     buildings: [], nextBuildingId: 1,
     villagers, nextVillagerId: placed + 1,
     enemies: [], nextEnemyId: 1,
+    animals: [], nextAnimalId: 1,
+    resourceDrops: [], nextDropId: 1,
     fog, territory,
     raidBar: 0, raidLevel: 0, activeRaid: null,
     research: { completed: [], current: null, progress: 0 },

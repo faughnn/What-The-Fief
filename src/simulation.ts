@@ -8,6 +8,7 @@ import {
   skillMultiplier, FoodEaten, ToolTier, TOOL_MULTIPLIER, TOOL_DURABILITY,
   TOOL_RESOURCE, TOOL_EQUIP_PRIORITY, Direction,
   EnemyEntity, ActiveRaid, ENEMY_TEMPLATES, GUARD_COMBAT, EnemyType,
+  AnimalEntity, AnimalType, ANIMAL_TEMPLATES, ResourceDrop,
   TechId, TECH_TREE, ResearchState,
   MerchantState, TRADE_PRICES,
   Season, WeatherType, SEASON_NAMES, SEASON_FARM_MULT, SEASON_MORALE,
@@ -129,6 +130,7 @@ const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   blacksmith: 'blacksmith_worker', toolmaker: 'toolmaker_worker', armorer: 'armorer_worker',
   research_desk: 'researcher',
   chicken_coop: 'chicken_keeper', livestock_barn: 'rancher', apiary: 'beekeeper',
+  hunting_lodge: 'hunter',
 };
 
 function roleForBuilding(type: BuildingType): VillagerRole {
@@ -408,6 +410,10 @@ export function tick(state: GameState): GameState {
     progress: state.research.progress,
   };
   const enemies = state.enemies.map(e => ({ ...e }));
+  let animals = state.animals.map(a => ({ ...a }));
+  let resourceDrops = state.resourceDrops.map(d => ({ ...d, resources: { ...d.resources } }));
+  let nextAnimalId = state.nextAnimalId;
+  let nextDropId = state.nextDropId;
   const events: string[] = [];
 
   const toolDurBonus = hasTech(research, 'improved_tools') ? 0.2 : 0;
@@ -1094,6 +1100,228 @@ export function tick(state: GameState): GameState {
   }
 
   // ==============================================
+  // WILDLIFE (per-tick: movement, behavior, spawning)
+  // ==============================================
+
+  // Animal spawning — periodically add animals to the map
+  if (isNewDay && newDay % 3 === 0 && animals.length < 10) {
+    const animalTypes: AnimalType[] = ['deer', 'rabbit', 'wild_wolf', 'wild_boar'];
+    const rngAnimal = ((newDay * 48271 + 1) & 0x7fffffff) % animalTypes.length;
+    const type = animalTypes[rngAnimal];
+    const template = ANIMAL_TEMPLATES[type];
+    // Spawn at map edge
+    const edge = ((newDay * 16807) & 0x7fffffff) % 4;
+    let ax = 0, ay = 0;
+    switch (edge) {
+      case 0: ax = ((newDay * 7 + 3) % state.width); ay = 0; break;
+      case 1: ax = ((newDay * 7 + 3) % state.width); ay = state.height - 1; break;
+      case 2: ax = 0; ay = ((newDay * 7 + 3) % state.height); break;
+      default: ax = state.width - 1; ay = ((newDay * 7 + 3) % state.height); break;
+    }
+    if (grid[ay][ax].terrain !== 'water') {
+      animals.push({
+        id: `a${nextAnimalId}`, type, x: ax, y: ay,
+        hp: template.maxHp, maxHp: template.maxHp,
+        attack: template.attack, behavior: template.behavior,
+      });
+      nextAnimalId++;
+    }
+  }
+
+  // Animal movement per tick
+  for (const a of animals) {
+    if (a.hp <= 0) continue;
+
+    if (a.behavior === 'passive') {
+      // Passive: random roam, flee from nearby entities (within 3 tiles)
+      let fleeX = 0, fleeY = 0;
+      let fleeing = false;
+      for (const v of villagers) {
+        const dist = Math.abs(v.x - a.x) + Math.abs(v.y - a.y);
+        if (dist <= 3) {
+          fleeX += (a.x - v.x);
+          fleeY += (a.y - v.y);
+          fleeing = true;
+        }
+      }
+      if (fleeing) {
+        // Move away from the threat
+        const dx = fleeX > 0 ? 1 : fleeX < 0 ? -1 : 0;
+        const dy = dx === 0 ? (fleeY > 0 ? 1 : fleeY < 0 ? -1 : 0) : 0;
+        const nx = Math.max(0, Math.min(state.width - 1, a.x + dx));
+        const ny = Math.max(0, Math.min(state.height - 1, a.y + dy));
+        if (grid[ny][nx].terrain !== 'water' && !grid[ny][nx].building) {
+          a.x = nx; a.y = ny;
+        }
+      } else if (newTick % 3 === 0) {
+        // Occasional random movement
+        const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+        const dir = dirs[(newTick + a.x * 7 + a.y * 13) % 4];
+        const nx = Math.max(0, Math.min(state.width - 1, a.x + dir.dx));
+        const ny = Math.max(0, Math.min(state.height - 1, a.y + dir.dy));
+        if (grid[ny][nx].terrain !== 'water' && !grid[ny][nx].building) {
+          a.x = nx; a.y = ny;
+        }
+      }
+    } else {
+      // Hostile: move toward nearby villagers (within 5 tiles), attack if adjacent
+      let target: Villager | null = null;
+      let targetDist = Infinity;
+      for (const v of villagers) {
+        const dist = Math.abs(v.x - a.x) + Math.abs(v.y - a.y);
+        if (dist <= 5 && dist < targetDist) { target = v; targetDist = dist; }
+      }
+      if (target) {
+        if (isAdjacent(a.x, a.y, target.x, target.y)) {
+          // Attack
+          target.hp -= Math.max(1, a.attack);
+        } else {
+          // Move toward target (1 tile/tick)
+          const dx = target.x > a.x ? 1 : target.x < a.x ? -1 : 0;
+          const dy = dx === 0 ? (target.y > a.y ? 1 : target.y < a.y ? -1 : 0) : 0;
+          const nx = Math.max(0, Math.min(state.width - 1, a.x + dx));
+          const ny = Math.max(0, Math.min(state.height - 1, a.y + dy));
+          if (grid[ny][nx].terrain !== 'water' && !grid[ny][nx].building) {
+            a.x = nx; a.y = ny;
+          }
+        }
+      } else if (newTick % 5 === 0) {
+        // Random roam when no target
+        const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+        const dir = dirs[(newTick + a.x * 11 + a.y * 17) % 4];
+        const nx = Math.max(0, Math.min(state.width - 1, a.x + dir.dx));
+        const ny = Math.max(0, Math.min(state.height - 1, a.y + dir.dy));
+        if (grid[ny][nx].terrain !== 'water' && !grid[ny][nx].building) {
+          a.x = nx; a.y = ny;
+        }
+      }
+    }
+  }
+
+  // Hunter AI: hunters track and kill animals
+  for (const v of villagers) {
+    if (v.role !== 'hunter' || v.hp <= 0) continue;
+    if (v.state === 'sleeping') continue;
+
+    // Find nearest animal
+    let nearestAnimal: AnimalEntity | null = null;
+    let nearestDist = Infinity;
+    for (const a of animals) {
+      if (a.hp <= 0) continue;
+      const dist = Math.abs(a.x - v.x) + Math.abs(a.y - v.y);
+      if (dist < nearestDist) { nearestAnimal = a; nearestDist = dist; }
+    }
+
+    if (!nearestAnimal) continue;
+
+    if (v.state === 'hunting') {
+      if (isAdjacent(v.x, v.y, nearestAnimal.x, nearestAnimal.y)) {
+        // Attack the animal
+        nearestAnimal.hp -= 3; // hunter attack
+        if (nearestAnimal.attack > 0) {
+          v.hp -= Math.max(1, nearestAnimal.attack - 1); // animal fights back
+        }
+      } else {
+        // Move toward animal
+        const dx = nearestAnimal.x > v.x ? 1 : nearestAnimal.x < v.x ? -1 : 0;
+        const dy = dx === 0 ? (nearestAnimal.y > v.y ? 1 : nearestAnimal.y < v.y ? -1 : 0) : 0;
+        const nx = Math.max(0, Math.min(state.width - 1, v.x + dx));
+        const ny = Math.max(0, Math.min(state.height - 1, v.y + dy));
+        if (grid[ny][nx].terrain !== 'water') {
+          v.x = nx; v.y = ny;
+        }
+      }
+      continue; // skip normal state machine
+    }
+
+    // If at work and animals exist, start hunting
+    if (v.state === 'working' && nearestDist <= 20) {
+      v.state = 'hunting';
+      continue;
+    }
+
+    // Hauling drop: pick up resource drop and carry to storehouse
+    if (v.state === 'hauling_drop') {
+      if (atDestination(v)) {
+        // At storehouse — deposit carried resources
+        for (const [res, amt] of Object.entries(v.carrying)) {
+          if (amt && amt > 0) addResource(resources, res as ResourceType, amt, storageCap);
+        }
+        v.carrying = {};
+        v.carryTotal = 0;
+        // Go back to work or hunt
+        v.state = 'working';
+        if (v.jobBuildingId) {
+          const job = buildings.find(b => b.id === v.jobBuildingId);
+          if (job) {
+            const entrance = getBuildingEntrance(job);
+            planPath(v, grid, state.width, state.height, entrance.x, entrance.y);
+            v.state = 'traveling_to_work';
+          }
+        }
+      } else {
+        moveOneStep(v);
+      }
+      continue;
+    }
+  }
+
+  // Remove dead animals, create resource drops
+  for (let i = animals.length - 1; i >= 0; i--) {
+    if (animals[i].hp <= 0) {
+      const dead = animals[i];
+      const template = ANIMAL_TEMPLATES[dead.type];
+      if (template.drops && Object.keys(template.drops).length > 0) {
+        resourceDrops.push({
+          id: `d${nextDropId}`, x: dead.x, y: dead.y,
+          resources: { ...template.drops },
+        });
+        nextDropId++;
+      }
+      animals.splice(i, 1);
+    }
+  }
+
+  // Hunters pick up resource drops when adjacent
+  for (const v of villagers) {
+    if (v.role !== 'hunter' || v.hp <= 0) continue;
+    if (v.state !== 'hunting' && v.state !== 'working') continue;
+
+    for (let i = resourceDrops.length - 1; i >= 0; i--) {
+      const drop = resourceDrops[i];
+      if (isAdjacent(v.x, v.y, drop.x, drop.y) || (v.x === drop.x && v.y === drop.y)) {
+        // Pick up resources
+        for (const [res, amt] of Object.entries(drop.resources)) {
+          if (amt && amt > 0) {
+            const canCarry = Math.min(amt, CARRY_CAPACITY - v.carryTotal);
+            if (canCarry > 0) {
+              v.carrying[res as ResourceType] = (v.carrying[res as ResourceType] || 0) + canCarry;
+              v.carryTotal += canCarry;
+            }
+          }
+        }
+        resourceDrops.splice(i, 1);
+
+        // Head to storehouse to deposit
+        const storehouse = findNearestStorehouse(buildings, grid, state.width, state.height, v.x, v.y);
+        if (storehouse) {
+          const entrance = getBuildingEntrance(storehouse);
+          planPath(v, grid, state.width, state.height, entrance.x, entrance.y);
+          v.state = 'hauling_drop';
+        }
+        break; // only pick up one drop per tick
+      }
+    }
+  }
+
+  // Remove dead villagers (from animal attacks)
+  const deadFromAnimals = new Set(villagers.filter(v => v.hp <= 0).map(v => v.id));
+  if (deadFromAnimals.size > 0) {
+    for (const b of buildings) b.assignedWorkers = b.assignedWorkers.filter(id => !deadFromAnimals.has(id));
+    villagers = villagers.filter(v => !deadFromAnimals.has(v.id));
+  }
+
+  // ==============================================
   // MERCHANT (daily check)
   // ==============================================
   let merchant: MerchantState | null = state.merchant ? { ...state.merchant } : null;
@@ -1223,12 +1451,12 @@ export function tick(state: GameState): GameState {
     tick: newTick,
     day: newDay,
     grid, resources, storageCap, buildings, villagers,
-    enemies, fog, territory,
+    enemies, animals, resourceDrops, fog, territory,
     raidBar, raidLevel, activeRaid, research,
     merchant, merchantTimer, prosperity, season, weather,
     renown, events, completedQuests,
     nextVillagerId: nextVId,
-    nextEnemyId,
+    nextEnemyId, nextAnimalId, nextDropId,
   };
 
   const errors = validateState(newState);

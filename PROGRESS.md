@@ -1,60 +1,59 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation substantially complete. All core invariants enforced.
-- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, guards intercept, melee per-tick). Construction sites. Local buffer production + physical hauling. Processing buildings consume local inputs. Physical eating (travel to food source). Building repair. Villager death. 81 tests all passing.
-- **What's next**: Animals, guard patrol routes, then comprehensive Bellwright assessment.
+- **Status**: V2 spatial simulation feature-complete for core systems. All invariants enforced.
+- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, guards intercept, melee per-tick). Construction sites. Local buffer production + physical hauling. Processing buildings consume local inputs. Physical eating. Building repair. Villager death. Wildlife (deer, wolves, boars roam the map). Hunters track and kill animals, drops at death location. 91 tests all passing.
+- **What's next**: Guard patrol routes, then comprehensive Bellwright assessment.
 
 ## The Bellwright Question
 
 **Is this a complete 2D Bellwright? Be extremely strict and pedantic.**
 
-No, but much closer. The spatial foundation is nearly complete:
+Getting very close. Nearly all core invariants are now enforced:
 
-1. **No animals on the map.** Wildlife (deer, wolves, boars) doesn't exist as grid entities. Hunters can't track/kill them. No resource drops at death location.
-2. **No guard patrol routes.** Guards intercept enemies reactively but have no configurable patrol behavior.
-3. **No marketplace/trading requires presence.** Trading is still instant (buy/sell from anywhere).
-4. **No gate logic.** Gates should let allies through but block enemies.
-5. **No fog of war exploration.** Map starts revealed in tests; scout reveal works but fog isn't fully integrated.
+1. **No guard patrol routes.** Guards intercept enemies reactively but have no configurable patrol behavior or routes.
+2. **No marketplace/trading requires presence.** Trading is still instant (buy/sell from anywhere).
+3. **No gate logic.** Gates should let allies through but block enemies.
+4. **Eating is semi-physical.** Villagers travel to storehouse to eat, but food comes from global pool at storehouse. Ideally food should be in storehouse's local buffer.
+5. **No rubble/clearing.** Destroyed buildings just vanish; should leave clearable rubble.
 
-**What IS proven by tests (81 passing):**
-- ✅ 120 ticks = 1 day (tick model)
-- ✅ Villagers move max 1 tile per tick (no teleportation)
-- ✅ 15 tiles takes ≥15 ticks to traverse
-- ✅ Production requires physical presence at workplace
-- ✅ Production goes to building local buffer, not global
-- ✅ Hauling moves resources from building to storehouse
-- ✅ Water blocks movement / pathfinding around obstacles
-- ✅ Buildings block movement (pathfind around)
-- ✅ Workers can enter their workplace (destination exception)
+**What IS proven by tests (91 passing):**
+- ✅ 120 ticks = 1 day
+- ✅ Max 1 tile/tick movement (villagers, enemies, animals — all anti-teleportation tested)
+- ✅ 15 tiles takes ≥15 ticks
+- ✅ Production requires physical presence
+- ✅ Production goes to building local buffer
+- ✅ Hauling: local buffer → storehouse
+- ✅ Water blocks movement
+- ✅ Buildings block movement (pathfind around, destination exception)
 - ✅ Villagers sleep at night
 - ✅ Buildings have HP and local buffers
 - ✅ Seasons change every 10 days
-- ✅ Enemies move 1 tile/tick toward settlement (no teleportation)
+- ✅ Enemies move 1 tile/tick toward settlement
 - ✅ Walls block enemy pathfinding
-- ✅ Enemies attack adjacent buildings (walls take damage)
+- ✅ Enemies attack adjacent buildings
 - ✅ Guards intercept enemies
-- ✅ Melee combat: adjacent entities exchange damage per tick
-- ✅ Dead enemies removed from map
-- ✅ Dead villagers removed from map (combat death)
+- ✅ Melee combat per-tick damage exchange
+- ✅ Dead enemies removed
+- ✅ Dead villagers removed (combat death)
+- ✅ Enemies attack non-guard villagers
 - ✅ Wall destroyed at 0 HP
-- ✅ Buildings start as construction sites
-- ✅ Workers build construction sites tick-by-tick (requires physical presence)
+- ✅ Construction sites, tick-by-tick building
 - ✅ Unconstructed buildings don't produce
-- ✅ Completed buildings become functional
-- ✅ Processing buildings consume inputs from local buffer (not global)
-- ✅ Workers haul inputs from storehouse to processing building
-- ✅ Eating requires physical travel to food source (no instant feeding)
-- ✅ Hungry villagers prioritize eating over work
-- ✅ Well-fed villagers skip eating, go to work
-- ✅ Workers repair damaged buildings (1 HP/tick)
-- ✅ Repair completes before production resumes
-- ✅ Enemies attack adjacent non-guard villagers
+- ✅ Processing buildings consume local buffer inputs
+- ✅ Workers haul inputs from storehouse
+- ✅ Physical eating (travel to food source)
+- ✅ Workers repair damaged buildings
+- ✅ Animals are grid entities with positions
+- ✅ Passive animals flee from nearby villagers
+- ✅ Hostile animals attack adjacent villagers
+- ✅ Hunters track and kill animals
+- ✅ Dead animals create resource drops at death location
 
 ## Active Files
-- `CLAUDE.md` — autonomous instructions, invariants, the Bellwright Question
-- `src/world.ts` — data types (~700 lines)
-- `src/simulation.ts` — v2 game rules (~1400 lines)
+- `CLAUDE.md` — autonomous instructions, invariants
+- `src/world.ts` — data types (~750 lines)
+- `src/simulation.ts` — v2 game rules (~1700 lines)
 - `src/render-text.ts` — text renderers (~240 lines)
 - `src/main.ts` — CLI entry point (~80 lines)
 - `src/tests/test-v2-core.ts` — 35 tests
@@ -63,18 +62,16 @@ No, but much closer. The spatial foundation is nearly complete:
 - `src/tests/test-v2-processing.ts` — 7 tests
 - `src/tests/test-v2-eating.ts` — 9 tests
 - `src/tests/test-v2-physics.ts` — 9 tests
+- `src/tests/test-v2-animals.ts` — 10 tests
 
 ## Key Decisions
 - Grid convention: grid[y][x]
 - Node.js PATH: `export PATH="/c/Program Files/nodejs:$PATH"`
 - 120 ticks = 1 game day (v2)
 - 1 tile/tick maximum movement speed (v2)
-- Keep data layer (world.ts types/templates), rewrite simulation layer
-- Tools are bonuses not necessities (none=1.0x baseline)
-- Player is god-like overseer, no character on grid
-- Production → local buffer → haul to storehouse → global resources
-- Processing buildings: inputs hauled from storehouse → local buffer → consumed → output hauled
-- Buildings block pathfinding (destination tile is exception for workers)
-- Eating is physical: travel to storehouse, consume food from global resources there
-- Villagers die at 0 HP (removed from map)
-- Workers repair damaged buildings before producing (1 HP/tick)
+- Buildings block pathfinding (destination tile is exception)
+- Eating is physical: travel to storehouse, consume food
+- Workers repair damaged buildings (1 HP/tick) before producing
+- Animals spawn every 3 days, max 10 on map
+- Hunters attack animals (3 damage/tick), haul drops to storehouse
+- Passive animals flee within 3 tiles, hostile attack within 5 tiles

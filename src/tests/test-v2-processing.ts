@@ -141,11 +141,12 @@ heading('Worker Hauls Inputs From Storehouse');
 
 {
   let state = flatWorld(15, 10);
-  state = addVillager(state, 3, 5);
+  state = addVillager(state, 2, 3);
 
-  state = placeBuilding(state, 'tent', 3, 5);
-  state = placeBuilding(state, 'storehouse', 5, 5);
-  state = placeBuilding(state, 'mill', 8, 5);
+  // Place buildings on separate rows to avoid blocking each other's paths
+  state = placeBuilding(state, 'tent', 2, 3);
+  state = placeBuilding(state, 'storehouse', 4, 3);
+  state = placeBuilding(state, 'mill', 7, 3);
   const homeId = state.buildings[0].id;
   const millId = state.buildings.find(b => b.type === 'mill')!.id;
 
@@ -165,12 +166,12 @@ heading('Worker Hauls Inputs From Storehouse');
     ),
   };
 
-  // Put wheat in global storage (storehouse)
-  state = { ...state, resources: { ...state.resources, wheat: 20 } };
+  // Put wheat in global storage (storehouse), plus bread for eating
+  state = { ...state, resources: { ...state.resources, wheat: 20, bread: 10 } };
 
   // Advance several days — worker should go to mill, find no inputs,
   // travel to storehouse, pick up wheat, bring it back, and process
-  state = advance(state, TICKS_PER_DAY * 4);
+  state = advance(state, TICKS_PER_DAY * 5);
 
   const mill = state.buildings.find(b => b.id === millId)!;
   const localFlour = mill.localBuffer['flour'] || 0;
