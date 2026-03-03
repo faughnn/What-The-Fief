@@ -16,6 +16,7 @@ const ROLE_CHARS: Record<VillagerRole, string> = {
   sawyer: 's', smelter: 'e', miller: 'l', baker: 'b',
   tanner_worker: 'n', weaver_worker: 'a', ropemaker_worker: 'r',
   blacksmith_worker: 'k', toolmaker_worker: 'o', armorer_worker: 'z',
+  scout: 'c',
 };
 
 export function renderMap(state: GameState): string {
@@ -38,10 +39,15 @@ export function renderMap(state: GameState): string {
     let row = y.toString().padStart(2) + ' ';
     for (let x = 0; x < state.width; x++) {
       const tile = state.grid[y][x];
-      const vChar = villagerMap.get(`${x},${y}`);
-      if (vChar) row += ' ' + vChar;
-      else if (tile.building) row += ' ' + BUILDING_TEMPLATES[tile.building.type].mapChar;
-      else row += ' ' + TERRAIN_CHARS[tile.terrain];
+      if (!state.fog[y][x]) {
+        row += ' ?';
+      } else {
+        const vChar = villagerMap.get(`${x},${y}`);
+        if (vChar) row += ' ' + vChar;
+        else if (tile.building) row += ' ' + BUILDING_TEMPLATES[tile.building.type].mapChar;
+        else if (tile.deposit) row += ' ' + (tile.deposit === 'iron' ? '*' : tile.deposit === 'fertile' ? '+' : '&');
+        else row += ' ' + TERRAIN_CHARS[tile.terrain];
+      }
     }
     lines.push(row);
   }

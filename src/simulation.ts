@@ -5,7 +5,7 @@ import {
   Tile, BUILDING_TEMPLATES, createVillager, BASE_STORAGE_CAP, STOREHOUSE_BONUS,
   SPOILAGE, FOOD_PRIORITY, ALL_RESOURCES, SkillType, BUILDING_SKILL_MAP,
   skillMultiplier, FoodEaten, ToolTier, TOOL_MULTIPLIER, TOOL_DURABILITY,
-  TOOL_RESOURCE, TOOL_EQUIP_PRIORITY,
+  TOOL_RESOURCE, TOOL_EQUIP_PRIORITY, Direction,
 } from './world.js';
 
 // --- BFS Pathfinding ---
@@ -204,12 +204,23 @@ function calculateMorale(v: Villager): number {
   return Math.max(0, Math.min(100, morale));
 }
 
+// --- Fog helpers ---
+function revealArea(fog: boolean[][], width: number, height: number, cx: number, cy: number, radius: number): void {
+  for (let y = Math.max(0, cy - radius); y <= Math.min(height - 1, cy + radius); y++) {
+    for (let x = Math.max(0, cx - radius); x <= Math.min(width - 1, cx + radius); x++) {
+      fog[y][x] = true;
+    }
+  }
+}
+
 // --- Tick ---
 export function tick(state: GameState): GameState {
   let villagers = state.villagers.map(v => ({ ...v, skills: { ...v.skills }, traits: [...v.traits] }));
   const resources: Resources = { ...state.resources };
   const buildings = state.buildings.map(b => ({ ...b, assignedWorkers: [...b.assignedWorkers] }));
   const storageCap = computeStorageCap(buildings);
+  const fog = state.fog.map(row => [...row]);
+  const territory = state.territory.map(row => [...row]);
 
   // 1. Auto-assign homeless
   for (const v of villagers) {
@@ -254,6 +265,24 @@ export function tick(state: GameState): GameState {
 
     // Gain XP
     gainSkillXp(v, job.type);
+  }
+
+  // 2b. Scouting
+  for (const v of villagers) {
+    if (v.state !== 'scouting' || !v.scoutDirection) continue;
+    const dir = v.scoutDirection;
+    const moveX = dir === 'e' ? 5 : dir === 'w' ? -5 : 0;
+    const moveY = dir === 's' ? 5 : dir === 'n' ? -5 : 0;
+    v.x = Math.max(0, Math.min(state.width - 1, v.x + moveX));
+    v.y = Math.max(0, Math.min(state.height - 1, v.y + moveY));
+    revealArea(fog, state.width, state.height, v.x, v.y, 5);
+    v.scoutTicksLeft -= 1;
+    if (v.scoutTicksLeft <= 0 || v.x === 0 || v.y === 0 || v.x === state.width - 1 || v.y === state.height - 1) {
+      v.scoutDirection = null;
+      v.scoutTicksLeft = 0;
+      v.state = 'idle';
+      v.role = 'idle';
+    }
   }
 
   // 3. Eat — food priority: bread > flour > wheat > food
@@ -339,7 +368,7 @@ export function tick(state: GameState): GameState {
 
   const newState: GameState = {
     ...state,
-    day: state.day + 1, resources, storageCap, buildings, villagers,
+    day: state.day + 1, resources, storageCap, buildings, villagers, fog, territory,
     nextVillagerId: villagers.length > state.villagers.length
       ? state.nextVillagerId + 1 : state.nextVillagerId,
   };
@@ -361,12 +390,20 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
 
   for (let dy = 0; dy < bh; dy++) {
     for (let dx = 0; dx < bw; dx++) {
-      const tile = state.grid[y + dy][x + dx];
+      const tx = x + dx;
+      const ty = y + dy;
+      const tile = state.grid[ty][tx];
+      if (!state.fog[ty][tx]) {
+        console.log(`ERROR: Cannot place ${type} at (${x},${y}) — (${tx},${ty}) not revealed`); return state;
+      }
+      if (!state.territory[ty][tx]) {
+        console.log(`ERROR: Cannot place ${type} at (${x},${y}) — (${tx},${ty}) not in territory`); return state;
+      }
       if (!template.allowedTerrain.includes(tile.terrain)) {
-        console.log(`ERROR: Cannot place ${type} at (${x},${y}) — (${x + dx},${y + dy}) is ${tile.terrain}`); return state;
+        console.log(`ERROR: Cannot place ${type} at (${x},${y}) — (${tx},${ty}) is ${tile.terrain}`); return state;
       }
       if (tile.building) {
-        console.log(`ERROR: Cannot place ${type} at (${x},${y}) — (${x + dx},${y + dy}) occupied`); return state;
+        console.log(`ERROR: Cannot place ${type} at (${x},${y}) — (${tx},${ty}) occupied`); return state;
       }
     }
   }
@@ -420,4 +457,55 @@ export function assignVillager(state: GameState, villagerId: string, buildingId:
   );
 
   return { ...state, buildings: newBuildings, villagers: newVillagers };
+}
+
+// --- Send Scout ---
+export function sendScout(state: GameState, villagerId: string, direction: Direction): GameState {
+  const villager = state.villagers.find(v => v.id === villagerId);
+  if (!villager) { console.log(`ERROR: Villager ${villagerId} not found`); return state; }
+  if (villager.state === 'scouting') { console.log(`ERROR: ${villagerId} is already scouting`); return state; }
+
+  const newVillagers = state.villagers.map(v => {
+    if (v.id === villagerId) {
+      return {
+        ...v, skills: { ...v.skills }, traits: [...v.traits],
+        role: 'scout' as const, state: 'scouting' as const,
+        jobBuildingId: null, scoutDirection: direction, scoutTicksLeft: 10,
+      };
+    }
+    return v;
+  });
+
+  // Remove from any building assignment
+  const newBuildings = state.buildings.map(b =>
+    b.assignedWorkers.includes(villagerId) ? { ...b, assignedWorkers: b.assignedWorkers.filter(id => id !== villagerId) } : b
+  );
+
+  return { ...state, villagers: newVillagers, buildings: newBuildings };
+}
+
+// --- Claim Territory ---
+export function claimTerritory(state: GameState, x: number, y: number): GameState {
+  // Claims a 5x5 area centered on (x,y). Requires town_hall.
+  if (!state.buildings.some(b => b.type === 'town_hall')) {
+    console.log('ERROR: Need town_hall to claim territory'); return state;
+  }
+
+  const cost = { wood: 5, stone: 2 };
+  if (state.resources.wood < cost.wood || state.resources.stone < cost.stone) {
+    console.log(`ERROR: Need ${cost.wood} wood, ${cost.stone} stone to claim territory`); return state;
+  }
+
+  const newResources = { ...state.resources };
+  newResources.wood -= cost.wood;
+  newResources.stone -= cost.stone;
+
+  const newTerritory = state.territory.map(row => [...row]);
+  for (let ty = Math.max(0, y - 2); ty <= Math.min(state.height - 1, y + 2); ty++) {
+    for (let tx = Math.max(0, x - 2); tx <= Math.min(state.width - 1, x + 2); tx++) {
+      if (state.fog[ty][tx]) newTerritory[ty][tx] = true;
+    }
+  }
+
+  return { ...state, territory: newTerritory, resources: newResources };
 }

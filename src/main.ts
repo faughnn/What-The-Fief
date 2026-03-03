@@ -1,10 +1,9 @@
 // main.ts — CLI entry point
 
-import { createWorld, BuildingType } from './world.js';
-import { tick, placeBuilding, assignVillager } from './simulation.js';
+import { createWorld, BuildingType, Direction } from './world.js';
+import { tick, placeBuilding, assignVillager, sendScout, claimTerritory } from './simulation.js';
 import { renderAll, ViewMode } from './render-text.js';
 
-// --- Argument Parsing ---
 function parseArgs(argv: string[]) {
   const args = argv.slice(2);
   const result = {
@@ -12,19 +11,17 @@ function parseArgs(argv: string[]) {
     view: 'all' as ViewMode,
     place: [] as { type: BuildingType; x: number; y: number }[],
     assign: [] as { villagerId: string; buildingId: string }[],
-    width: 10,
-    height: 10,
+    scout: [] as { villagerId: string; direction: Direction }[],
+    claim: [] as { x: number; y: number }[],
+    width: 20,
+    height: 20,
     seed: 42,
   };
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
-      case '--ticks':
-        result.ticks = parseInt(args[++i], 10);
-        break;
-      case '--view':
-        result.view = args[++i] as ViewMode;
-        break;
+      case '--ticks': result.ticks = parseInt(args[++i], 10); break;
+      case '--view': result.view = args[++i] as ViewMode; break;
       case '--place': {
         const type = args[++i] as BuildingType;
         const [x, y] = args[++i].split(',').map(Number);
@@ -32,47 +29,38 @@ function parseArgs(argv: string[]) {
         break;
       }
       case '--assign': {
-        const villagerId = args[++i];
-        const buildingId = args[++i];
-        result.assign.push({ villagerId, buildingId });
+        result.assign.push({ villagerId: args[++i], buildingId: args[++i] });
         break;
       }
-      case '--width':
-        result.width = parseInt(args[++i], 10);
+      case '--scout': {
+        result.scout.push({ villagerId: args[++i], direction: args[++i] as Direction });
         break;
-      case '--height':
-        result.height = parseInt(args[++i], 10);
+      }
+      case '--claim': {
+        const [x, y] = args[++i].split(',').map(Number);
+        result.claim.push({ x, y });
         break;
-      case '--seed':
-        result.seed = parseInt(args[++i], 10);
-        break;
+      }
+      case '--width': result.width = parseInt(args[++i], 10); break;
+      case '--height': result.height = parseInt(args[++i], 10); break;
+      case '--seed': result.seed = parseInt(args[++i], 10); break;
     }
   }
 
   return result;
 }
 
-// --- Main ---
 function main() {
   const opts = parseArgs(process.argv);
   let state = createWorld(opts.width, opts.height, opts.seed);
 
-  // Place buildings before ticking
-  for (const p of opts.place) {
-    state = placeBuilding(state, p.type, p.x, p.y);
-  }
+  for (const p of opts.place) state = placeBuilding(state, p.type, p.x, p.y);
+  for (const a of opts.assign) state = assignVillager(state, a.villagerId, a.buildingId);
+  for (const s of opts.scout) state = sendScout(state, s.villagerId, s.direction);
+  for (const c of opts.claim) state = claimTerritory(state, c.x, c.y);
 
-  // Assign villagers before ticking
-  for (const a of opts.assign) {
-    state = assignVillager(state, a.villagerId, a.buildingId);
-  }
+  for (let i = 0; i < opts.ticks; i++) state = tick(state);
 
-  // Run ticks
-  for (let i = 0; i < opts.ticks; i++) {
-    state = tick(state);
-  }
-
-  // Render
   console.log(renderAll(state, opts.view));
 }
 

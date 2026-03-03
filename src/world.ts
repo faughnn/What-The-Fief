@@ -4,9 +4,12 @@
 export type Terrain = 'grass' | 'forest' | 'water' | 'stone';
 
 // --- Tile ---
+export type Deposit = 'iron' | 'fertile' | 'herbs' | null;
+
 export interface Tile {
   terrain: Terrain;
   building: Building | null;
+  deposit: Deposit;
 }
 
 // --- Building ---
@@ -14,7 +17,8 @@ export type BuildingType =
   | 'house' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse'
   | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine'
   | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker'
-  | 'blacksmith' | 'toolmaker' | 'armorer';
+  | 'blacksmith' | 'toolmaker' | 'armorer'
+  | 'town_hall';
 
 export interface Building {
   id: string;
@@ -220,6 +224,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 25, stone: 20 }, description: 'Forges iron tools and equipment',
     maxWorkers: 1, production: { output: 'iron_tools', amountPerWorker: 1, inputs: { ingots: 3, leather: 1 } }, mapChar: 'A',
   },
+  town_hall: {
+    type: 'town_hall', width: 3, height: 3, allowedTerrain: ['grass'],
+    cost: { wood: 30, stone: 20, planks: 10 }, description: 'Enables territory expansion',
+    maxWorkers: 0, production: null, mapChar: 'T',
+  },
 };
 
 // --- Skills ---
@@ -253,10 +262,12 @@ export type VillagerRole =
   | 'idle' | 'farmer' | 'woodcutter' | 'quarrier' | 'herbalist'
   | 'flaxer' | 'hemper' | 'miner' | 'sawyer' | 'smelter'
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
-  | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker';
+  | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker'
+  | 'scout';
 
-export type VillagerState = 'sleeping' | 'working' | 'idle';
+export type VillagerState = 'sleeping' | 'working' | 'idle' | 'scouting';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
+export type Direction = 'n' | 's' | 'e' | 'w';
 
 export interface Villager {
   id: string;
@@ -275,6 +286,8 @@ export interface Villager {
   lastAte: FoodEaten;
   tool: ToolTier;
   toolDurability: number;
+  scoutDirection: Direction | null;
+  scoutTicksLeft: number;
 }
 
 // --- Game State ---
@@ -289,6 +302,8 @@ export interface GameState {
   nextBuildingId: number;
   villagers: Villager[];
   nextVillagerId: number;
+  fog: boolean[][];       // true = revealed
+  territory: boolean[][]; // true = claimed
 }
 
 // --- Names ---
@@ -333,6 +348,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     state: 'idle', food: 5, homeless: 0,
     skills: emptySkills(), traits: rollTraits(id), morale: 50, lastAte: 'nothing',
     tool: 'none', toolDurability: 0,
+    scoutDirection: null, scoutTicksLeft: 0,
   };
 }
 
@@ -352,13 +368,36 @@ export function createWorld(width: number, height: number, seed: number = 42): G
       } else if (rng() < 0.05) {
         terrain = 'stone';
       }
-      row.push({ terrain, building: null });
+      // Deposits
+      let deposit: Deposit = null;
+      if (terrain === 'stone' && rng() < 0.3) deposit = 'iron';
+      else if (terrain === 'grass' && rng() < 0.08) deposit = 'fertile';
+      else if (terrain === 'grass' && rng() < 0.05) deposit = 'herbs';
+
+      row.push({ terrain, building: null, deposit });
     }
     grid.push(row);
   }
 
   const cx = Math.floor(width / 4);
   const cy = Math.floor(height / 2);
+
+  // Fog: reveal 10x10 around start
+  const fog: boolean[][] = Array.from({ length: height }, () => Array(width).fill(false));
+  for (let fy = Math.max(0, cy - 5); fy < Math.min(height, cy + 5); fy++) {
+    for (let fx = Math.max(0, cx - 5); fx < Math.min(width, cx + 5); fx++) {
+      fog[fy][fx] = true;
+    }
+  }
+
+  // Territory: 5x5 around start
+  const territory: boolean[][] = Array.from({ length: height }, () => Array(width).fill(false));
+  for (let ty = Math.max(0, cy - 2); ty <= Math.min(height - 1, cy + 2); ty++) {
+    for (let tx = Math.max(0, cx - 2); tx <= Math.min(width - 1, cx + 2); tx++) {
+      territory[ty][tx] = true;
+    }
+  }
+
   const villagers: Villager[] = [];
   let placed = 0;
   for (let dy = 0; dy < height && placed < 3; dy++) {
@@ -378,5 +417,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     storageCap: BASE_STORAGE_CAP,
     buildings: [], nextBuildingId: 1,
     villagers, nextVillagerId: placed + 1,
+    fog, territory,
   };
 }
