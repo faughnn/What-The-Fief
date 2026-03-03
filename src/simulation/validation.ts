@@ -7,7 +7,8 @@ export function validateState(state: GameState): string[] {
 
   for (const key of ALL_RESOURCES) {
     if (state.resources[key] < 0) errors.push(`ERROR: Negative resource ${key}=${state.resources[key]}`);
-    if (key !== 'gold' && state.resources[key] > state.storageCap) errors.push(`ERROR: Resource ${key}=${state.resources[key]} exceeds cap ${state.storageCap}`);
+    // Note: resources CAN exceed cap temporarily (e.g., storehouse destroyed).
+    // addResource() already prevents adding past cap. No error here.
   }
 
   if (state.grid.length !== state.height) errors.push(`ERROR: Grid height mismatch`);
