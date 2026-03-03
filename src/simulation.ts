@@ -469,19 +469,21 @@ export function tick(state: GameState): GameState {
     ? { enemies: state.activeRaid.enemies.map(e => ({ ...e })), resolved: state.activeRaid.resolved }
     : null;
 
-  // Prosperity drives raid bar
-  let totalRes = 0;
-  for (const key of ALL_RESOURCES) totalRes += resources[key];
-  const raidProsperity = totalRes / 50 + buildings.length + villagers.length;
-  raidBar += raidProsperity * 0.5;
+  // Prosperity drives raid bar (grace period: first 20 days are safe)
+  if (newDay > 20) {
+    let totalRes = 0;
+    for (const key of ALL_RESOURCES) totalRes += resources[key];
+    const raidProsperity = totalRes / 50 + buildings.length + villagers.length;
+    raidBar += raidProsperity * 0.2;
+  }
 
   // Trigger raid
   if (raidBar >= 100 && !activeRaid) {
     raidLevel += 1;
     raidBar = 0;
     const enemies: Enemy[] = [];
-    const numBandits = raidLevel <= 2 ? raidLevel * 2 + 1 : raidLevel * 2;
-    const numWolves = raidLevel >= 3 ? raidLevel : 0;
+    const numBandits = raidLevel + 1;
+    const numWolves = raidLevel >= 4 ? raidLevel - 2 : 0;
     for (let i = 0; i < numBandits; i++) {
       const t = ENEMY_TEMPLATES.bandit;
       enemies.push({ type: 'bandit', hp: t.maxHp, attack: t.attack, defense: t.defense });
@@ -569,7 +571,7 @@ export function tick(state: GameState): GameState {
   // 13. Guard maxHp recalculation and healing (2 HP/day)
   for (const v of villagers) {
     if (v.role === 'guard') {
-      v.maxHp = 10 + Math.floor(v.morale / 10);
+      v.maxHp = 15 + Math.floor(v.morale / 10);
     } else {
       v.maxHp = 10;
     }
@@ -868,7 +870,7 @@ export function setGuard(state: GameState, villagerId: string): GameState {
 
   const newVillagers = state.villagers.map(v => {
     if (v.id === villagerId) {
-      const maxHp = 10 + Math.floor(v.morale / 10);
+      const maxHp = 15 + Math.floor(v.morale / 10);
       return { ...v, skills: { ...v.skills }, traits: [...v.traits], role: 'guard' as const, jobBuildingId: null, hp: maxHp, maxHp };
     }
     return v;

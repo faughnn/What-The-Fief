@@ -7,13 +7,15 @@ function assert(cond: boolean, msg: string) {
   else console.log(`PASS: ${msg}`);
 }
 
-// --- Test 1: Raid bar accumulates ---
+// --- Test 1: Raid bar accumulates (after grace period) ---
 {
   let state = createWorld(20, 20, 42);
   state = placeBuilding(state, 'house', 3, 8);
   state = placeBuilding(state, 'house', 7, 8);
   state = placeBuilding(state, 'farm', 3, 11);
   state = assignVillager(state, 'v1', 'b3');
+  // Advance past grace period (20 days)
+  state = { ...state, day: 20 };
   const before = state.raidBar;
   state = tick(state);
   assert(state.raidBar > before, `Raid bar increased from ${before} to ${Math.floor(state.raidBar)}`);
@@ -25,7 +27,7 @@ function assert(cond: boolean, msg: string) {
   state = setGuard(state, 'v1');
   const v = state.villagers.find(v => v.id === 'v1')!;
   assert(v.role === 'guard', 'v1 is a guard');
-  assert(v.maxHp === 10 + Math.floor(v.morale / 10), `Guard maxHp=${v.maxHp} based on morale=${v.morale}`);
+  assert(v.maxHp === 15 + Math.floor(v.morale / 10), `Guard maxHp=${v.maxHp} based on morale=${v.morale}`);
 }
 
 // --- Test 3: Equipped guards can win a fight ---
@@ -110,14 +112,14 @@ function assert(cond: boolean, msg: string) {
   }
 }
 
-// --- Test 6: Raid scaling (level 3+ includes wolves) ---
+// --- Test 6: Raid scaling (level 4+ includes wolves) ---
 {
   let state = createWorld(20, 20, 42);
-  state = { ...state, raidBar: 100, raidLevel: 2 };
-  // No active raid, so triggering will create level 3
+  state = { ...state, raidBar: 100, raidLevel: 3 };
+  // No active raid, so triggering will create level 4
 
   state = tick(state);
-  assert(state.raidLevel === 3, `Raid level incremented to ${state.raidLevel}`);
+  assert(state.raidLevel === 4, `Raid level incremented to ${state.raidLevel}`);
   // Raid triggers and resolves same tick, so activeRaid is null
   // But we can check that it processed correctly (raidLevel increased)
 }

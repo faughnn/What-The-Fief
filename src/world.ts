@@ -7,7 +7,7 @@ export type WeatherType = 'clear' | 'rain' | 'storm';
 export const SEASON_NAMES: Season[] = ['spring', 'summer', 'autumn', 'winter'];
 
 export const SEASON_FARM_MULT: Record<Season, number> = {
-  spring: 1.0, summer: 1.3, autumn: 1.0, winter: 0.3,
+  spring: 1.0, summer: 1.3, autumn: 1.0, winter: 0.5,
 };
 
 export const SEASON_MORALE: Record<Season, number> = {
@@ -116,7 +116,7 @@ export const ALL_RESOURCES: ResourceType[] = [
 export type ToolTier = 'none' | 'basic' | 'sturdy' | 'iron';
 
 export const TOOL_MULTIPLIER: Record<ToolTier, number> = {
-  none: 0.5, basic: 1.0, sturdy: 1.25, iron: 1.5,
+  none: 1.0, basic: 1.3, sturdy: 1.6, iron: 2.0,
 };
 
 export const TOOL_DURABILITY: Record<Exclude<ToolTier, 'none'>, number> = {
@@ -135,8 +135,8 @@ export const STOREHOUSE_BONUS = 50;
 
 // --- Spoilage rates (fraction lost per tick) ---
 export const SPOILAGE: Partial<Record<ResourceType, number>> = {
-  food: 0.05,
-  wheat: 0.02,
+  food: 0.02,
+  wheat: 0.01,
   flour: 0.01,
 };
 
@@ -261,8 +261,8 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   },
   blacksmith: {
     type: 'blacksmith', width: 2, height: 1, allowedTerrain: ['grass'],
-    cost: { wood: 15, stone: 10 }, description: 'Forges basic tools',
-    maxWorkers: 1, production: { output: 'basic_tools', amountPerWorker: 2, inputs: { ingots: 2 } }, mapChar: 'K',
+    cost: { wood: 8, stone: 5 }, description: 'Crafts basic wood/stone tools',
+    maxWorkers: 1, production: { output: 'basic_tools', amountPerWorker: 2, inputs: { wood: 3, stone: 2 } }, mapChar: 'K',
   },
   toolmaker: {
     type: 'toolmaker', width: 2, height: 1, allowedTerrain: ['grass'],
@@ -404,10 +404,10 @@ export const ENEMY_TEMPLATES: Record<EnemyType, Omit<Enemy, 'hp'> & { maxHp: num
 };
 
 export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }> = {
-  none: { attack: 1, defense: 0 },
-  basic: { attack: 2, defense: 1 },
-  sturdy: { attack: 3, defense: 2 },
-  iron: { attack: 5, defense: 3 },
+  none: { attack: 3, defense: 2 },
+  basic: { attack: 4, defense: 3 },
+  sturdy: { attack: 5, defense: 4 },
+  iron: { attack: 7, defense: 5 },
 };
 
 // --- Research ---
