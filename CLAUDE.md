@@ -91,9 +91,55 @@ If `package.json` doesn't exist:
 6. Commit as `bootstrap: initialize project with tsx and typescript`
 7. Start Phase 1
 
+## Design Philosophy & Balance
+
+This is a **Bellwright-inspired** colony sim. When making design decisions or fixing balance, follow these principles in order:
+
+### 1. Realism First
+Prefer solutions grounded in how medieval/pre-industrial settlements actually worked:
+- Tool progression should mirror real materials: **wood → stone/flint → copper/bronze → iron → steel**
+- Food production should follow real agriculture: seasons matter, crops take time, animals need feeding
+- Construction should use real materials and make sense physically
+- Combat should reflect reality: untrained peasants lose to armed bandits, but walls and numbers help
+- Economy should follow supply chains that make intuitive sense
+
+### 2. Reference Bellwright
+When unsure, ask "how does Bellwright handle this?"
+- Villagers are autonomous agents, not directly controlled
+- Player is an omniscient overseer giving orders (build here, assign there)
+- Progression is gated by resources and tech, not arbitrary unlocks
+- Early game is about survival, mid-game about growth, late-game about prosperity
+- Threats scale with your success (raids get harder as you grow)
+
+### 3. Unrealistic Only as Last Resort
+If realistic solutions don't fix a balance problem after 3 attempts, then consider gamey/unrealistic fixes (e.g., abstract bonuses, magic numbers). Document why the realistic approach failed.
+
+### Balance Tuning Loop
+```
+RUN   -> npx tsx src/tests/test-balance.ts
+READ  -> Check which scenarios FAIL and WHY (survival, food, raids, population)
+THINK -> What's the most realistic fix? (new tool tier? resource adjustment? mechanic change?)
+EDIT  -> Make the change
+RUN   -> Re-run balance tests
+REPEAT until all scenarios pass
+```
+
+Balance test targets (in `src/tests/test-balance.ts`):
+- **Basic Colony**: 3 villagers + basic buildings should survive 80+ ticks
+- **Food Focus**: Food-oriented colony should survive 80+ ticks
+- **Long Game**: Well-built colony should sustain 100+ ticks with pop >= 3
+
+### Known Balance Principles
+- Early game needs accessible tools (wood/stone) before iron chain is available
+- Raid timing must allow enough time to prepare defenses
+- Winter should be harsh but survivable with preparation
+- Food production must outpace consumption with reasonable setup
+- Guards need to be effective enough to win early raids with basic equipment
+
 ## Completion
 
 When all 12 phases are done:
 1. Run a full simulation (100+ ticks) as integration test
-2. Update PROGRESS.md to mark complete
-3. Stop
+2. Run `src/tests/test-balance.ts` — all scenarios must pass
+3. Update PROGRESS.md to mark complete
+4. Stop

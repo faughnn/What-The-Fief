@@ -1,21 +1,34 @@
 # ColonySim — Progress
 
 ## Current State
-- **Phase**: COMPLETE — All 12 phases implemented
-- **Status**: Integration tested (200+ ticks, zero validation errors)
+- **Phase**: BALANCE — All 12 phases implemented, now tuning balance
+- **Status**: All systems working (zero validation errors), but colonies die too fast
+- **Working on**: Balance pass — see CLAUDE.md "Design Philosophy & Balance"
+- **Next step**: Run `npx tsx src/tests/test-balance.ts`, fix failures using realistic solutions
+
+## Balance Problems (0/3 scenarios passing)
+1. **Raids too early** — raid bar fills in ~20 ticks, no time to build defenses
+2. **No early tools** — jump from nothing (0.5x) to iron chain is too steep; need wood/stone tool tiers
+3. **Unarmed guards useless** — attack=1 vs bandit defense=1 = guaranteed loss
+4. **Winter + spoilage** — 0.3x farming + 5% food spoilage = starvation
+5. **Production too low** — 0.5x no-tool penalty makes early economy non-viable
 
 ## Active Files (re-read these after compaction)
 - `src/world.ts` — data types (~560 lines): all types, templates, constants
 - `src/simulation.ts` — game rules (~740 lines): tick(), all actions, validation
 - `src/render-text.ts` — text renderers (~230 lines): 8 view modes
 - `src/main.ts` — CLI entry point (~80 lines)
+- `src/tests/test-balance.ts` — balance test scenarios (3 scenarios, all failing)
+- `src/tests/test-combat.ts` — combat unit tests (6 tests, all passing)
+- `CLAUDE.md` — has "Design Philosophy & Balance" section with principles
 
 ## File Manifest
 - `src/world.ts` — types, templates, constants, factories
 - `src/simulation.ts` — tick(), placeBuilding(), assignVillager(), setGuard(), sendScout(), claimTerritory(), setResearch(), buyResource(), sellResource()
 - `src/render-text.ts` — renderMap/Summary/Villagers/Economy/Combat/Research/Events/All
 - `src/main.ts` — CLI (--ticks, --view, --place, --assign, --scout, --claim, --guard, --research, --buy, --sell, --width, --height, --seed)
-- `src/tests/test-combat.ts` — 6 combat tests
+- `src/tests/test-balance.ts` — balance scenario tests
+- `src/tests/test-combat.ts` — combat unit tests
 
 ## Phase Checklist
 - [x] Phase 1: Foundation — grid, terrain, buildings, resources, validation
@@ -30,6 +43,7 @@
 - [x] Phase 10: Advanced Economy — animal husbandry, gold, trade, prosperity, marketplace
 - [x] Phase 11: World Systems — seasons (4), weather (3 types), housing tiers (tent/house/manor)
 - [x] Phase 12: Narrative — events (10 types), renown, 3 milestone quests
+- [ ] Balance Pass — tune numbers, add early tool tiers, fix raid timing
 
 ## Key Decisions
 - Grid convention: grid[y][x]
