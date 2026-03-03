@@ -1,9 +1,9 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation complete. All core Bellwright invariants enforced. 125 tests passing.
-- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates block enemies/let allies through, guards intercept + patrol routes, melee per-tick). Construction sites. Local buffer production + physical hauling to storehouse buffers. Processing buildings consume local inputs (hauled from storehouse buffer). Physical eating from storehouse buffer. Building repair. Villager death. Rubble/clearing. Wildlife (deer, wolves, boars). Hunters track and kill animals. Physical storehouse resources. Physical marketplace trading (merchants walk to marketplace, buy/sell from marketplace buffer).
-- **What's next**: Comprehensive Bellwright assessment — identify remaining gaps.
+- **Status**: V2 spatial simulation complete. Simulation refactored into `src/simulation/` directory. 125 tests passing.
+- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates block enemies/let allies through, guards intercept + patrol routes, melee per-tick). Construction sites. Local buffer production + physical hauling to storehouse buffers. Processing buildings consume local inputs (hauled from storehouse buffer). Physical eating from storehouse buffer. Building repair. Villager death. Rubble/clearing. Wildlife (deer, wolves, boars). Hunters track and kill animals. Physical storehouse resources. Physical marketplace trading (merchants walk to marketplace, buy/sell from marketplace buffer). Building costs deduct from nearest storehouse. Spoilage on storehouse buffers. Hunter drops to storehouse buffer. Immigration at map edge.
+- **What's next**: Marketplace worker hauling (marketplace buffer ↔ storehouse buffer), then remaining Bellwright gaps.
 
 ## The Bellwright Question
 
@@ -12,11 +12,17 @@
 Almost. All major systems are physically grounded:
 
 **Remaining issues (strict pedantry):**
-1. **Building placement costs deduct from global pool.** Should deduct from nearest storehouse's local buffer.
-2. **Spoilage operates on global pool.** Should operate on storehouse buffers.
+1. ~~Building placement costs deduct from global pool.~~ **FIXED** — deducts from nearest storehouse buffer.
+2. ~~Spoilage operates on global pool.~~ **FIXED** — operates on storehouse buffers.
 3. **No marketplace worker hauling.** Marketplace has a buffer but no worker hauls goods between marketplace and storehouses.
-4. **No immigration physical presence.** New villagers appear at map edge but don't walk to a tent.
-5. **Hunter drop hauling goes to global pool.** Should deposit into storehouse buffer.
+4. ~~No immigration physical presence.~~ **FIXED** — immigrants spawn at map edge.
+5. ~~Hunter drop hauling goes to global pool.~~ **FIXED** — deposits into storehouse buffer.
+6. **No tool crafting or equipping mechanics.** Guards auto-equip but no crafting workflow.
+7. **No multi-tile building footprints in pathfinding.** Buildings occupy tiles but some templates have larger footprints.
+8. **No building upgrade system.** Bellwright has building tiers/upgrades.
+9. **No villager housing assignment.** Villagers just go to nearest tent.
+10. **No fire/disaster system.**
+11. **No diplomacy/trade routes.**
 
 **What IS proven by tests (125 passing):**
 - ✅ 120 ticks = 1 day
@@ -64,7 +70,17 @@ Almost. All major systems are physically grounded:
 ## Active Files
 - `CLAUDE.md` — autonomous instructions, invariants
 - `src/world.ts` — data types (~810 lines)
-- `src/simulation.ts` — v2 game rules (~2000 lines)
+- `src/simulation.ts` — re-export shim for simulation/
+- `src/simulation/index.ts` — tick() orchestration + re-exports
+- `src/simulation/helpers.ts` — TickState interface + shared utilities
+- `src/simulation/movement.ts` — pathfinding + step-by-step movement
+- `src/simulation/validation.ts` — state invariant checks
+- `src/simulation/daily.ts` — season, weather, immigration, morale, spoilage, merchant, prosperity, events
+- `src/simulation/villagers.ts` — villager state machine
+- `src/simulation/combat.ts` — raids, enemy movement, guard AI, melee
+- `src/simulation/animals.ts` — wildlife, hunting, resource drops
+- `src/simulation/buildings.ts` — placement, territory claiming
+- `src/simulation/commands.ts` — player commands
 - `src/render-text.ts` — text renderers (~240 lines)
 - `src/main.ts` — CLI entry point (~80 lines)
 - `src/tests/test-v2-core.ts` — 35 tests
