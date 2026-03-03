@@ -477,11 +477,22 @@ export function tick(state: GameState): GameState {
       v.homeless = v.homeBuildingId ? 0 : v.homeless + 1;
     }
 
-    // Spoilage
+    // Spoilage — applies to storehouse buffers and global pool
     for (const [res, rate] of Object.entries(SPOILAGE)) {
       const key = res as ResourceType;
       const loss = Math.floor(resources[key] * (rate as number));
       resources[key] = Math.max(0, resources[key] - loss);
+      // Also spoil in storehouse buffers
+      for (const b of buildings) {
+        if (b.type === 'storehouse' && b.constructed) {
+          const bufAmt = b.localBuffer[key] || 0;
+          if (bufAmt > 0) {
+            const bufLoss = Math.floor(bufAmt * (rate as number));
+            b.localBuffer[key] = Math.max(0, bufAmt - bufLoss);
+            if ((b.localBuffer[key] || 0) <= 0) delete b.localBuffer[key];
+          }
+        }
+      }
     }
 
     // Departure — food<=0 OR homeless>=5 OR morale<=10
@@ -491,7 +502,7 @@ export function tick(state: GameState): GameState {
     }
     villagers = villagers.filter(v => v.food > 0 && v.homeless < 5 && v.morale > 10);
 
-    // Immigration
+    // Immigration — new villagers arrive at map edge and walk home
     let totalEdible = 0;
     for (const { resource } of FOOD_PRIORITY) totalEdible += resources[resource];
     if (totalEdible > villagers.length * 3) {
@@ -499,10 +510,16 @@ export function tick(state: GameState): GameState {
       if (emptyHome) {
         const home = buildings.find(b => b.id === emptyHome)!;
         const entrance = getBuildingEntrance(home);
-        const newV = createVillager(state.nextVillagerId, entrance.x, entrance.y);
+        // Spawn at map edge (south or west)
+        const edgeX = newDay % 2 === 0 ? 0 : Math.min(state.width - 1, entrance.x);
+        const edgeY = newDay % 2 === 0 ? entrance.y : state.height - 1;
+        const newV = createVillager(state.nextVillagerId, edgeX, edgeY);
         newV.homeBuildingId = emptyHome;
-        newV.state = 'sleeping';
+        // Walk home instead of spawning at home
+        planPath(newV, grid, state.width, state.height, entrance.x, entrance.y);
+        newV.state = 'traveling_home';
         villagers.push(newV);
+        events.push(`A new settler, ${newV.name}, arrives!`);
       }
     }
 
@@ -1333,9 +1350,13 @@ export function tick(state: GameState): GameState {
     // Hauling drop: pick up resource drop and carry to storehouse
     if (v.state === 'hauling_drop') {
       if (atDestination(v)) {
-        // At storehouse — deposit carried resources
+        // At storehouse — deposit carried resources into storehouse buffer
+        const dropSH = findStorehouseAt(buildings, v.x, v.y);
         for (const [res, amt] of Object.entries(v.carrying)) {
-          if (amt && amt > 0) addResource(resources, res as ResourceType, amt, storageCap);
+          if (amt && amt > 0) {
+            if (dropSH) addToBuffer(dropSH.localBuffer, res as ResourceType, amt, dropSH.bufferCapacity);
+            addResource(resources, res as ResourceType, amt, storageCap);
+          }
         }
         v.carrying = {};
         v.carryTotal = 0;
@@ -1756,6 +1777,10 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
 
   const costReduction = hasTech(state.research, 'civil_engineering') ? 0.25 : 0;
   const newResources: Resources = { ...state.resources };
+  // Deduct costs from global AND nearest storehouse buffer
+  const nearestSH = findNearestStorehouse(state.buildings, state.grid, state.width, state.height, x, y);
+  const newBuildings0 = state.buildings.map(b => ({ ...b, localBuffer: { ...b.localBuffer } }));
+  const shForCost = nearestSH ? newBuildings0.find(b => b.id === nearestSH.id) : null;
   for (const [res, amount] of Object.entries(template.cost)) {
     const key = res as keyof Resources;
     const cost = Math.max(1, Math.floor((amount as number) * (1 - costReduction)));
@@ -1763,6 +1788,11 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
       console.log(`ERROR: Cannot place ${type} — need ${cost} ${res}, have ${newResources[key]}`); return state;
     }
     newResources[key] -= cost;
+    if (shForCost) {
+      const bufAmt = shForCost.localBuffer[key as ResourceType] || 0;
+      shForCost.localBuffer[key as ResourceType] = Math.max(0, bufAmt - cost);
+      if ((shForCost.localBuffer[key as ResourceType] || 0) <= 0) delete shForCost.localBuffer[key as ResourceType];
+    }
   }
 
   const maxHp = BUILDING_MAX_HP[type] || 50;
@@ -1788,9 +1818,9 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
 
   return {
     ...state, grid: newGrid, resources: newResources,
-    buildings: [...state.buildings, building],
+    buildings: [...newBuildings0, building],
     nextBuildingId: state.nextBuildingId + 1,
-    storageCap: computeStorageCap([...state.buildings, building]),
+    storageCap: computeStorageCap([...newBuildings0, building]),
   };
 }
 
