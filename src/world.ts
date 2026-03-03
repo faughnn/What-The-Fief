@@ -183,6 +183,32 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   },
 };
 
+// --- Skills ---
+export type SkillType = 'farming' | 'mining' | 'crafting' | 'woodcutting' | 'cooking' | 'herbalism';
+
+export const ALL_SKILLS: SkillType[] = ['farming', 'mining', 'crafting', 'woodcutting', 'cooking', 'herbalism'];
+
+export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
+  farm: 'farming', flax_field: 'farming', hemp_field: 'farming',
+  quarry: 'mining', iron_mine: 'mining',
+  sawmill: 'crafting', smelter: 'crafting', tanner: 'crafting', weaver: 'crafting', ropemaker: 'crafting',
+  woodcutter: 'woodcutting',
+  mill: 'cooking', bakery: 'cooking',
+  herb_garden: 'herbalism',
+};
+
+export function skillMultiplier(level: number): number {
+  if (level <= 25) return 0.8;
+  if (level <= 50) return 1.0;
+  if (level <= 75) return 1.2;
+  return 1.5;
+}
+
+// --- Traits ---
+export type Trait = 'strong' | 'lazy' | 'skilled_crafter' | 'fast_learner' | 'glutton' | 'frugal' | 'cheerful' | 'gloomy';
+
+export const ALL_TRAITS: Trait[] = ['strong', 'lazy', 'skilled_crafter', 'fast_learner', 'glutton', 'frugal', 'cheerful', 'gloomy'];
+
 // --- Villager ---
 export type VillagerRole =
   | 'idle' | 'farmer' | 'woodcutter' | 'quarrier' | 'herbalist'
@@ -190,6 +216,7 @@ export type VillagerRole =
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker';
 
 export type VillagerState = 'sleeping' | 'working' | 'idle';
+export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
 
 export interface Villager {
   id: string;
@@ -202,6 +229,10 @@ export interface Villager {
   state: VillagerState;
   food: number;
   homeless: number;
+  skills: Record<SkillType, number>;
+  traits: Trait[];
+  morale: number;
+  lastAte: FoodEaten;
 }
 
 // --- Game State ---
@@ -234,12 +265,31 @@ function seededRng(seed: number): () => number {
   };
 }
 
+function emptySkills(): Record<SkillType, number> {
+  return { farming: 0, mining: 0, crafting: 0, woodcutting: 0, cooking: 0, herbalism: 0 };
+}
+
+function rollTraits(id: number): Trait[] {
+  // Deterministic trait assignment based on villager ID
+  const rng = seededRng(id * 7919);
+  const numTraits = rng() < 0.3 ? 0 : rng() < 0.5 ? 1 : 2;
+  const traits: Trait[] = [];
+  const pool = [...ALL_TRAITS];
+  for (let i = 0; i < numTraits && pool.length > 0; i++) {
+    const idx = Math.floor(rng() * pool.length);
+    traits.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  return traits;
+}
+
 export function createVillager(id: number, x: number, y: number): Villager {
   return {
     id: `v${id}`,
     name: VILLAGER_NAMES[(id - 1) % VILLAGER_NAMES.length],
     x, y, role: 'idle', jobBuildingId: null, homeBuildingId: null,
     state: 'idle', food: 5, homeless: 0,
+    skills: emptySkills(), traits: rollTraits(id), morale: 50, lastAte: 'nothing',
   };
 }
 

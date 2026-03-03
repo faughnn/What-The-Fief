@@ -3,7 +3,8 @@
 import {
   GameState, BuildingType, Building, Resources, ResourceType, Villager, VillagerRole,
   Tile, BUILDING_TEMPLATES, createVillager, BASE_STORAGE_CAP, STOREHOUSE_BONUS,
-  SPOILAGE, FOOD_PRIORITY, ALL_RESOURCES,
+  SPOILAGE, FOOD_PRIORITY, ALL_RESOURCES, SkillType, BUILDING_SKILL_MAP,
+  skillMultiplier, FoodEaten,
 } from './world.js';
 
 // --- BFS Pathfinding ---
@@ -132,9 +133,51 @@ export function validateState(state: GameState): string[] {
   return errors;
 }
 
+// --- Production modifier ---
+function productionOutput(v: Villager, buildingType: BuildingType, baseAmount: number): number {
+  let mult = 1.0;
+
+  // Skill modifier
+  const skill = BUILDING_SKILL_MAP[buildingType];
+  if (skill) mult *= skillMultiplier(v.skills[skill]);
+
+  // Trait modifiers
+  if (v.traits.includes('strong')) mult *= 1.2;
+  if (v.traits.includes('lazy')) mult *= 0.8;
+
+  // Morale modifier
+  if (v.morale >= 70) mult *= 1.1;
+  else if (v.morale < 30) mult *= 0.8;
+
+  return Math.max(1, Math.floor(baseAmount * mult));
+}
+
+function gainSkillXp(v: Villager, buildingType: BuildingType): void {
+  const skill = BUILDING_SKILL_MAP[buildingType];
+  if (!skill) return;
+  let xpGain = 1;
+  if (v.traits.includes('fast_learner')) xpGain = Math.ceil(xpGain * 1.5);
+  if (skill === 'crafting' && v.traits.includes('skilled_crafter')) xpGain = Math.ceil(xpGain * 1.5);
+  v.skills[skill] = Math.min(100, v.skills[skill] + xpGain);
+}
+
+function calculateMorale(v: Villager): number {
+  let morale = 50;
+  if (v.homeBuildingId) morale += 10;
+  switch (v.lastAte) {
+    case 'bread': morale += 10; break;
+    case 'flour': morale += 5; break;
+    case 'wheat': case 'food': break;
+    case 'nothing': morale -= 20; break;
+  }
+  if (v.traits.includes('cheerful')) morale += 10;
+  if (v.traits.includes('gloomy')) morale -= 10;
+  return Math.max(0, Math.min(100, morale));
+}
+
 // --- Tick ---
 export function tick(state: GameState): GameState {
-  let villagers = state.villagers.map(v => ({ ...v }));
+  let villagers = state.villagers.map(v => ({ ...v, skills: { ...v.skills }, traits: [...v.traits] }));
   const resources: Resources = { ...state.resources };
   const buildings = state.buildings.map(b => ({ ...b, assignedWorkers: [...b.assignedWorkers] }));
   const storageCap = computeStorageCap(buildings);
@@ -147,7 +190,7 @@ export function tick(state: GameState): GameState {
     }
   }
 
-  // 2. Work — data-driven production with inputs
+  // 2. Work — data-driven production with skill/trait/morale modifiers
   for (const v of villagers) {
     if (!v.jobBuildingId) continue;
     const job = buildings.find(b => b.id === v.jobBuildingId);
@@ -160,43 +203,57 @@ export function tick(state: GameState): GameState {
     const pathToWork = findPath(state.grid, state.width, state.height, v.x, v.y, entrance.x, entrance.y);
     const canReach = (v.x === entrance.x && v.y === entrance.y) || pathToWork.length > 0;
 
-    if (!canReach || pathToWork.length > MAX_COMMUTE) {
-      v.state = 'idle';
-      continue;
-    }
+    if (!canReach || pathToWork.length > MAX_COMMUTE) { v.state = 'idle'; continue; }
 
-    // Check inputs
     const prod = template.production;
-    if (prod.inputs && !hasInputs(resources, prod.inputs)) {
-      v.state = 'idle';
-      continue;
-    }
+    if (prod.inputs && !hasInputs(resources, prod.inputs)) { v.state = 'idle'; continue; }
 
-    // Consume inputs
     if (prod.inputs) consumeInputs(resources, prod.inputs);
 
-    // Produce output
     v.x = entrance.x;
     v.y = entrance.y;
     v.state = 'working';
-    addResource(resources, prod.output, prod.amountPerWorker, storageCap);
+
+    const output = productionOutput(v, job.type, prod.amountPerWorker);
+    addResource(resources, prod.output, output, storageCap);
+
+    // Gain XP
+    gainSkillXp(v, job.type);
   }
 
   // 3. Eat — food priority: bread > flour > wheat > food
   for (const v of villagers) {
-    let fed = false;
-    for (const { resource, satisfaction } of FOOD_PRIORITY) {
-      if (resources[resource] > 0) {
-        resources[resource] -= 1;
-        v.food = Math.min(10, v.food + satisfaction);
-        fed = true;
-        break;
+    const isGlutton = v.traits.includes('glutton');
+    const isFrugal = v.traits.includes('frugal');
+    const meals = isGlutton ? 2 : (isFrugal && state.day % 2 === 0) ? 0 : 1;
+
+    v.lastAte = 'nothing' as FoodEaten;
+    for (let m = 0; m < meals; m++) {
+      let fed = false;
+      for (const { resource, satisfaction } of FOOD_PRIORITY) {
+        if (resources[resource] > 0) {
+          resources[resource] -= 1;
+          v.food = Math.min(10, v.food + satisfaction);
+          if (m === 0) v.lastAte = resource as FoodEaten;
+          fed = true;
+          break;
+        }
       }
+      if (!fed && m === 0) { v.food -= 1; v.lastAte = 'nothing'; }
     }
-    if (!fed) v.food -= 1;
+    if (meals === 0) {
+      // Frugal skipping — still counts as having eaten (just less)
+      v.lastAte = 'food';
+      v.food = Math.max(0, v.food - 0.5);
+    }
   }
 
-  // 4. Return home
+  // 4. Calculate morale
+  for (const v of villagers) {
+    v.morale = calculateMorale(v);
+  }
+
+  // 5. Return home
   for (const v of villagers) {
     if (v.homeBuildingId) {
       const home = buildings.find(b => b.id === v.homeBuildingId);
@@ -211,26 +268,26 @@ export function tick(state: GameState): GameState {
     }
   }
 
-  // 5. Housing check
+  // 6. Housing check
   for (const v of villagers) {
     v.homeless = v.homeBuildingId ? 0 : v.homeless + 1;
   }
 
-  // 6. Spoilage
+  // 7. Spoilage
   for (const [res, rate] of Object.entries(SPOILAGE)) {
     const key = res as ResourceType;
     const loss = Math.floor(resources[key] * rate);
     resources[key] = Math.max(0, resources[key] - loss);
   }
 
-  // 7. Departure
-  const departing = villagers.filter(v => v.food <= 0 || v.homeless >= 5);
+  // 8. Departure — food<=0 OR homeless>=5 OR morale<=10
+  const departing = villagers.filter(v => v.food <= 0 || v.homeless >= 5 || v.morale <= 10);
   for (const d of departing) {
     for (const b of buildings) b.assignedWorkers = b.assignedWorkers.filter(id => id !== d.id);
   }
-  villagers = villagers.filter(v => v.food > 0 && v.homeless < 5);
+  villagers = villagers.filter(v => v.food > 0 && v.homeless < 5 && v.morale > 10);
 
-  // 8. Immigration
+  // 9. Immigration
   let totalEdible = 0;
   for (const { resource } of FOOD_PRIORITY) totalEdible += resources[resource];
   if (totalEdible > villagers.length * 3) {

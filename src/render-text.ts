@@ -54,8 +54,16 @@ export function renderVillagers(state: GameState): string {
   for (const v of state.villagers) {
     const job = v.jobBuildingId ? ` job=${v.jobBuildingId}` : '';
     const home = v.homeBuildingId ? ` home=${v.homeBuildingId}` : ' (homeless)';
-    lines.push(`  ${v.name} (${v.role}) pos=(${v.x},${v.y}) [${v.state}]${job}${home} food=${v.food}`);
+    const traits = v.traits.length > 0 ? ` [${v.traits.join(',')}]` : '';
+    const topSkills = Object.entries(v.skills).filter(([, lv]) => lv > 0).map(([s, lv]) => `${s}=${lv}`).join(',');
+    const skillStr = topSkills ? ` skills={${topSkills}}` : '';
+    lines.push(`  ${v.name} (${v.role}) morale=${v.morale} food=${Math.round(v.food)}${traits}${skillStr}${job}${home}`);
   }
+
+  const avgMorale = state.villagers.length > 0
+    ? Math.round(state.villagers.reduce((s, v) => s + v.morale, 0) / state.villagers.length)
+    : 0;
+  lines.push(`  Avg morale: ${avgMorale}`);
   return lines.join('\n');
 }
 
