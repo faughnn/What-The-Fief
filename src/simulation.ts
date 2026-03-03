@@ -522,8 +522,31 @@ export function tick(state: GameState): GameState {
   // PER-TICK PROCESSING: Villager state machine
   // ==============================================
   for (const v of villagers) {
-    // Skip non-worker roles for now (guards, scouts handled separately)
-    if (v.role === 'guard' || v.role === 'scout') continue;
+    // Guards handled in combat section
+    if (v.role === 'guard') continue;
+
+    // Scout movement: 1 tile per tick in the scout direction
+    if (v.role === 'scout' && v.state === 'scouting' && v.scoutDirection) {
+      const dir = v.scoutDirection;
+      const dx = dir === 'e' ? 1 : dir === 'w' ? -1 : 0;
+      const dy = dir === 's' ? 1 : dir === 'n' ? -1 : 0;
+      const nx = Math.max(0, Math.min(state.width - 1, v.x + dx));
+      const ny = Math.max(0, Math.min(state.height - 1, v.y + dy));
+      // Check passability
+      if (grid[ny][nx].terrain !== 'water') {
+        v.x = nx;
+        v.y = ny;
+      }
+      revealArea(fog, state.width, state.height, v.x, v.y, 5);
+      v.scoutTicksLeft -= 1;
+      if (v.scoutTicksLeft <= 0 || v.x === 0 || v.y === 0 || v.x === state.width - 1 || v.y === state.height - 1) {
+        v.scoutDirection = null;
+        v.scoutTicksLeft = 0;
+        v.state = 'idle';
+        v.role = 'idle';
+      }
+      continue;
+    }
 
     // NIGHT: everyone sleeps
     if (isNight) {
@@ -1338,7 +1361,7 @@ export function sendScout(state: GameState, villagerId: string, direction: Direc
       return {
         ...v, skills: { ...v.skills }, traits: [...v.traits],
         role: 'scout' as const, state: 'scouting' as const,
-        jobBuildingId: null, scoutDirection: direction, scoutTicksLeft: 10,
+        jobBuildingId: null, scoutDirection: direction, scoutTicksLeft: 50,
       };
     }
     return v;
