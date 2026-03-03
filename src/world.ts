@@ -64,6 +64,12 @@ export interface Building {
   width: number;
   height: number;
   assignedWorkers: string[];
+  // V2 fields
+  hp: number;
+  maxHp: number;
+  constructed: boolean;
+  localBuffer: Partial<Record<ResourceType, number>>;
+  bufferCapacity: number;
 }
 
 // --- Resources ---
@@ -132,6 +138,14 @@ export const TOOL_EQUIP_PRIORITY: Exclude<ToolTier, 'none'>[] = ['iron', 'sturdy
 // --- Storage ---
 export const BASE_STORAGE_CAP = 100;
 export const STOREHOUSE_BONUS = 50;
+
+// --- V2 Tick Constants ---
+export const TICKS_PER_DAY = 120;
+export const NIGHT_TICKS = 30;       // ticks 0-29 = night, 30-119 = day
+export const CARRY_CAPACITY = 5;
+export const DEFAULT_BUFFER_CAP = 20;
+export const STOREHOUSE_BUFFER_CAP = 100;
+export const HOME_DEPARTURE_TICK = 95; // villagers start heading home at this tick-in-day
 
 // --- Spoilage rates (fraction lost per tick) ---
 export const SPOILAGE: Partial<Record<ResourceType, number>> = {
@@ -355,7 +369,16 @@ export type VillagerRole =
   | 'scout' | 'guard' | 'researcher'
   | 'chicken_keeper' | 'rancher' | 'beekeeper';
 
-export type VillagerState = 'sleeping' | 'working' | 'idle' | 'scouting';
+export type VillagerState =
+  | 'sleeping'
+  | 'traveling_to_work'
+  | 'working'
+  | 'traveling_to_storage'
+  | 'traveling_to_eat'
+  | 'eating'
+  | 'traveling_home'
+  | 'idle'
+  | 'scouting';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
 export type Direction = 'n' | 's' | 'e' | 'w';
 
@@ -380,6 +403,12 @@ export interface Villager {
   scoutTicksLeft: number;
   hp: number;
   maxHp: number;
+  // V2 fields
+  path: { x: number; y: number }[];
+  pathIndex: number;
+  carrying: Partial<Record<ResourceType, number>>;
+  carryTotal: number;
+  workProgress: number;
 }
 
 // --- Combat ---
@@ -401,6 +430,31 @@ export const ENEMY_TEMPLATES: Record<EnemyType, Omit<Enemy, 'hp'> & { maxHp: num
   bandit: { type: 'bandit', maxHp: 10, attack: 3, defense: 1 },
   wolf: { type: 'wolf', maxHp: 6, attack: 4, defense: 0 },
   boar: { type: 'boar', maxHp: 15, attack: 2, defense: 2 },
+};
+
+// V2: Grid-based enemy entity (replaces abstract Enemy for simulation)
+export interface EnemyEntity {
+  id: string;
+  type: EnemyType;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
+}
+
+// V2: Building max HP by type
+export const BUILDING_MAX_HP: Record<BuildingType, number> = {
+  tent: 20, house: 50, manor: 80,
+  farm: 30, woodcutter: 30, quarry: 40, storehouse: 60,
+  herb_garden: 25, flax_field: 25, hemp_field: 25, iron_mine: 50,
+  sawmill: 40, smelter: 50, mill: 35, bakery: 35,
+  tanner: 35, weaver: 35, ropemaker: 35,
+  blacksmith: 45, toolmaker: 45, armorer: 50,
+  town_hall: 100, wall: 100, fence: 30,
+  research_desk: 30, chicken_coop: 25, livestock_barn: 40,
+  apiary: 20, marketplace: 60,
 };
 
 export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }> = {
@@ -465,16 +519,19 @@ export const TRADE_PRICES: Partial<Record<ResourceType, { buy: number; sell: num
 
 // --- Game State ---
 export interface GameState {
-  day: number;
+  tick: number;  // total tick count; day = Math.floor(tick / TICKS_PER_DAY)
+  day: number;   // convenience: Math.floor(tick / TICKS_PER_DAY)
   grid: Tile[][];
   width: number;
   height: number;
-  resources: Resources;
+  resources: Resources;  // represents storehouse contents
   storageCap: number;
   buildings: Building[];
   nextBuildingId: number;
   villagers: Villager[];
   nextVillagerId: number;
+  enemies: EnemyEntity[];  // V2: grid-based enemies
+  nextEnemyId: number;
   fog: boolean[][];
   territory: boolean[][];
   raidBar: number;
@@ -535,6 +592,10 @@ export function createVillager(id: number, x: number, y: number): Villager {
     tool: 'none', toolDurability: 0,
     scoutDirection: null, scoutTicksLeft: 0,
     hp: 10, maxHp: 10,
+    // V2 fields
+    path: [], pathIndex: 0,
+    carrying: {}, carryTotal: 0,
+    workProgress: 0,
   };
 }
 
@@ -598,11 +659,12 @@ export function createWorld(width: number, height: number, seed: number = 42): G
   }
 
   return {
-    day: 0, grid, width, height,
+    tick: 0, day: 0, grid, width, height,
     resources: { ...emptyResources(), wood: 50, stone: 20, food: 30 },
     storageCap: BASE_STORAGE_CAP,
     buildings: [], nextBuildingId: 1,
     villagers, nextVillagerId: placed + 1,
+    enemies: [], nextEnemyId: 1,
     fog, territory,
     raidBar: 0, raidLevel: 0, activeRaid: null,
     research: { completed: [], current: null, progress: 0 },

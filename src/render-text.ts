@@ -22,7 +22,9 @@ const ROLE_CHARS: Record<VillagerRole, string> = {
 
 export function renderMap(state: GameState): string {
   const lines: string[] = [];
-  lines.push(`=== Colony State [day ${state.day}] ${state.season} / ${state.weather} ===`);
+  const dayTick = state.tick % 120;
+  const timeOfDay = dayTick < 30 ? 'night' : 'day';
+  lines.push(`=== Colony State [day ${state.day} tick ${dayTick}/120 ${timeOfDay}] ${state.season} / ${state.weather} ===`);
   lines.push('');
 
   if (state.width > 20 || state.height > 20) {
@@ -66,7 +68,9 @@ export function renderVillagers(state: GameState): string {
     const topSkills = Object.entries(v.skills).filter(([, lv]) => lv > 0).map(([s, lv]) => `${s}=${lv}`).join(',');
     const skillStr = topSkills ? ` skills={${topSkills}}` : '';
     const toolStr = v.tool !== 'none' ? ` tool=${v.tool}(${v.toolDurability})` : '';
-    lines.push(`  ${v.name} (${v.role}) morale=${v.morale} food=${Math.round(v.food)}${toolStr}${traits}${skillStr}${job}${home}`);
+    const posStr = ` @(${v.x},${v.y})`;
+    const carryStr = v.carryTotal > 0 ? ` carrying=${v.carryTotal}` : '';
+    lines.push(`  ${v.name} (${v.role}/${v.state}) morale=${v.morale} food=${Math.round(v.food)}${posStr}${carryStr}${toolStr}${traits}${skillStr}${job}${home}`);
   }
 
   const avgMorale = state.villagers.length > 0
