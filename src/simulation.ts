@@ -9,6 +9,8 @@ import {
   Enemy, ActiveRaid, ENEMY_TEMPLATES, GUARD_COMBAT, EnemyType,
   TechId, TECH_TREE, ResearchState,
   MerchantState, TRADE_PRICES,
+  Season, WeatherType, SEASON_NAMES, SEASON_FARM_MULT, SEASON_MORALE,
+  WEATHER_MORALE, WEATHER_OUTDOOR_MULT, OUTDOOR_BUILDINGS, HOUSING_INFO,
 } from './world.js';
 
 // --- BFS Pathfinding ---
@@ -41,7 +43,6 @@ export function findPath(
 }
 
 // --- Helpers ---
-const HOUSE_CAPACITY = 2;
 const MAX_COMMUTE = 20;
 
 function getBuildingEntrance(b: Building): { x: number; y: number } {
@@ -65,8 +66,9 @@ function roleForBuilding(type: BuildingType): VillagerRole {
 
 function findHome(buildings: Building[], villagers: Villager[]): string | null {
   for (const b of buildings) {
-    if (b.type !== 'house') continue;
-    if (villagers.filter(v => v.homeBuildingId === b.id).length < HOUSE_CAPACITY) return b.id;
+    const info = HOUSING_INFO[b.type];
+    if (!info) continue;
+    if (villagers.filter(v => v.homeBuildingId === b.id).length < info.capacity) return b.id;
   }
   return null;
 }
@@ -194,9 +196,9 @@ function gainSkillXp(v: Villager, buildingType: BuildingType): void {
   v.skills[skill] = Math.min(100, v.skills[skill] + xpGain);
 }
 
-function calculateMorale(v: Villager): number {
+function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType): number {
   let morale = 50;
-  if (v.homeBuildingId) morale += 10;
+  morale += housingMorale;
   switch (v.lastAte) {
     case 'bread': morale += 10; break;
     case 'flour': morale += 5; break;
@@ -205,6 +207,8 @@ function calculateMorale(v: Villager): number {
   }
   if (v.traits.includes('cheerful')) morale += 10;
   if (v.traits.includes('gloomy')) morale -= 10;
+  morale += SEASON_MORALE[season];
+  morale += WEATHER_MORALE[weather];
   return Math.max(0, Math.min(100, morale));
 }
 
@@ -247,6 +251,16 @@ export function tick(state: GameState): GameState {
   };
 
   const toolDurBonus = hasTech(research, 'improved_tools') ? 0.2 : 0;
+
+  // Season & weather
+  const newDay = state.day + 1;
+  const season: Season = SEASON_NAMES[Math.floor((newDay % 40) / 10)];
+  const weatherRng = ((newDay * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff;
+  const weatherThresholds: Record<Season, [number, number]> = {
+    spring: [0.6, 0.9], summer: [0.7, 0.9], autumn: [0.4, 0.8], winter: [0.5, 0.8],
+  };
+  const [clearThresh, rainThresh] = weatherThresholds[season];
+  const weather: WeatherType = weatherRng < clearThresh ? 'clear' : weatherRng < rainThresh ? 'rain' : 'storm';
 
   // 1. Auto-assign homeless
   for (const v of villagers) {
@@ -302,7 +316,14 @@ export function tick(state: GameState): GameState {
     if (v.tool === 'none') autoEquipTool(v, resources, toolDurBonus);
 
     const baseAmount = prod.amountPerWorker + techProductionBonus(research, job.type);
-    const output = productionOutput(v, job.type, baseAmount);
+    let output = productionOutput(v, job.type, baseAmount);
+    // Season/weather multipliers for outdoor buildings
+    const isOutdoor = OUTDOOR_BUILDINGS.includes(job.type);
+    if (isOutdoor) {
+      const isFarm = ['farm', 'flax_field', 'hemp_field', 'chicken_coop'].includes(job.type);
+      if (isFarm) output = Math.max(1, Math.floor(output * SEASON_FARM_MULT[season]));
+      output = Math.max(1, Math.floor(output * WEATHER_OUTDOOR_MULT[weather]));
+    }
     addResource(resources, prod.output, output, storageCap);
 
     // Tool wear
@@ -379,7 +400,12 @@ export function tick(state: GameState): GameState {
 
   // 4. Calculate morale
   for (const v of villagers) {
-    v.morale = calculateMorale(v);
+    let housingMorale = 0;
+    if (v.homeBuildingId) {
+      const home = buildings.find(b => b.id === v.homeBuildingId);
+      if (home) housingMorale = HOUSING_INFO[home.type]?.morale ?? 0;
+    }
+    v.morale = calculateMorale(v, housingMorale, season, weather);
   }
 
   // 5. Return home
@@ -588,7 +614,7 @@ export function tick(state: GameState): GameState {
     ...state,
     day: state.day + 1, grid, resources, storageCap, buildings, villagers, fog, territory,
     raidBar, raidLevel, activeRaid, research,
-    merchant, merchantTimer, prosperity,
+    merchant, merchantTimer, prosperity, season, weather,
     nextVillagerId: villagers.length > state.villagers.length
       ? state.nextVillagerId + 1 : state.nextVillagerId,
   };

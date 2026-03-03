@@ -22,7 +22,7 @@ const ROLE_CHARS: Record<VillagerRole, string> = {
 
 export function renderMap(state: GameState): string {
   const lines: string[] = [];
-  lines.push(`=== Colony State [day ${state.day}] ===`);
+  lines.push(`=== Colony State [day ${state.day}] ${state.season} / ${state.weather} ===`);
   lines.push('');
 
   if (state.width > 20 || state.height > 20) {

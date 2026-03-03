@@ -1,5 +1,39 @@
 // world.ts — Pure data types and factory functions. NO logic.
 
+// --- Seasons & Weather ---
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+export type WeatherType = 'clear' | 'rain' | 'storm';
+
+export const SEASON_NAMES: Season[] = ['spring', 'summer', 'autumn', 'winter'];
+
+export const SEASON_FARM_MULT: Record<Season, number> = {
+  spring: 1.0, summer: 1.3, autumn: 1.0, winter: 0.3,
+};
+
+export const SEASON_MORALE: Record<Season, number> = {
+  spring: 0, summer: 5, autumn: 0, winter: -10,
+};
+
+export const WEATHER_MORALE: Record<WeatherType, number> = {
+  clear: 0, rain: -5, storm: -10,
+};
+
+export const WEATHER_OUTDOOR_MULT: Record<WeatherType, number> = {
+  clear: 1.0, rain: 0.8, storm: 0.5,
+};
+
+export const OUTDOOR_BUILDINGS: BuildingType[] = [
+  'farm', 'woodcutter', 'quarry', 'herb_garden', 'flax_field', 'hemp_field',
+  'chicken_coop', 'apiary', 'livestock_barn',
+];
+
+// --- Housing Tiers ---
+export const HOUSING_INFO: Partial<Record<BuildingType, { capacity: number; morale: number }>> = {
+  tent: { capacity: 1, morale: 0 },
+  house: { capacity: 2, morale: 10 },
+  manor: { capacity: 4, morale: 20 },
+};
+
 // --- Terrain ---
 export type Terrain = 'grass' | 'forest' | 'water' | 'stone';
 
@@ -14,7 +48,7 @@ export interface Tile {
 
 // --- Building ---
 export type BuildingType =
-  | 'house' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse'
+  | 'house' | 'tent' | 'manor' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse'
   | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine'
   | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker'
   | 'blacksmith' | 'toolmaker' | 'armorer'
@@ -135,10 +169,20 @@ export interface BuildingTemplate {
 }
 
 export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
+  tent: {
+    type: 'tent', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 3 }, description: 'Basic shelter for 1 villager',
+    maxWorkers: 0, production: null, mapChar: 't',
+  },
   house: {
     type: 'house', width: 1, height: 1, allowedTerrain: ['grass'],
-    cost: { wood: 10 }, description: 'Shelter for villagers',
+    cost: { wood: 10 }, description: 'Cottage for 2 villagers',
     maxWorkers: 0, production: null, mapChar: 'H',
+  },
+  manor: {
+    type: 'manor', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { wood: 25, stone: 15, planks: 10 }, description: 'Manor for 4 villagers',
+    maxWorkers: 0, production: null, mapChar: 'U',
   },
   farm: {
     type: 'farm', width: 2, height: 2, allowedTerrain: ['grass'],
@@ -440,6 +484,8 @@ export interface GameState {
   merchant: MerchantState | null;
   merchantTimer: number;
   prosperity: number;
+  season: Season;
+  weather: WeatherType;
 }
 
 // --- Names ---
@@ -558,5 +604,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     raidBar: 0, raidLevel: 0, activeRaid: null,
     research: { completed: [], current: null, progress: 0 },
     merchant: null, merchantTimer: 15, prosperity: 0,
+    season: 'spring', weather: 'clear',
   };
 }
