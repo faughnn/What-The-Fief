@@ -228,8 +228,54 @@ function tryIdleTask(v: Villager, ts: TickState): boolean {
 
 export function processVillagerStateMachine(ts: TickState): void {
   for (const v of ts.villagers) {
-    // Guards handled in combat section
-    if (v.role === 'guard') continue;
+    // Guards: handle eating/sleeping here, combat behavior in combat.ts
+    if (v.role === 'guard') {
+      // Guards need to eat — check hunger and process eating states
+      if (v.state === 'traveling_to_eat') {
+        if (atDestination(v)) { v.state = 'eating'; } else { moveOneStep(v); }
+        continue;
+      }
+      if (v.state === 'eating') {
+        const eatSH = findStorehouseAt(ts.buildings, v.x, v.y);
+        let fed = false;
+        for (const { resource, satisfaction } of FOOD_PRIORITY) {
+          const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
+          if (bufAmt > 0) {
+            eatSH!.localBuffer[resource] = bufAmt - 1;
+            if ((eatSH!.localBuffer[resource] || 0) <= 0) delete eatSH!.localBuffer[resource];
+            ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
+            v.food = Math.min(10, v.food + satisfaction);
+            v.lastAte = resource as FoodEaten;
+            v.recentMeals.push(resource as FoodEaten);
+            if (v.recentMeals.length > 5) v.recentMeals.shift();
+            fed = true;
+            break;
+          }
+        }
+        if (!fed) {
+          v.food = Math.max(0, v.food - 0.5);
+          v.lastAte = 'nothing' as FoodEaten;
+          v.recentMeals.push('nothing' as FoodEaten);
+          if (v.recentMeals.length > 5) v.recentMeals.shift();
+        }
+        v.state = 'idle'; // Return to patrol (combat system takes over)
+        continue;
+      }
+      // If hungry, go eat before patrolling
+      if (v.food <= 3) {
+        startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
+        continue;
+      }
+      // All other guard behavior (patrol, fight) handled in combat section
+      continue;
+    }
+
+    // Orphaned job cleanup: if assigned building no longer exists, go idle
+    if (v.jobBuildingId && !ts.buildings.find(b => b.id === v.jobBuildingId)) {
+      v.jobBuildingId = null;
+      if (v.role !== 'guard') v.role = 'idle';
+      v.state = 'idle';
+    }
 
     // Scout movement: 1 tile per tick in the scout direction
     if (v.role === 'scout' && v.state === 'scouting' && v.scoutDirection) {

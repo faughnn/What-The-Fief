@@ -110,7 +110,7 @@ export function processRaidAndCombat(ts: TickState): void {
       ts.enemies.push({
         id: `e${ts.nextEnemyId}`, type, x: ex, y: ey,
         hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-        siege: 'none',
+        siege: 'none', ticksAlive: 0,
       });
       ts.nextEnemyId++;
     }
@@ -128,7 +128,7 @@ export function processRaidAndCombat(ts: TickState): void {
         ts.enemies.push({
           id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
           hp: 25, maxHp: 25, attack: 5, defense: 3,
-          siege: 'battering_ram',
+          siege: 'battering_ram', ticksAlive: 0,
         });
         ts.nextEnemyId++;
       }
@@ -144,7 +144,7 @@ export function processRaidAndCombat(ts: TickState): void {
       ts.enemies.push({
         id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
         hp: 20, maxHp: 20, attack: 2, defense: 2,
-        siege: 'siege_tower',
+        siege: 'siege_tower', ticksAlive: 0,
       });
       ts.nextEnemyId++;
     }
@@ -153,6 +153,16 @@ export function processRaidAndCombat(ts: TickState): void {
 
   // SPATIAL COMBAT (per-tick)
   const nextBldIdRef = { value: ts.nextBuildingId };
+
+  // Enemy lifespan: raiders don't siege forever — despawn after 2 days (240 ticks)
+  const ENEMY_MAX_LIFESPAN = 240;
+  for (const e of ts.enemies) {
+    if (e.hp <= 0) continue;
+    e.ticksAlive++;
+    if (e.ticksAlive >= ENEMY_MAX_LIFESPAN) {
+      e.hp = 0; // Will be cleaned up by dead enemy removal
+    }
+  }
 
   // Enemy movement: 1 tile/tick toward settlement
   const center = findSettlementCenter(ts.buildings);
@@ -386,6 +396,15 @@ export function processRaidAndCombat(ts: TickState): void {
           }
         }
       }
+    }
+  }
+
+  // Final orphaned job cleanup: any villager whose job building was destroyed this tick
+  for (const v of ts.villagers) {
+    if (v.jobBuildingId && !ts.buildings.find(b => b.id === v.jobBuildingId)) {
+      v.jobBuildingId = null;
+      if (v.role !== 'guard') v.role = 'idle';
+      v.state = 'idle';
     }
   }
 }

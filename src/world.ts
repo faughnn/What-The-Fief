@@ -520,6 +520,7 @@ export interface EnemyEntity {
   attack: number;
   defense: number;
   siege: SiegeType;
+  ticksAlive: number; // Enemies despawn after ~2 days (240 ticks)
 }
 
 // V2: Wildlife — grid-based animals that roam the map
