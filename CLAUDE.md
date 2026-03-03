@@ -109,6 +109,7 @@ These are physics laws. They cannot be violated. Every tick, the validation func
 - They return home to sleep at night.
 - Distance from home to work affects how many ticks they can actually work.
 - They have skills, traits, morale, hunger, HP.
+- **Idle task priorities:** When a villager has no assigned job (or their workplace is destroyed), they autonomously pick tasks in priority order: haul resources from full buffers → build unconstructed buildings → clear rubble → repair damaged buildings → idle. This mirrors Bellwright's priority system — villagers are productive even without explicit player commands.
 
 ### Animals
 - **Wildlife are real grid entities.**
@@ -161,3 +162,16 @@ There is no checklist. The game is done when the Bellwright Question honestly an
 Not "mostly yes." Not "yes, except for combat." Not "yes, if you ignore the resource system." Not "functionally yes." The answer must be an unqualified, 100%, nothing-left-to-build **yes** — and every single claim in that answer must have a passing test backing it up. If even one system is abstract, instant, or faked, the answer is **no**.
 
 Run all tests, run a long simulation, verify zero `ERROR:` lines, ask the Bellwright Question one final time with maximum pedantry. If there is any gap at all, keep building.
+
+### Stress / Balance Testing
+
+The long simulation stress test must include a **player AI** — a function that examines game state each day and issues commands like a real player would. Bellwright is not a hands-off simulation; the player constantly builds, assigns, and adapts. Testing without player input is testing a scenario that never happens in real gameplay.
+
+The player AI should make reasonable decisions:
+- Build farms when food is low, expand housing when population grows
+- Build walls and assign guards as raid threat increases
+- Build a tanner/weaver before winter for clothing
+- Rebuild destroyed buildings, reassign displaced workers
+- React to events (disease → build well, raids → fortify)
+
+The stress test proves: **given reasonable player decisions, does the colony thrive over 100 days?** This validates both the simulation systems AND the balance — if a competent player can't keep a colony alive, the game is broken.

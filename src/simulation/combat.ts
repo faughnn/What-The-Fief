@@ -192,13 +192,27 @@ export function processRaidAndCombat(ts: TickState): void {
     if (path.length > 0) {
       e.x = path[0].x;
       e.y = path[0].y;
+    } else if (adjTarget) {
+      // Can't reach center — attack nearest adjacent building
+      adjTarget.hp -= Math.max(1, e.attack);
+      if (adjTarget.hp <= 0) {
+        destroyBuilding(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
+      }
     } else {
-      // Can't reach center — try to attack nearest adjacent building
-      if (adjTarget) {
-        adjTarget.hp -= Math.max(1, e.attack);
-        if (adjTarget.hp <= 0) {
-          destroyBuilding(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
-        }
+      // No path AND no adjacent target — retreat toward nearest map edge
+      const edgeX = e.x < ts.width / 2 ? 0 : ts.width - 1;
+      const edgeY = e.y < ts.height / 2 ? 0 : ts.height - 1;
+      // Pick closest edge axis
+      const dxEdge = Math.abs(e.x - edgeX);
+      const dyEdge = Math.abs(e.y - edgeY);
+      if (dxEdge <= dyEdge) {
+        e.x += e.x < edgeX ? 1 : e.x > edgeX ? -1 : 0;
+      } else {
+        e.y += e.y < edgeY ? 1 : e.y > edgeY ? -1 : 0;
+      }
+      // Despawn at map edge
+      if (e.x <= 0 || e.x >= ts.width - 1 || e.y <= 0 || e.y >= ts.height - 1) {
+        e.hp = 0; // Will be cleaned up by dead enemy removal
       }
     }
   }

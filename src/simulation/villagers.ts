@@ -157,6 +157,75 @@ function startGoingHome(v: Villager, buildings: Building[], grid: Tile[][], widt
   v.state = 'idle';
 }
 
+// --- Idle task priorities (Bellwright-style) ---
+// When a villager has no job, they pick tasks in priority order:
+// 1. Haul resources from any building with a full/near-full buffer
+// 2. Build unconstructed buildings (construction sites)
+// 3. Clear rubble
+// 4. Repair damaged buildings
+// Returns true if a task was found.
+function tryIdleTask(v: Villager, ts: TickState): boolean {
+  // Priority 1: Haul from any building with resources in its buffer
+  let bestHaul: Building | null = null;
+  let bestHaulAmt = 0;
+  for (const b of ts.buildings) {
+    if (!b.constructed || b.type === 'storehouse' || b.type === 'rubble') continue;
+    const total = bufferTotal(b.localBuffer);
+    if (total > 0 && total > bestHaulAmt) {
+      bestHaul = b;
+      bestHaulAmt = total;
+    }
+  }
+  if (bestHaul) {
+    const entrance = getBuildingEntrance(bestHaul);
+    planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
+    v.state = 'traveling_to_work'; // Reuse work travel — will pick up & haul on arrival
+    v.jobBuildingId = bestHaul.id; // Temporary assignment for hauling
+    return true;
+  }
+
+  // Priority 2: Build unconstructed buildings
+  const site = ts.buildings.find(b => !b.constructed && b.type !== 'rubble' && b.assignedWorkers.length === 0);
+  if (site) {
+    const entrance = getBuildingEntrance(site);
+    planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
+    v.state = 'traveling_to_build';
+    v.jobBuildingId = site.id;
+    return true;
+  }
+
+  // Priority 3: Clear rubble
+  const rubble = ts.buildings.find(b => b.type === 'rubble' && b.assignedWorkers.length === 0);
+  if (rubble) {
+    const entrance = getBuildingEntrance(rubble);
+    planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
+    v.state = 'traveling_to_build';
+    v.jobBuildingId = rubble.id;
+    return true;
+  }
+
+  // Priority 4: Repair damaged buildings
+  let mostDamaged: Building | null = null;
+  let worstRatio = 1;
+  for (const b of ts.buildings) {
+    if (!b.constructed || b.type === 'rubble') continue;
+    const ratio = b.hp / b.maxHp;
+    if (ratio < 1 && ratio < worstRatio) {
+      mostDamaged = b;
+      worstRatio = ratio;
+    }
+  }
+  if (mostDamaged) {
+    const entrance = getBuildingEntrance(mostDamaged);
+    planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
+    v.state = 'traveling_to_build'; // Reuse build travel — will repair on arrival
+    v.jobBuildingId = mostDamaged.id;
+    return true;
+  }
+
+  return false;
+}
+
 export function processVillagerStateMachine(ts: TickState): void {
   for (const v of ts.villagers) {
     // Guards handled in combat section
@@ -235,14 +304,8 @@ export function processVillagerStateMachine(ts: TickState): void {
           v.state = 'idle';
         }
       } else {
-        // No job — check if any unconstructed buildings need a builder
-        const site = ts.buildings.find(b => !b.constructed && b.assignedWorkers.length === 0);
-        if (site) {
-          const entrance = getBuildingEntrance(site);
-          planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
-          v.state = 'traveling_to_build';
-          v.jobBuildingId = site.id;
-        } else {
+        // No job — check idle task priorities (haul, build, clear rubble, repair)
+        if (!tryIdleTask(v, ts)) {
           v.state = 'idle';
         }
       }
@@ -304,6 +367,17 @@ export function processVillagerStateMachine(ts: TickState): void {
         if (job.hp < job.maxHp) {
           job.hp = Math.min(job.maxHp, job.hp + 1);
           break; // spent this tick repairing
+        }
+
+        // Idle helpers: haul buffer contents then release job — don't produce
+        if (v.role === 'idle') {
+          if (bufferTotal(job.localBuffer) > 0) {
+            startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
+          } else {
+            v.jobBuildingId = null;
+            v.state = 'idle';
+          }
+          break;
         }
 
         // Hunger interrupt — very hungry workers stop to eat
@@ -463,6 +537,13 @@ export function processVillagerStateMachine(ts: TickState): void {
             v.carrying = {};
             v.carryTotal = 0;
 
+            // Idle helpers: release temp job and go back to idle task search
+            if (v.role === 'idle') {
+              v.jobBuildingId = null;
+              v.state = 'idle';
+              break;
+            }
+
             // Should we go back to work or head home?
             if (ts.dayTick >= HOME_DEPARTURE_TICK) {
               startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
@@ -600,9 +681,15 @@ export function processVillagerStateMachine(ts: TickState): void {
             v.state = 'idle';
           } else {
             job.constructed = true;
-            // Switch to production on next tick
-            v.state = 'working';
-            v.workProgress = 0;
+            // Idle helpers: release job after construction, don't start producing
+            if (v.role === 'idle') {
+              v.jobBuildingId = null;
+              v.state = 'idle';
+            } else {
+              // Switch to production on next tick
+              v.state = 'working';
+              v.workProgress = 0;
+            }
           }
         }
         // Head home when needed
@@ -669,12 +756,14 @@ export function processVillagerStateMachine(ts: TickState): void {
       }
 
       case 'idle': {
-        // Idle villagers check if hungry, otherwise do nothing
+        // Idle villagers: check hunger first, then try idle task priorities
         if (v.food <= 3) {
           startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
-        }
-        if (ts.dayTick >= HOME_DEPARTURE_TICK && v.homeBuildingId) {
+        } else if (ts.dayTick >= HOME_DEPARTURE_TICK && v.homeBuildingId) {
           startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
+        } else {
+          // Try to find useful work (haul, build, clear, repair)
+          tryIdleTask(v, ts);
         }
         break;
       }
