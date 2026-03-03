@@ -14,7 +14,7 @@ import {
 } from './helpers.js';
 import { findPath, planPath } from './movement.js';
 
-function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean): number {
+function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean, churchNearby: boolean): number {
   let morale = 50;
   morale += housingMorale;
   switch (v.lastAte) {
@@ -33,6 +33,8 @@ function calculateMorale(v: Villager, housingMorale: number, season: Season, wea
   if (v.grief > 0) morale -= 15;
   // Family proximity bonus
   if (familyNearby) morale += 10;
+  // Church bonus (passed in)
+  if (churchNearby) morale += 10;
   // Food variety bonus — unique food types in recent meals
   const uniqueFoods = new Set(v.recentMeals.filter(m => m !== 'nothing'));
   if (uniqueFoods.size >= 3) morale += 10;
@@ -120,7 +122,18 @@ export function processDailyChecks(ts: TickState): void {
     // Check if any family member shares the same home
     const familyNearby = v.family.length > 0 && v.homeBuildingId !== null &&
       ts.villagers.some(other => other.id !== v.id && v.family.includes(other.id) && other.homeBuildingId === v.homeBuildingId);
-    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather, familyNearby);
+    // Check if a constructed church is within 5 tiles of the villager's home
+    let churchNearby = false;
+    if (v.homeBuildingId) {
+      const home = ts.buildings.find(b => b.id === v.homeBuildingId);
+      if (home) {
+        churchNearby = ts.buildings.some(b =>
+          b.type === 'church' && b.constructed &&
+          Math.abs(b.x - home.x) + Math.abs(b.y - home.y) <= 5
+        );
+      }
+    }
+    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather, familyNearby, churchNearby);
   }
 
   // Housing check
@@ -157,6 +170,8 @@ export function processDailyChecks(ts: TickState): void {
         other.family = other.family.filter(id => id !== d.id);
       }
     }
+    // Record in graveyard
+    ts.graveyard.push({ name: d.name, day: ts.newDay });
   }
   ts.villagers = ts.villagers.filter(v => v.hp > 0);
 

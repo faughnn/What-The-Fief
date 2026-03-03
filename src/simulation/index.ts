@@ -84,6 +84,7 @@ export function tick(state: GameState): GameState {
     renown: state.renown,
     completedQuests: [...state.completedQuests],
     banditUltimatum: state.banditUltimatum ? { ...state.banditUltimatum } : null,
+    graveyard: state.graveyard.map(g => ({ ...g })),
     nextVillagerId: state.nextVillagerId,
   };
   ts.storageCap = computeStorageCap(ts.buildings);
@@ -148,6 +149,7 @@ export function tick(state: GameState): GameState {
     events: ts.events,
     completedQuests: ts.completedQuests,
     banditUltimatum: ts.banditUltimatum,
+    graveyard: ts.graveyard,
     nextVillagerId: ts.nextVillagerId,
     nextEnemyId: ts.nextEnemyId,
     nextAnimalId: ts.nextAnimalId,

@@ -59,6 +59,8 @@ export type BuildingType =
   | 'watchtower'
   | 'tavern'
   | 'well'
+  | 'church'
+  | 'graveyard'
   | 'rubble';
 
 export interface Building {
@@ -361,6 +363,16 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { stone: 10 }, description: 'Reduces fire risk in nearby buildings',
     maxWorkers: 0, production: null, mapChar: 'O',
   },
+  church: {
+    type: 'church', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { wood: 20, stone: 15 }, description: 'Boosts morale of nearby villagers',
+    maxWorkers: 0, production: null, mapChar: 'C',
+  },
+  graveyard: {
+    type: 'graveyard', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { stone: 5 }, description: 'Resting place for the departed',
+    maxWorkers: 0, production: null, mapChar: '+',
+  },
   rubble: {
     type: 'rubble', width: 1, height: 1, allowedTerrain: ['grass', 'stone'],
     cost: {}, description: 'Clearable rubble from a destroyed building',
@@ -561,6 +573,8 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   watchtower: 70,
   tavern: 40,
   well: 50,
+  church: 80,
+  graveyard: 20,
   rubble: 1,
 };
 
@@ -578,6 +592,8 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   watchtower: 90,
   tavern: 60,
   well: 40,
+  church: 120,
+  graveyard: 30,
   rubble: 30,
 };
 
@@ -686,6 +702,7 @@ export interface GameState {
   events: string[];
   completedQuests: string[];
   banditUltimatum: { goldDemand: number; daysLeft: number } | null;
+  graveyard: { name: string; day: number }[];
 }
 
 // --- Names ---
@@ -823,6 +840,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     research: { completed: [], current: null, progress: 0 },
     merchant: null, merchantTimer: 15, prosperity: 0,
     season: 'spring', weather: 'clear',
-    renown: 0, events: [], completedQuests: [], banditUltimatum: null,
+    renown: 0, events: [], completedQuests: [], banditUltimatum: null, graveyard: [],
   };
 }

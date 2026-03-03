@@ -319,17 +319,19 @@ export function processRaidAndCombat(ts: TickState): void {
   }
 
   // Remove dead villagers (guards and non-guards)
-  const deadVillagerIds = new Set(ts.villagers.filter(v => v.hp <= 0).map(v => v.id));
+  const deadVillagers = ts.villagers.filter(v => v.hp <= 0);
+  const deadVillagerIds = new Set(deadVillagers.map(v => v.id));
   if (deadVillagerIds.size > 0) {
     for (const b of ts.buildings) b.assignedWorkers = b.assignedWorkers.filter(id => !deadVillagerIds.has(id));
-    // Apply grief to family members
-    for (const deadId of deadVillagerIds) {
+    // Apply grief to family members + record in graveyard
+    for (const dead of deadVillagers) {
       for (const v of ts.villagers) {
-        if (v.hp > 0 && v.family.includes(deadId)) {
+        if (v.hp > 0 && v.family.includes(dead.id)) {
           v.grief = 5;
-          v.family = v.family.filter(id => id !== deadId);
+          v.family = v.family.filter(id => id !== dead.id);
         }
       }
+      ts.graveyard.push({ name: dead.name, day: ts.newDay });
     }
     ts.villagers = ts.villagers.filter(v => !deadVillagerIds.has(v.id));
   }
