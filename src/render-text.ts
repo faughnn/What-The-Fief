@@ -15,6 +15,7 @@ const ROLE_CHARS: Record<VillagerRole, string> = {
   herbalist: 'h', flaxer: 'x', hemper: 'p', miner: 'i',
   sawyer: 's', smelter: 'e', miller: 'l', baker: 'b',
   tanner_worker: 'n', weaver_worker: 'a', ropemaker_worker: 'r',
+  blacksmith_worker: 'k', toolmaker_worker: 'o', armorer_worker: 'z',
 };
 
 export function renderMap(state: GameState): string {
@@ -57,7 +58,8 @@ export function renderVillagers(state: GameState): string {
     const traits = v.traits.length > 0 ? ` [${v.traits.join(',')}]` : '';
     const topSkills = Object.entries(v.skills).filter(([, lv]) => lv > 0).map(([s, lv]) => `${s}=${lv}`).join(',');
     const skillStr = topSkills ? ` skills={${topSkills}}` : '';
-    lines.push(`  ${v.name} (${v.role}) morale=${v.morale} food=${Math.round(v.food)}${traits}${skillStr}${job}${home}`);
+    const toolStr = v.tool !== 'none' ? ` tool=${v.tool}(${v.toolDurability})` : '';
+    lines.push(`  ${v.name} (${v.role}) morale=${v.morale} food=${Math.round(v.food)}${toolStr}${traits}${skillStr}${job}${home}`);
   }
 
   const avgMorale = state.villagers.length > 0

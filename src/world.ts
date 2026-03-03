@@ -13,7 +13,8 @@ export interface Tile {
 export type BuildingType =
   | 'house' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse'
   | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine'
-  | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker';
+  | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker'
+  | 'blacksmith' | 'toolmaker' | 'armorer';
 
 export interface Building {
   id: string;
@@ -28,7 +29,8 @@ export interface Building {
 // --- Resources ---
 export type ResourceType =
   | 'wood' | 'stone' | 'food' | 'wheat' | 'iron_ore' | 'herbs' | 'flax' | 'hemp'
-  | 'planks' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope';
+  | 'planks' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
+  | 'basic_tools' | 'sturdy_tools' | 'iron_tools';
 
 export interface Resources {
   wood: number;
@@ -46,12 +48,16 @@ export interface Resources {
   leather: number;
   linen: number;
   rope: number;
+  basic_tools: number;
+  sturdy_tools: number;
+  iron_tools: number;
 }
 
 export function emptyResources(): Resources {
   return {
     wood: 0, stone: 0, food: 0, wheat: 0, iron_ore: 0, herbs: 0, flax: 0, hemp: 0,
     planks: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
+    basic_tools: 0, sturdy_tools: 0, iron_tools: 0,
   };
 }
 
@@ -59,7 +65,25 @@ export function emptyResources(): Resources {
 export const ALL_RESOURCES: ResourceType[] = [
   'wood', 'stone', 'food', 'wheat', 'iron_ore', 'herbs', 'flax', 'hemp',
   'planks', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
+  'basic_tools', 'sturdy_tools', 'iron_tools',
 ];
+
+// --- Tools ---
+export type ToolTier = 'none' | 'basic' | 'sturdy' | 'iron';
+
+export const TOOL_MULTIPLIER: Record<ToolTier, number> = {
+  none: 0.5, basic: 1.0, sturdy: 1.25, iron: 1.5,
+};
+
+export const TOOL_DURABILITY: Record<Exclude<ToolTier, 'none'>, number> = {
+  basic: 20, sturdy: 40, iron: 80,
+};
+
+export const TOOL_RESOURCE: Record<Exclude<ToolTier, 'none'>, ResourceType> = {
+  iron: 'iron_tools', sturdy: 'sturdy_tools', basic: 'basic_tools',
+};
+
+export const TOOL_EQUIP_PRIORITY: Exclude<ToolTier, 'none'>[] = ['iron', 'sturdy', 'basic'];
 
 // --- Storage ---
 export const BASE_STORAGE_CAP = 100;
@@ -181,6 +205,21 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 6 }, description: 'Makes rope from hemp',
     maxWorkers: 1, production: { output: 'rope', amountPerWorker: 2, inputs: { hemp: 2 } }, mapChar: 'R',
   },
+  blacksmith: {
+    type: 'blacksmith', width: 2, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 15, stone: 10 }, description: 'Forges basic tools',
+    maxWorkers: 1, production: { output: 'basic_tools', amountPerWorker: 2, inputs: { ingots: 2 } }, mapChar: 'K',
+  },
+  toolmaker: {
+    type: 'toolmaker', width: 2, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 20, stone: 15 }, description: 'Crafts sturdy tools',
+    maxWorkers: 1, production: { output: 'sturdy_tools', amountPerWorker: 1, inputs: { ingots: 2, planks: 1 } }, mapChar: 'O',
+  },
+  armorer: {
+    type: 'armorer', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { wood: 25, stone: 20 }, description: 'Forges iron tools and equipment',
+    maxWorkers: 1, production: { output: 'iron_tools', amountPerWorker: 1, inputs: { ingots: 3, leather: 1 } }, mapChar: 'A',
+  },
 };
 
 // --- Skills ---
@@ -213,7 +252,8 @@ export const ALL_TRAITS: Trait[] = ['strong', 'lazy', 'skilled_crafter', 'fast_l
 export type VillagerRole =
   | 'idle' | 'farmer' | 'woodcutter' | 'quarrier' | 'herbalist'
   | 'flaxer' | 'hemper' | 'miner' | 'sawyer' | 'smelter'
-  | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker';
+  | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
+  | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker';
 
 export type VillagerState = 'sleeping' | 'working' | 'idle';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
@@ -233,6 +273,8 @@ export interface Villager {
   traits: Trait[];
   morale: number;
   lastAte: FoodEaten;
+  tool: ToolTier;
+  toolDurability: number;
 }
 
 // --- Game State ---
@@ -290,6 +332,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     x, y, role: 'idle', jobBuildingId: null, homeBuildingId: null,
     state: 'idle', food: 5, homeless: 0,
     skills: emptySkills(), traits: rollTraits(id), morale: 50, lastAte: 'nothing',
+    tool: 'none', toolDurability: 0,
   };
 }
 

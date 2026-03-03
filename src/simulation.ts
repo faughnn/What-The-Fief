@@ -4,7 +4,8 @@ import {
   GameState, BuildingType, Building, Resources, ResourceType, Villager, VillagerRole,
   Tile, BUILDING_TEMPLATES, createVillager, BASE_STORAGE_CAP, STOREHOUSE_BONUS,
   SPOILAGE, FOOD_PRIORITY, ALL_RESOURCES, SkillType, BUILDING_SKILL_MAP,
-  skillMultiplier, FoodEaten,
+  skillMultiplier, FoodEaten, ToolTier, TOOL_MULTIPLIER, TOOL_DURABILITY,
+  TOOL_RESOURCE, TOOL_EQUIP_PRIORITY,
 } from './world.js';
 
 // --- BFS Pathfinding ---
@@ -50,6 +51,7 @@ const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   iron_mine: 'miner', sawmill: 'sawyer', smelter: 'smelter',
   mill: 'miller', bakery: 'baker', tanner: 'tanner_worker',
   weaver: 'weaver_worker', ropemaker: 'ropemaker_worker',
+  blacksmith: 'blacksmith_worker', toolmaker: 'toolmaker_worker', armorer: 'armorer_worker',
 };
 
 function roleForBuilding(type: BuildingType): VillagerRole {
@@ -149,7 +151,34 @@ function productionOutput(v: Villager, buildingType: BuildingType, baseAmount: n
   if (v.morale >= 70) mult *= 1.1;
   else if (v.morale < 30) mult *= 0.8;
 
+  // Tool modifier
+  mult *= TOOL_MULTIPLIER[v.tool];
+
   return Math.max(1, Math.floor(baseAmount * mult));
+}
+
+// --- Tool Management ---
+function autoEquipTool(v: Villager, resources: Resources): void {
+  for (const tier of TOOL_EQUIP_PRIORITY) {
+    const res = TOOL_RESOURCE[tier];
+    if (resources[res] > 0) {
+      resources[res] -= 1;
+      v.tool = tier;
+      v.toolDurability = TOOL_DURABILITY[tier];
+      return;
+    }
+  }
+  v.tool = 'none';
+  v.toolDurability = 0;
+}
+
+function degradeTool(v: Villager, resources: Resources): void {
+  if (v.tool === 'none') return;
+  v.toolDurability -= 1;
+  if (v.toolDurability <= 0) {
+    // Tool broke — try to auto-equip a new one
+    autoEquipTool(v, resources);
+  }
 }
 
 function gainSkillXp(v: Villager, buildingType: BuildingType): void {
@@ -214,8 +243,14 @@ export function tick(state: GameState): GameState {
     v.y = entrance.y;
     v.state = 'working';
 
+    // Auto-equip tool if none equipped
+    if (v.tool === 'none') autoEquipTool(v, resources);
+
     const output = productionOutput(v, job.type, prod.amountPerWorker);
     addResource(resources, prod.output, output, storageCap);
+
+    // Tool wear
+    degradeTool(v, resources);
 
     // Gain XP
     gainSkillXp(v, job.type);
