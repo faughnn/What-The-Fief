@@ -1,62 +1,43 @@
 # ColonySim — Progress
 
 ## Current State
-- **Phase**: 9 — Research & Progression (not started)
-- **Working on**: Need to write Phase 9 spec and implement
-- **Next step**: Write phase-9-spec.md, then implement research/tech tree
+- **Phase**: COMPLETE — All 12 phases implemented
+- **Status**: Integration tested (200+ ticks, zero validation errors)
 
 ## Active Files (re-read these after compaction)
-- `src/world.ts` — data types (~468 lines): Terrain, Tile, Building, Resources, Villager, Enemy, GameState, all templates
-- `src/simulation.ts` — game rules (~620 lines): tick(), placeBuilding(), assignVillager(), setGuard(), sendScout(), claimTerritory(), validateState()
-- `src/render-text.ts` — text renderers (~170 lines): renderMap(), renderSummary(), renderVillagers(), renderEconomy(), renderCombat(), renderAll()
-- `src/main.ts` — CLI entry point: --ticks, --view, --place, --assign, --scout, --claim, --guard, --width, --height, --seed
-- `docs/plans/phase-8-spec.md` — Phase 8 spec (completed)
+- `src/world.ts` — data types (~560 lines): all types, templates, constants
+- `src/simulation.ts` — game rules (~740 lines): tick(), all actions, validation
+- `src/render-text.ts` — text renderers (~230 lines): 8 view modes
+- `src/main.ts` — CLI entry point (~80 lines)
 
-## File Manifest (all source files)
-- `src/world.ts` — types + createWorld factory + all constants/templates
-- `src/simulation.ts` — game rules (tick, placeBuilding, assignVillager, setGuard, sendScout, claimTerritory, validateState)
-- `src/render-text.ts` — text renderers (6 views: map, summary, villagers, economy, combat, all)
-- `src/main.ts` — CLI
-- `src/tests/test-combat.ts` — Phase 8 combat tests (6 tests)
+## File Manifest
+- `src/world.ts` — types, templates, constants, factories
+- `src/simulation.ts` — tick(), placeBuilding(), assignVillager(), setGuard(), sendScout(), claimTerritory(), setResearch(), buyResource(), sellResource()
+- `src/render-text.ts` — renderMap/Summary/Villagers/Economy/Combat/Research/Events/All
+- `src/main.ts` — CLI (--ticks, --view, --place, --assign, --scout, --claim, --guard, --research, --buy, --sell, --width, --height, --seed)
+- `src/tests/test-combat.ts` — 6 combat tests
 
 ## Phase Checklist
-- [x] Phase 1: Foundation
-- [x] Phase 2: Living Village
-- [x] Phase 3: Economy
-- [x] Phase 4: Production Chains
-- [x] Phase 5: Villager Depth
-- [x] Phase 6: Tools & Equipment
-- [x] Phase 7: Expansion & Exploration
-- [x] Phase 8: Combat & Defense
-- [ ] Phase 9: Research & Progression
-- [ ] Phase 10: Advanced Economy
-- [ ] Phase 11: World Systems
-- [ ] Phase 12: Narrative Layer
-
-## Phase 8 Summary
-- Raid bar system: fills based on prosperity (totalRes/50 + buildings + villagers) * 0.5/tick
-- Raid triggers at 100, spawns enemies based on raidLevel (bandits + wolves at level 3+)
-- Guard role via --guard CLI, guards auto-equip tools from storage
-- Combat: stats-based rounds (max 10), guards attack first, then enemies
-- Victory: enemies eliminated, raidBar reduced by 20
-- Defeat: random building destroyed (cleared from grid), 20% food/wheat stolen
-- Guard HP = 10 + morale/10, heals 2 HP/day
-- Wall/fence buildings added (no gameplay effect yet, just placeable)
-- Dead guards removed from villager list after combat
+- [x] Phase 1: Foundation — grid, terrain, buildings, resources, validation
+- [x] Phase 2: Living Village — villagers, pathfinding, housing, jobs, atomic day cycle
+- [x] Phase 3: Economy — 8 resource types, data-driven production, storage
+- [x] Phase 4: Production Chains — processed resources, inputs/outputs, food priority, spoilage
+- [x] Phase 5: Villager Depth — skills (6 types), traits (8 types), morale, XP
+- [x] Phase 6: Tools & Equipment — tool tiers (none/basic/sturdy/iron), durability, auto-equip
+- [x] Phase 7: Expansion — fog of war, territory, scouting, deposits, town_hall
+- [x] Phase 8: Combat — raid bar, enemy waves, guard role, stats-based combat
+- [x] Phase 9: Research — tech tree (8 techs), researcher role, production/combat bonuses
+- [x] Phase 10: Advanced Economy — animal husbandry, gold, trade, prosperity, marketplace
+- [x] Phase 11: World Systems — seasons (4), weather (3 types), housing tiers (tent/house/manor)
+- [x] Phase 12: Narrative — events (10 types), renown, 3 milestone quests
 
 ## Key Decisions
-- Seeded RNG for deterministic terrain generation
-- Grid is grid[y][x] convention
-- Buildings stamped onto tiles (each tile references its building)
-- Atomic day cycle: villagers teleport to work/home within one tick
-- Node.js installed via winget to C:\Program Files\nodejs — must add to PATH in bash: `export PATH="/c/Program Files/nodejs:$PATH"`
-- River with ford crossings every 4 rows (y % 4 === 0)
-- Food priority: bread(2x) > flour(1.5x) > wheat(1x) > food(1x)
-- Spoilage: food 5%/tick, wheat 2%/tick, flour 1%/tick
+- Grid convention: grid[y][x]
+- Atomic day cycle (travel resolved instantly within tick)
+- Node.js PATH: `export PATH="/c/Program Files/nodejs:$PATH"`
+- River with ford crossings every 4 rows
+- Food priority: bread > flour > wheat > food
 - Production multipliers: skill * trait * morale * tool (multiplicative)
-- Fog of war: 10x10 revealed at start, scouts reveal 10x10/tick
-- Territory: 5x5 claimed at start, expandable with town_hall + resources
-- Combat resolves same tick as triggered (instant resolution)
-
-## Known Issues
-(none)
+- Combat resolves same tick as triggered
+- Events seeded from day number for determinism
+- Gold exempt from storage cap
