@@ -114,11 +114,24 @@ function startEating(v: Villager, buildings: Building[], resources: Resources, g
   return false;
 }
 
+// --- Helper: try to visit tavern before going home ---
+function tryVisitTavern(v: Villager, buildings: Building[], grid: Tile[][], width: number, height: number): boolean {
+  if (v.morale >= 60 || v.tavernVisitCooldown > 0) return false;
+  const tavern = buildings.find(b => b.type === 'tavern' && b.constructed);
+  if (!tavern) return false;
+  const entrance = getBuildingEntrance(tavern);
+  planPath(v, grid, width, height, entrance.x, entrance.y);
+  v.state = 'traveling_to_tavern';
+  return true;
+}
+
 // --- Helper: start going home ---
 function startGoingHome(v: Villager, buildings: Building[], grid: Tile[][], width: number, height: number): void {
   if (v.homeBuildingId) {
     const home = buildings.find(b => b.id === v.homeBuildingId);
     if (home) {
+      // Check if should visit tavern first
+      if (tryVisitTavern(v, buildings, grid, width, height)) return;
       const entrance = getBuildingEntrance(home);
       planPath(v, grid, width, height, entrance.x, entrance.y);
       v.state = 'traveling_home';
@@ -458,6 +471,40 @@ export function processVillagerStateMachine(ts: TickState): void {
         } else {
           moveOneStep(v);
         }
+        break;
+      }
+
+      case 'traveling_to_tavern': {
+        if (atDestination(v)) {
+          v.state = 'relaxing';
+        } else {
+          moveOneStep(v);
+        }
+        break;
+      }
+
+      case 'relaxing': {
+        // At tavern — consume 1 food from nearest storehouse, gain morale, set cooldown
+        const nearestSH = findNearestStorehouse(ts.buildings, ts.grid, ts.width, ts.height, v.x, v.y);
+        let consumed = false;
+        if (nearestSH) {
+          for (const { resource } of FOOD_PRIORITY) {
+            const bufAmt = nearestSH.localBuffer[resource] || 0;
+            if (bufAmt > 0 && ts.resources[resource] > 0) {
+              nearestSH.localBuffer[resource] = bufAmt - 1;
+              if ((nearestSH.localBuffer[resource] || 0) <= 0) delete nearestSH.localBuffer[resource];
+              ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
+              consumed = true;
+              break;
+            }
+          }
+        }
+        if (consumed) {
+          v.morale = Math.min(100, v.morale + 15);
+          v.tavernVisitCooldown = 3;
+        }
+        // Head home after tavern visit
+        startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
         break;
       }
 

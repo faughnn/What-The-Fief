@@ -64,6 +64,11 @@ export function processDailyChecks(ts: TickState): void {
     v.lastAte = 'nothing' as FoodEaten;
   }
 
+  // Tavern visit cooldown — decrement daily
+  for (const v of ts.villagers) {
+    if (v.tavernVisitCooldown > 0) v.tavernVisitCooldown -= 1;
+  }
+
   // Clothing durability — decrement daily, unclothed when worn out
   for (const v of ts.villagers) {
     if (v.clothed) {
