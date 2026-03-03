@@ -2,11 +2,12 @@
 
 import {
   GameState, BuildingType, Building, Resources, ResourceType,
-  Villager, VillagerRole, Direction,
-  BUILDING_TEMPLATES, TRADE_PRICES,
+  Villager, VillagerRole, Direction, Tile,
+  BUILDING_TEMPLATES, TRADE_PRICES, UPGRADE_PATHS,
+  BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   TechId, TECH_TREE, MerchantState,
 } from '../world.js';
-import { roleForBuilding, bufferTotal } from './helpers.js';
+import { roleForBuilding, bufferTotal, findNearestStorehouse } from './helpers.js';
 
 export function assignVillager(state: GameState, villagerId: string, buildingId: string): GameState {
   const villager = state.villagers.find(v => v.id === villagerId);
@@ -163,4 +164,107 @@ export function sendScout(state: GameState, villagerId: string, direction: Direc
   );
 
   return { ...state, villagers: newVillagers, buildings: newBuildings };
+}
+
+export function upgradeBuilding(state: GameState, buildingId: string): GameState {
+  const building = state.buildings.find(b => b.id === buildingId);
+  if (!building) { console.log(`ERROR: Building ${buildingId} not found`); return state; }
+
+  const path = UPGRADE_PATHS[building.type];
+  if (!path) { console.log(`ERROR: No upgrade path for ${building.type}`); return state; }
+
+  const toTemplate = BUILDING_TEMPLATES[path.to];
+
+  // Check resources
+  const newResources: Resources = { ...state.resources };
+  const nearestSH = findNearestStorehouse(state.buildings, state.grid, state.width, state.height, building.x, building.y);
+  const newBuildings0 = state.buildings.map(b => ({ ...b, localBuffer: { ...b.localBuffer } }));
+  const shForCost = nearestSH ? newBuildings0.find(b => b.id === nearestSH.id) : null;
+
+  for (const [res, amount] of Object.entries(path.cost)) {
+    const key = res as keyof Resources;
+    const cost = amount as number;
+    if (newResources[key] < cost) {
+      console.log(`ERROR: Cannot upgrade ${building.type} — need ${cost} ${res}, have ${newResources[key]}`); return state;
+    }
+  }
+
+  // Check expanded footprint for size-changing upgrades
+  const newW = toTemplate.width;
+  const newH = toTemplate.height;
+  if (newW > building.width || newH > building.height) {
+    for (let dy = 0; dy < newH; dy++) {
+      for (let dx = 0; dx < newW; dx++) {
+        const tx = building.x + dx;
+        const ty = building.y + dy;
+        if (tx >= state.width || ty >= state.height) {
+          console.log(`ERROR: Upgrade to ${path.to} goes out of bounds at (${tx},${ty})`); return state;
+        }
+        // Skip tiles already owned by this building
+        if (dx < building.width && dy < building.height) continue;
+        const tile = state.grid[ty][tx];
+        if (tile.building) {
+          console.log(`ERROR: Cannot upgrade to ${path.to} — tile (${tx},${ty}) occupied`); return state;
+        }
+        if (!state.fog[ty][tx] || !state.territory[ty][tx]) {
+          console.log(`ERROR: Cannot upgrade to ${path.to} — tile (${tx},${ty}) not revealed/territory`); return state;
+        }
+      }
+    }
+  }
+
+  // Deduct resources
+  for (const [res, amount] of Object.entries(path.cost)) {
+    const key = res as keyof Resources;
+    const cost = amount as number;
+    newResources[key] -= cost;
+    if (shForCost) {
+      const bufAmt = shForCost.localBuffer[key as ResourceType] || 0;
+      shForCost.localBuffer[key as ResourceType] = Math.max(0, bufAmt - cost);
+      if ((shForCost.localBuffer[key as ResourceType] || 0) <= 0) delete shForCost.localBuffer[key as ResourceType];
+    }
+  }
+
+  // Upgrade the building in-place
+  const maxHp = BUILDING_MAX_HP[path.to] || 50;
+  const constructionReq = CONSTRUCTION_TICKS[path.to] || 60;
+
+  const upgraded: Building = {
+    ...building,
+    type: path.to,
+    width: newW,
+    height: newH,
+    hp: maxHp,
+    maxHp,
+    constructed: false,
+    constructionProgress: 0,
+    constructionRequired: constructionReq,
+    localBuffer: {},
+    bufferCapacity: building.bufferCapacity,
+  };
+
+  // Update buildings array
+  const newBuildings = newBuildings0.map(b => b.id === buildingId ? upgraded : b);
+
+  // Update grid — clear old tiles, claim new tiles
+  const newGrid: Tile[][] = state.grid.map((row, gy) =>
+    row.map((tile, gx) => {
+      // Clear old building footprint
+      if (tile.building && tile.building.id === buildingId) {
+        return { ...tile, building: null };
+      }
+      return tile;
+    })
+  );
+  // Claim new footprint
+  for (let dy = 0; dy < newH; dy++) {
+    for (let dx = 0; dx < newW; dx++) {
+      newGrid[building.y + dy][building.x + dx] = {
+        ...newGrid[building.y + dy][building.x + dx],
+        building: upgraded,
+      };
+    }
+  }
+
+  return { ...state, grid: newGrid, resources: newResources, buildings: newBuildings };
 }

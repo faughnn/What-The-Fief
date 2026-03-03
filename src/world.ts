@@ -536,6 +536,12 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   rubble: 30,
 };
 
+// V2: Building upgrade paths — from → { to, cost }
+export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cost: Partial<Resources> }>> = {
+  tent: { to: 'house', cost: { wood: 7 } },
+  house: { to: 'manor', cost: { wood: 15, stone: 15, planks: 10 } },
+};
+
 export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }> = {
   none: { attack: 3, defense: 2 },
   basic: { attack: 4, defense: 3 },

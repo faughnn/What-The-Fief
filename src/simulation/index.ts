@@ -17,7 +17,7 @@ import { processAnimals } from './animals.js';
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
 export { placeBuilding, claimTerritory } from './buildings.js';
-export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, sendScout } from './commands.js';
+export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, sendScout, upgradeBuilding } from './commands.js';
 
 // ================================================================
 // TICK — V2 spatial simulation
