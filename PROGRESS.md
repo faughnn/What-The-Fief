@@ -1,83 +1,39 @@
 # ColonySim — Progress
 
 ## Current State
-- **Phase**: 13 — Tick Model & Movement Rework
-- **Status**: Not started
-- **Working on**: Converting from 1-tick-per-day to 120-ticks-per-day with real step-by-step movement
-- **Next step (do this immediately, don't ask)**:
-  1. `export PATH="/c/Program Files/nodejs:$PATH"` (required every session)
-  2. Read `CLAUDE.md` Phase 13 section and `docs/plans/v2-spatial-simulation-spec.md`
-  3. Read `src/world.ts` and `src/simulation.ts` (the files being reworked)
-  4. Write tests FIRST: `src/tests/test-movement.ts` (6 tests from CLAUDE.md spec)
-  5. Implement the tick model rework until all movement tests pass
-  6. Run ALL existing tests too (test-balance.ts, test-combat.ts) — they will need updating for 120-tick model
-  7. Commit when all tests pass, update this file, move to Phase 14
+- **Status**: V1 abstract simulation complete. V2 spatial rework starting.
+- **What exists**: 12 phases of abstract simulation — villagers teleport, combat is instant math, resources go to a global pool. All v1 tests pass. The data types and templates are reusable. The simulation logic needs rewriting.
+- **What's next**: Ask the Bellwright Question, identify the biggest gap, fix it.
 
-## V2 Spatial Rework Overview
-Phases 1-12 built an abstract simulation (teleporting villagers, instant combat, global resources).
-Phases 13-19 rework the core into a genuine spatial simulation where:
-- 120 ticks = 1 game day
-- All entities move 1 tile/tick maximum (no teleportation)
-- All interactions require physical adjacency
-- Resources are local (hauled from buildings to storage)
-- Enemies are real grid agents that march and attack
-- Buildings have HP and can be damaged/destroyed
-- Guards patrol and intercept enemies spatially
+## The Bellwright Question
 
-See `CLAUDE.md` for full phase specs and mandatory test requirements.
-See `docs/plans/v2-spatial-simulation-spec.md` for detailed spatial spec.
+**Is this a complete 2D Bellwright? Be extremely strict and pedantic.**
 
-## Active Files (re-read these after compaction)
-- `CLAUDE.md` — has Phase 13-19 specs with mandatory test requirements
-- `docs/plans/v2-spatial-simulation-spec.md` — detailed spatial simulation spec
-- `src/world.ts` — data types (~560 lines): needs Villager state machine, destination, tick counter
-- `src/simulation.ts` — game rules (~740 lines): tick() needs complete rework for 120-tick model
-- `src/render-text.ts` — text renderers (~230 lines): needs tick-level view mode
+No. Not remotely. Here's what's wrong, in priority order:
+
+1. **Villagers teleport.** They don't walk anywhere. Position is set instantly to workplace/home each tick. There's no step-by-step movement, no commute time, no travel. This is the #1 gap — nothing is spatially real.
+2. **1 tick = 1 day.** The entire day resolves in a single tick. There's no sub-day granularity. You can't watch anything happen because everything is instant.
+3. **Combat is abstract math.** Enemies are stat blocks, not grid entities. They don't spawn at map edges, don't march, don't attack walls. Raids are a number hitting a threshold and a dice roll.
+4. **Resources are global.** Production goes straight to a global pool. No local building buffers, no hauling, no carry capacity. Distance from farm to storehouse is irrelevant.
+5. **Buildings have no HP.** They can't be damaged or destroyed by enemies. Construction is instant (pay resources, building appears).
+6. **No animals on the map.** Wildlife doesn't exist as grid entities.
+7. **Walls don't block anything.** They exist as building types but have no spatial effect on enemy pathfinding.
+8. **Guards don't patrol.** They're just a role flag, not entities walking routes and intercepting enemies.
+
+## Active Files
+- `CLAUDE.md` — autonomous instructions, invariants, the Bellwright Question
+- `src/world.ts` — data types (~560 lines): types, templates, constants
+- `src/simulation.ts` — game rules (~740 lines): tick(), actions, validation
+- `src/render-text.ts` — text renderers (~230 lines)
 - `src/main.ts` — CLI entry point (~80 lines)
-- `src/tests/test-balance.ts` — v1 balance tests (will need updating for v2)
-- `src/tests/test-combat.ts` — v1 combat tests (will need updating for v2)
-
-## File Manifest
-- `src/world.ts` — types, templates, constants, factories
-- `src/simulation.ts` — tick(), placeBuilding(), assignVillager(), setGuard(), sendScout(), claimTerritory(), setResearch(), buyResource(), sellResource()
-- `src/render-text.ts` — renderMap/Summary/Villagers/Economy/Combat/Research/Events/All
-- `src/main.ts` — CLI (--ticks, --view, --place, --assign, --scout, --claim, --guard, --research, --buy, --sell, --width, --height, --seed)
-- `src/tests/test-balance.ts` — v1 balance scenario tests
-- `src/tests/test-combat.ts` — v1 combat unit tests
-
-## Phase Checklist
-- [x] Phase 1: Foundation — grid, terrain, buildings, resources, validation
-- [x] Phase 2: Living Village — villagers, pathfinding, housing, jobs, atomic day cycle
-- [x] Phase 3: Economy — 8 resource types, data-driven production, storage
-- [x] Phase 4: Production Chains — processed resources, inputs/outputs, food priority, spoilage
-- [x] Phase 5: Villager Depth — skills (6 types), traits (8 types), morale, XP
-- [x] Phase 6: Tools & Equipment — tool tiers (none/basic/sturdy/iron), durability, auto-equip
-- [x] Phase 7: Expansion — fog of war, territory, scouting, deposits, town_hall
-- [x] Phase 8: Combat — raid bar, enemy waves, guard role, stats-based combat
-- [x] Phase 9: Research — tech tree (8 techs), researcher role, production/combat bonuses
-- [x] Phase 10: Advanced Economy — animal husbandry, gold, trade, prosperity, marketplace
-- [x] Phase 11: World Systems — seasons (4), weather (3 types), housing tiers (tent/house/manor)
-- [x] Phase 12: Narrative — events (10 types), renown, 3 milestone quests
-- [x] Balance Pass — all 3 v1 scenarios passing
-- [ ] Phase 13: Tick Model & Movement — 120 ticks/day, 1-tile/tick movement, villager state machine
-- [ ] Phase 14: Local Inventory & Hauling — building buffers, physical resource transport
-- [ ] Phase 15: Construction & Building HP — build time, damage, repair, destruction
-- [ ] Phase 16: Spatial Raids — enemy grid agents, marching, wall attacks, positional combat
-- [ ] Phase 17: Guard Patrols — patrol routes, detection range, interception, gates, watchtowers
-- [ ] Phase 18: Wildlife & Hunting — animal entities, roaming, fleeing, hunting, drops
-- [ ] Phase 19: Spatial Balance Pass — rebalance everything for 120-tick spatial model
+- `src/tests/test-balance.ts` — v1 balance tests (will be replaced)
+- `src/tests/test-combat.ts` — v1 combat tests (will be replaced)
 
 ## Key Decisions
 - Grid convention: grid[y][x]
 - Node.js PATH: `export PATH="/c/Program Files/nodejs:$PATH"`
-- River with ford crossings every 4 rows
-- Food priority: bread > flour > wheat > food
-- Production multipliers: skill * trait * morale * tool (multiplicative)
-- Events seeded from day number for determinism
-- Gold exempt from storage cap
-- Tools are bonuses, not necessities (none=1.0x baseline)
-- Blacksmith uses wood+stone for basic tools (realistic: wooden/stone implements)
-- Guards get +5 base HP for combat role
 - 120 ticks = 1 game day (v2)
 - 1 tile/tick maximum movement speed (v2)
-- Simulation tick rate decoupled from render frame rate (v2)
+- Keep data layer (world.ts types/templates), rewrite simulation layer
+- Tools are bonuses not necessities (none=1.0x baseline)
+- Player is god-like overseer, no character on grid
