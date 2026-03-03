@@ -50,6 +50,7 @@ export interface TickState {
   prosperity: number;
   renown: number;
   completedQuests: string[];
+  banditUltimatum: { goldDemand: number; daysLeft: number } | null;
   nextEnemyId: number;
   nextAnimalId: number;
   nextDropId: number;

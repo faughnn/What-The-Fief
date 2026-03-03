@@ -167,6 +167,31 @@ export function processDailyChecks(ts: TickState): void {
     if (v.role === 'guard' && v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
   }
 
+  // Disease daily: HP loss and duration countdown (after regen, so net effect is visible)
+  // Note: placed before regen so the -2 HP is offset by +2 regen = net 0,
+  // but we want net negative, so use 3 HP loss
+  for (const v of ts.villagers) {
+    if (v.sick) {
+      v.hp = Math.max(1, v.hp - 3); // Lose 3 HP per day from sickness (net -1 after regen)
+      v.sickDays -= 1;
+      if (v.sickDays <= 0) {
+        v.sick = false;
+        v.sickDays = 0;
+      }
+    }
+  }
+
+  // Bandit ultimatum countdown
+  if (ts.banditUltimatum) {
+    ts.banditUltimatum.daysLeft -= 1;
+    if (ts.banditUltimatum.daysLeft <= 0) {
+      // Ultimatum expired — trigger raid
+      ts.raidBar = Math.min(100, ts.raidBar + 60);
+      ts.events.push('The bandits have lost patience! A raid is imminent!');
+      ts.banditUltimatum = null;
+    }
+  }
+
   // HP regen (2 HP per day)
   for (const v of ts.villagers) {
     if (v.role === 'guard') {
@@ -183,6 +208,38 @@ export function processDailyChecks(ts: TickState): void {
     for (const v of ts.villagers) {
       if (!v.clothed) v.hp = Math.max(0, v.hp - 1);
     }
+  }
+}
+
+export function processDisease(ts: TickState): void {
+  // Per-tick: sick villagers spread disease to adjacent healthy villagers (10% per tick)
+  for (const v of ts.villagers) {
+    if (!v.sick) continue;
+    for (const other of ts.villagers) {
+      if (other.id === v.id || other.sick) continue;
+      // Check adjacency (within 1 tile)
+      if (Math.abs(other.x - v.x) <= 1 && Math.abs(other.y - v.y) <= 1) {
+        const spreadRng = ((ts.newTick * 1103515245 + v.x * 12345 + other.x * 67890 + v.y * 2654435761) & 0x7fffffff) / 0x7fffffff;
+        if (spreadRng < 0.10) {
+          other.sick = true;
+          other.sickDays = 5;
+        }
+      }
+    }
+  }
+}
+
+export function processLightning(ts: TickState): void {
+  // Per-tick: during storms, small chance (0.5%) to strike a random constructed building
+  if (ts.weather !== 'storm') return;
+  const constructed = ts.buildings.filter(b => b.constructed && !b.onFire && b.type !== 'well' && b.type !== 'rubble');
+  if (constructed.length === 0) return;
+
+  const lightningRng = ((ts.newTick * 48271 + 3) & 0x7fffffff) / 0x7fffffff;
+  if (lightningRng < 0.005) {
+    const target = constructed[ts.newTick % constructed.length];
+    target.onFire = true;
+    ts.events.push(`Lightning struck the ${target.type} at (${target.x},${target.y})!`);
   }
 }
 
@@ -278,8 +335,13 @@ export function processEventsAndQuests(ts: TickState): void {
           ts.events.push(`A lost traveler named ${newV.name} joined the colony!`);
         }
       } else if (eventSeed < 0.55) {
-        for (const v of ts.villagers) v.food = Math.max(0, v.food - 2);
-        ts.events.push('A mild plague swept through the colony. All villagers lost food.');
+        // Plague: infect a random villager (disease spreads physically per-tick)
+        const target = ts.villagers[ts.newDay % ts.villagers.length];
+        if (!target.sick) {
+          target.sick = true;
+          target.sickDays = 5;
+          ts.events.push(`${target.name} has fallen ill with a plague!`);
+        }
       } else if (eventSeed < 0.65) {
         for (const v of ts.villagers) v.morale = Math.min(100, v.morale + 10);
         ts.events.push('The villagers held a festival! Morale boosted.');

@@ -8,7 +8,7 @@ import {
 } from '../world.js';
 import { TickState, computeStorageCap, hasTech } from './helpers.js';
 import { validateState } from './validation.js';
-import { processSeasonAndWeather, processDailyChecks, processMerchant, processProsperity, processEventsAndQuests } from './daily.js';
+import { processSeasonAndWeather, processDailyChecks, processMerchant, processProsperity, processEventsAndQuests, processDisease, processLightning } from './daily.js';
 import { processVillagerStateMachine } from './villagers.js';
 import { processRaidAndCombat } from './combat.js';
 import { processAnimals } from './animals.js';
@@ -82,6 +82,7 @@ export function tick(state: GameState): GameState {
     prosperity: state.prosperity,
     renown: state.renown,
     completedQuests: [...state.completedQuests],
+    banditUltimatum: state.banditUltimatum ? { ...state.banditUltimatum } : null,
     nextVillagerId: state.nextVillagerId,
   };
   ts.storageCap = computeStorageCap(ts.buildings);
@@ -98,8 +99,14 @@ export function tick(state: GameState): GameState {
   // Raid & combat (per-tick)
   processRaidAndCombat(ts);
 
+  // Disease spreading (per-tick)
+  processDisease(ts);
+
   // Fire (per-tick)
   processFire(ts);
+
+  // Lightning (per-tick, storms only)
+  processLightning(ts);
 
   // Wildlife (per-tick)
   processAnimals(ts);
@@ -139,6 +146,7 @@ export function tick(state: GameState): GameState {
     renown: ts.renown,
     events: ts.events,
     completedQuests: ts.completedQuests,
+    banditUltimatum: ts.banditUltimatum,
     nextVillagerId: ts.nextVillagerId,
     nextEnemyId: ts.nextEnemyId,
     nextAnimalId: ts.nextAnimalId,

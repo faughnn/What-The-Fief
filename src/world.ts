@@ -464,6 +464,9 @@ export interface Villager {
   recentMeals: FoodEaten[]; // last 5 meals for variety bonus
   // Tavern
   tavernVisitCooldown: number; // days until can visit tavern again
+  // Disease
+  sick: boolean;
+  sickDays: number; // days remaining of sickness
 }
 
 // --- Combat ---
@@ -677,6 +680,7 @@ export interface GameState {
   renown: number;
   events: string[];
   completedQuests: string[];
+  banditUltimatum: { goldDemand: number; daysLeft: number } | null;
 }
 
 // --- Names ---
@@ -734,6 +738,8 @@ export function createVillager(id: number, x: number, y: number): Villager {
     clothingDurability: 0,
     recentMeals: [],
     tavernVisitCooldown: 0,
+    sick: false,
+    sickDays: 0,
   };
 }
 
@@ -810,6 +816,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     research: { completed: [], current: null, progress: 0 },
     merchant: null, merchantTimer: 15, prosperity: 0,
     season: 'spring', weather: 'clear',
-    renown: 0, events: [], completedQuests: [],
+    renown: 0, events: [], completedQuests: [], banditUltimatum: null,
   };
 }
