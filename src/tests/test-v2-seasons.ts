@@ -52,19 +52,21 @@ function seasonTestSetup(startDay: number): { state: GameState, farmId: string }
   state = addVillager(state, 3, 3);
 
   state = placeBuilding(state, 'storehouse', 1, 3);
-  state = placeBuilding(state, 'tent', 3, 3);
+  // Use house for winter morale survival
+  state = placeBuilding(state, 'house', 3, 3);
   state = placeBuilding(state, 'farm', 5, 3);
-  const tentId = state.buildings.find(b => b.type === 'tent')!.id;
+  const homeId = state.buildings.find(b => b.type === 'house')!.id;
   const farmId = state.buildings.find(b => b.type === 'farm')!.id;
 
-  // Pre-construct everything, stock storehouse with food
+  // Pre-construct everything, stock storehouse with food + clothing
   state = {
     ...state,
+    resources: { ...state.resources, linen: 5 },
     buildings: state.buildings.map(b => ({
       ...b,
       constructed: true,
       constructionProgress: b.constructionRequired,
-      localBuffer: b.type === 'storehouse' ? { food: 80 } : {},
+      localBuffer: b.type === 'storehouse' ? { food: 80, linen: 5 } : {},
     })),
     grid: state.grid.map(row => row.map(tile =>
       tile.building
@@ -72,11 +74,11 @@ function seasonTestSetup(startDay: number): { state: GameState, farmId: string }
             ...tile.building,
             constructed: true,
             constructionProgress: tile.building.constructionRequired,
-            localBuffer: tile.building.type === 'storehouse' ? { food: 80 } : {},
+            localBuffer: tile.building.type === 'storehouse' ? { food: 80, linen: 5 } : {},
           }}
         : tile
     )),
-    villagers: state.villagers.map(v => ({ ...v, homeBuildingId: tentId, food: 10 })),
+    villagers: state.villagers.map(v => ({ ...v, homeBuildingId: homeId, food: 10 })),
   };
 
   state = assignVillager(state, 'v1', farmId);
@@ -179,19 +181,21 @@ heading('Woodcutter Produces in Winter');
   state = addVillager(state, 3, 3);
 
   state = placeBuilding(state, 'storehouse', 1, 3);
-  state = placeBuilding(state, 'tent', 3, 3);
+  // Use house (+10 morale) so villager survives winter with clothing penalty
+  state = placeBuilding(state, 'house', 3, 3);
   state = placeBuilding(state, 'woodcutter', 5, 3);
-  const tentId = state.buildings.find(b => b.type === 'tent')!.id;
+  const homeId = state.buildings.find(b => b.type === 'house')!.id;
   const wcId = state.buildings.find(b => b.type === 'woodcutter')!.id;
 
-  // Pre-construct everything
+  // Pre-construct everything, stock storehouse with food + clothing
   state = {
     ...state,
+    resources: { ...state.resources, linen: 5 },
     buildings: state.buildings.map(b => ({
       ...b,
       constructed: true,
       constructionProgress: b.constructionRequired,
-      localBuffer: b.type === 'storehouse' ? { food: 80 } : {},
+      localBuffer: b.type === 'storehouse' ? { food: 80, linen: 5 } : {},
     })),
     grid: state.grid.map(row => row.map(tile =>
       tile.building
@@ -199,11 +203,11 @@ heading('Woodcutter Produces in Winter');
             ...tile.building,
             constructed: true,
             constructionProgress: tile.building.constructionRequired,
-            localBuffer: tile.building.type === 'storehouse' ? { food: 80 } : {},
+            localBuffer: tile.building.type === 'storehouse' ? { food: 80, linen: 5 } : {},
           }}
         : tile
     )),
-    villagers: state.villagers.map(v => ({ ...v, homeBuildingId: tentId, food: 10 })),
+    villagers: state.villagers.map(v => ({ ...v, homeBuildingId: homeId, food: 10 })),
     tick: TICKS_PER_DAY * 30 - 1, day: 29,
   };
 

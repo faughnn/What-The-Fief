@@ -27,6 +27,8 @@ function calculateMorale(v: Villager, housingMorale: number, season: Season, wea
   if (v.traits.includes('gloomy')) morale -= 10;
   morale += SEASON_MORALE[season];
   morale += WEATHER_MORALE[weather];
+  // Clothing: unclothed in winter = severe penalty
+  if (season === 'winter' && !v.clothed) morale -= 15;
   return Math.max(0, Math.min(100, morale));
 }
 
@@ -56,6 +58,26 @@ export function processDailyChecks(ts: TickState): void {
     const decay = isGlutton ? 2 : (isFrugal ? 0.5 : 1);
     v.food = Math.max(0, v.food - decay);
     v.lastAte = 'nothing' as FoodEaten;
+  }
+
+  // Clothing equip — try to clothe unclothed villagers from storehouse linen/leather
+  for (const v of ts.villagers) {
+    if (!v.clothed) {
+      for (const b of ts.buildings) {
+        if (b.type !== 'storehouse' || !b.constructed) continue;
+        // Prefer linen, fall back to leather
+        for (const mat of ['linen', 'leather'] as const) {
+          if ((b.localBuffer[mat] || 0) > 0 && ts.resources[mat] > 0) {
+            b.localBuffer[mat] = (b.localBuffer[mat] || 0) - 1;
+            if ((b.localBuffer[mat] || 0) <= 0) delete b.localBuffer[mat];
+            ts.resources[mat] -= 1;
+            v.clothed = true;
+            break;
+          }
+        }
+        if (v.clothed) break;
+      }
+    }
   }
 
   // Calculate morale
@@ -133,6 +155,13 @@ export function processDailyChecks(ts: TickState): void {
     }
     if (v.hp < v.maxHp) v.hp = Math.min(v.maxHp, v.hp + 2);
     v.hp = Math.min(v.hp, v.maxHp);
+  }
+
+  // Winter cold damage — after regen so effect is observable
+  if (ts.season === 'winter') {
+    for (const v of ts.villagers) {
+      if (!v.clothed) v.hp = Math.max(0, v.hp - 1);
+    }
   }
 }
 

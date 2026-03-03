@@ -442,6 +442,8 @@ export interface Villager {
   // Guard patrol
   patrolRoute: { x: number; y: number }[]; // waypoints for guard patrol
   patrolIndex: number; // current waypoint index
+  // Clothing
+  clothed: boolean;
 }
 
 // --- Combat ---
@@ -701,6 +703,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     haulingToWork: false,
     patrolRoute: [],
     patrolIndex: 0,
+    clothed: false,
   };
 }
 
