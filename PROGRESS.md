@@ -1,21 +1,26 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation nearly complete. All core invariants enforced. 115 tests passing.
-- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates block enemies/let allies through, guards intercept + patrol routes, melee per-tick). Construction sites. Local buffer production + physical hauling to storehouse buffers. Processing buildings consume local inputs (hauled from storehouse buffer). Physical eating from storehouse buffer. Building repair. Villager death. Rubble/clearing. Wildlife. Hunters. Physical storehouse resources.
-- **What's next**: Marketplace/trading requires physical presence.
+- **Status**: V2 spatial simulation complete. All core Bellwright invariants enforced. 125 tests passing.
+- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates block enemies/let allies through, guards intercept + patrol routes, melee per-tick). Construction sites. Local buffer production + physical hauling to storehouse buffers. Processing buildings consume local inputs (hauled from storehouse buffer). Physical eating from storehouse buffer. Building repair. Villager death. Rubble/clearing. Wildlife (deer, wolves, boars). Hunters track and kill animals. Physical storehouse resources. Physical marketplace trading (merchants walk to marketplace, buy/sell from marketplace buffer).
+- **What's next**: Comprehensive Bellwright assessment — identify remaining gaps.
 
 ## The Bellwright Question
 
 **Is this a complete 2D Bellwright? Be extremely strict and pedantic.**
 
-Very close. The remaining gap is trading:
+Almost. All major systems are physically grounded:
 
-1. **No marketplace/trading requires presence.** Trading is still instant (buy/sell from anywhere). Should require a marketplace building, merchants physically visit, villagers carry goods to/from marketplace.
+**Remaining issues (strict pedantry):**
+1. **Building placement costs deduct from global pool.** Should deduct from nearest storehouse's local buffer.
+2. **Spoilage operates on global pool.** Should operate on storehouse buffers.
+3. **No marketplace worker hauling.** Marketplace has a buffer but no worker hauls goods between marketplace and storehouses.
+4. **No immigration physical presence.** New villagers appear at map edge but don't walk to a tent.
+5. **Hunter drop hauling goes to global pool.** Should deposit into storehouse buffer.
 
-**What IS proven by tests (115 passing):**
+**What IS proven by tests (125 passing):**
 - ✅ 120 ticks = 1 day
-- ✅ Max 1 tile/tick movement (villagers, enemies, animals — all anti-teleportation tested)
+- ✅ Max 1 tile/tick movement (villagers, enemies, animals, merchants — all anti-teleportation tested)
 - ✅ 15 tiles takes ≥15 ticks
 - ✅ Production requires physical presence
 - ✅ Production goes to building local buffer
@@ -51,11 +56,15 @@ Very close. The remaining gap is trading:
 - ✅ Hunters track and kill animals
 - ✅ Dead animals create resource drops at death location
 - ✅ Resources exist at physical locations (storehouse buffers)
+- ✅ Merchants are grid entities, walk to marketplace
+- ✅ Trading requires merchant physically at marketplace
+- ✅ Buying deposits into marketplace buffer
+- ✅ Selling takes from marketplace buffer
 
 ## Active Files
 - `CLAUDE.md` — autonomous instructions, invariants
-- `src/world.ts` — data types (~800 lines)
-- `src/simulation.ts` — v2 game rules (~1900 lines)
+- `src/world.ts` — data types (~810 lines)
+- `src/simulation.ts` — v2 game rules (~2000 lines)
 - `src/render-text.ts` — text renderers (~240 lines)
 - `src/main.ts` — CLI entry point (~80 lines)
 - `src/tests/test-v2-core.ts` — 35 tests
@@ -68,6 +77,7 @@ Very close. The remaining gap is trading:
 - `src/tests/test-v2-gates-patrol.ts` — 6 tests
 - `src/tests/test-v2-rubble.ts` — 10 tests
 - `src/tests/test-v2-storehouse.ts` — 8 tests
+- `src/tests/test-v2-marketplace.ts` — 10 tests
 
 ## Key Decisions
 - Grid convention: grid[y][x]
@@ -80,6 +90,8 @@ Very close. The remaining gap is trading:
 - Eating consumes from storehouse local buffer (not global pool)
 - Input pickup from storehouse local buffer (not global pool)
 - Hauling deposits into storehouse local buffer
+- Merchants are grid entities with position, walk to marketplace
+- Trading requires merchant at marketplace, operates on marketplace buffer
 - Workers repair damaged buildings (1 HP/tick) before producing
 - Destroyed buildings → rubble (passable, clearable, blocks construction)
 - Guard patrol: follow waypoints, break patrol for enemy detection
