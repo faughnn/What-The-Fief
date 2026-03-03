@@ -1,9 +1,9 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation — comprehensive Bellwright colony sim. 313 tests passing.
-- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates, guards intercept + patrol, melee, watchtower ranged 5-tile). Construction sites. Building upgrades (tent→house→manor). Local buffer production + physical hauling. Processing buildings (sawmill, mill, bakery, tanner, weaver, smelter, ropemaker). Physical eating from storehouse. Building repair. Villager death + graveyard. Rubble/clearing. Wildlife + hunting. Physical storehouse resources. Marketplace trading. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth (linen/leather, 10-day durability, winter cold penalty). Food variety morale bonus. Tavern/recreation (morale boost, cooldown). Fire/disaster (spread, extinguish, wells). Siege equipment (battering rams, siege towers). Disease system (physical spread, herb healing). Lightning strikes during storms. Bandit ultimatums (pay tribute or face raid). Villager relationships (family bonds, grief, co-location morale). Church (area morale boost). Graveyard (death records). NPC settlements + trade caravans. Scout fog reveal. Multi-tile building footprints. Immigration at map edge. Balance proven by tests.
-- **What's next**: Final polish and long-simulation stress test.
+- **Status**: V2 spatial simulation — complete Bellwright colony sim. 317 tests passing. 100-day stress test (12,000 ticks) with zero errors.
+- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates, guards intercept + patrol, melee, watchtower ranged 5-tile). Construction sites. Building upgrades (tent→house→manor). Local buffer production + physical hauling. Processing buildings (sawmill, mill, bakery, tanner, weaver, smelter, ropemaker). Physical eating from storehouse. Building repair. Villager death + graveyard. Rubble/clearing. Wildlife + hunting. Physical storehouse resources. Marketplace trading. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth (linen/leather, 10-day durability, winter cold penalty). Food variety morale bonus. Tavern/recreation (morale boost, cooldown). Fire/disaster (spread, extinguish, wells). Siege equipment (battering rams, siege towers). Disease system (physical spread, herb healing). Lightning strikes during storms. Bandit ultimatums (pay tribute or face raid). Villager relationships (family bonds, grief, co-location morale). Church (area morale boost). Graveyard (death records). NPC settlements + trade caravans. Scout fog reveal. Multi-tile building footprints. Immigration at map edge. Balance proven by tests. 100-day long simulation stress-tested with zero validation errors.
+- **What's next**: Text renderer (separate module). The simulation is complete.
 
 ## The Bellwright Question
 
@@ -33,7 +33,7 @@
 - No multiple-floor buildings (Bellwright doesn't have this either)
 - No text renderer (planned separate module)
 
-**What IS proven by tests (313 passing):**
+**What IS proven by tests (317 passing, including 100-day stress test):**
 - ✅ 120 ticks = 1 day, max 1 tile/tick movement
 - ✅ Production requires physical presence, goes to local buffer
 - ✅ Hauling: local buffer → storehouse (physical)
@@ -58,11 +58,12 @@
 - ✅ All combat (melee, patrol, enemy march, wall/gate mechanics)
 - ✅ Construction, repair, rubble, processing, eating, tools
 - ✅ Wildlife, hunting, marketplace, balance tests
+- ✅ 100-day stress test: 12,000 ticks, zero ERROR: lines, colony survives
 
 ## Active Files
 - `src/world.ts` — data types (~900 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
-- `src/tests/test-v2-*.ts` — 27 test files, 313 tests total
+- `src/tests/test-v2-*.ts` — 28 test files, 317 tests total
 
 ## Key Decisions
 - Grid: grid[y][x]. 120 ticks/day. 1 tile/tick max.
