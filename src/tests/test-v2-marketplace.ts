@@ -208,6 +208,131 @@ heading('Selling At Marketplace');
 }
 
 // ================================================================
+// TEST 6: Marketplace worker hauls bought goods to storehouse
+// ================================================================
+heading('Marketplace Worker Hauls To Storehouse');
+
+{
+  let state = flatWorld(30, 10);
+  state = { ...state, resources: { ...state.resources, wood: 150, stone: 150, planks: 50 } };
+
+  // Place town_hall, storehouse, marketplace, tent
+  state = placeBuilding(state, 'town_hall', 5, 4);
+  state = placeBuilding(state, 'storehouse', 15, 5);
+  state = placeBuilding(state, 'marketplace', 20, 5);
+  state = placeBuilding(state, 'tent', 3, 5);
+
+  // Construct all buildings
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => ({
+      ...b, constructed: true, constructionProgress: b.constructionRequired,
+    })),
+  };
+
+  // Add a villager and assign to marketplace
+  state = addVillager(state, 3, 5);
+  const vid = state.villagers[0].id;
+  state = assignVillager(state, vid, state.buildings.find(b => b.type === 'marketplace')!.id);
+
+  // Give villager a home
+  state = {
+    ...state,
+    villagers: state.villagers.map(v => ({ ...v, homeBuildingId: state.buildings.find(b => b.type === 'tent')!.id })),
+  };
+
+  // Put goods into marketplace buffer (simulating buying from merchant)
+  const mpId = state.buildings.find(b => b.type === 'marketplace')!.id;
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => {
+      if (b.id === mpId) return { ...b, localBuffer: { ...b.localBuffer, food: 5, wood: 3 } };
+      return b;
+    }),
+  };
+
+  // Advance through one day cycle (skip night first)
+  // Start at dawn (tick 30)
+  state = { ...state, tick: NIGHT_TICKS - 1 };
+  state = advance(state, 90); // One full day
+
+  // Check: marketplace buffer should have been emptied (or reduced)
+  const mp = state.buildings.find(b => b.id === mpId);
+  const mpFood = mp ? (mp.localBuffer['food'] || 0) : 0;
+  const mpWood = mp ? (mp.localBuffer['wood'] || 0) : 0;
+
+  // Check: storehouse buffer should have received goods
+  const sh = state.buildings.find(b => b.type === 'storehouse');
+  const shFood = sh ? (sh.localBuffer['food'] || 0) : 0;
+  const shWood = sh ? (sh.localBuffer['wood'] || 0) : 0;
+
+  assert(mpFood < 5 || shFood > 0,
+    `Marketplace worker hauled food (mp buffer: ${mpFood}, storehouse buffer: ${shFood})`);
+  assert(mpWood < 3 || shWood > 0,
+    `Marketplace worker hauled wood (mp buffer: ${mpWood}, storehouse buffer: ${shWood})`);
+}
+
+// ================================================================
+// TEST 7: Marketplace worker walks physically (anti-teleportation)
+// ================================================================
+heading('Marketplace Worker Anti-Teleportation');
+
+{
+  let state = flatWorld(30, 10);
+  state = { ...state, resources: { ...state.resources, wood: 150, stone: 150, planks: 50 } };
+
+  state = placeBuilding(state, 'town_hall', 1, 1);
+  state = placeBuilding(state, 'storehouse', 25, 5);
+  state = placeBuilding(state, 'marketplace', 5, 5);
+  state = placeBuilding(state, 'tent', 3, 5);
+
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => ({
+      ...b, constructed: true, constructionProgress: b.constructionRequired,
+    })),
+  };
+
+  state = addVillager(state, 5, 5);
+  const vid = state.villagers[0].id;
+  state = assignVillager(state, vid, state.buildings.find(b => b.type === 'marketplace')!.id);
+
+  state = {
+    ...state,
+    villagers: state.villagers.map(v => ({
+      ...v, homeBuildingId: state.buildings.find(b => b.type === 'tent')!.id,
+    })),
+  };
+
+  // Put goods into marketplace buffer
+  const mpId2 = state.buildings.find(b => b.type === 'marketplace')!.id;
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => {
+      if (b.id === mpId2) return { ...b, localBuffer: { ...b.localBuffer, food: 5 } };
+      return b;
+    }),
+  };
+
+  // Start at dawn
+  state = { ...state, tick: NIGHT_TICKS - 1 };
+
+  // Track max movement per tick
+  let maxJump = 0;
+  let prev = { x: state.villagers[0].x, y: state.villagers[0].y };
+  for (let i = 0; i < 30; i++) {
+    state = tick(state);
+    const v = state.villagers[0];
+    if (!v) break;
+    const jump = Math.abs(v.x - prev.x) + Math.abs(v.y - prev.y);
+    maxJump = Math.max(maxJump, jump);
+    prev = { x: v.x, y: v.y };
+  }
+
+  assert(maxJump <= 1, `Marketplace worker max jump is ${maxJump} (must be <= 1)`);
+}
+
+// ================================================================
 // RESULTS
 // ================================================================
 console.log(`\n${'='.repeat(40)}`);

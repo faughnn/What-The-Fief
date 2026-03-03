@@ -296,6 +296,10 @@ export function processVillagerStateMachine(ts: TickState): void {
             }
             gainSkillXp(v, job.type);
           }
+          // Marketplace trader: haul goods from marketplace buffer to storehouse
+          if (job.type === 'marketplace' && bufferTotal(job.localBuffer) > 0) {
+            startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
+          }
           break;
         }
 

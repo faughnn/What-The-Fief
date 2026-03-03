@@ -330,7 +330,7 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   marketplace: {
     type: 'marketplace', width: 2, height: 2, allowedTerrain: ['grass'],
     cost: { wood: 20, stone: 10, planks: 5 }, description: 'Enables merchant trading',
-    maxWorkers: 0, production: null, mapChar: '$',
+    maxWorkers: 1, production: null, mapChar: '$',
   },
   hunting_lodge: {
     type: 'hunting_lodge', width: 1, height: 1, allowedTerrain: ['grass', 'forest'],
@@ -386,7 +386,7 @@ export type VillagerRole =
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
   | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker'
   | 'scout' | 'guard' | 'researcher' | 'hunter'
-  | 'chicken_keeper' | 'rancher' | 'beekeeper';
+  | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader';
 
 export type VillagerState =
   | 'sleeping'
