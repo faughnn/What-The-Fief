@@ -1,7 +1,7 @@
 // main.ts — CLI entry point
 
-import { createWorld, BuildingType, Direction, TechId } from './world.js';
-import { tick, placeBuilding, assignVillager, sendScout, claimTerritory, setGuard, setResearch } from './simulation.js';
+import { createWorld, BuildingType, Direction, TechId, ResourceType } from './world.js';
+import { tick, placeBuilding, assignVillager, sendScout, claimTerritory, setGuard, setResearch, buyResource, sellResource } from './simulation.js';
 import { renderAll, ViewMode } from './render-text.js';
 
 function parseArgs(argv: string[]) {
@@ -15,6 +15,8 @@ function parseArgs(argv: string[]) {
     claim: [] as { x: number; y: number }[],
     guard: [] as string[],
     research: null as TechId | null,
+    buy: [] as { resource: ResourceType; amount: number }[],
+    sell: [] as { resource: ResourceType; amount: number }[],
     width: 20,
     height: 20,
     seed: 42,
@@ -45,6 +47,8 @@ function parseArgs(argv: string[]) {
       }
       case '--guard': result.guard.push(args[++i]); break;
       case '--research': result.research = args[++i] as TechId; break;
+      case '--buy': result.buy.push({ resource: args[++i] as ResourceType, amount: parseInt(args[++i], 10) }); break;
+      case '--sell': result.sell.push({ resource: args[++i] as ResourceType, amount: parseInt(args[++i], 10) }); break;
       case '--width': result.width = parseInt(args[++i], 10); break;
       case '--height': result.height = parseInt(args[++i], 10); break;
       case '--seed': result.seed = parseInt(args[++i], 10); break;
@@ -64,6 +68,8 @@ function main() {
   for (const c of opts.claim) state = claimTerritory(state, c.x, c.y);
   for (const g of opts.guard) state = setGuard(state, g);
   if (opts.research) state = setResearch(state, opts.research);
+  for (const b of opts.buy) state = buyResource(state, b.resource, b.amount);
+  for (const s of opts.sell) state = sellResource(state, s.resource, s.amount);
 
   for (let i = 0; i < opts.ticks; i++) state = tick(state);
 

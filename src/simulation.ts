@@ -8,6 +8,7 @@ import {
   TOOL_RESOURCE, TOOL_EQUIP_PRIORITY, Direction,
   Enemy, ActiveRaid, ENEMY_TEMPLATES, GUARD_COMBAT, EnemyType,
   TechId, TECH_TREE, ResearchState,
+  MerchantState, TRADE_PRICES,
 } from './world.js';
 
 // --- BFS Pathfinding ---
@@ -55,6 +56,7 @@ const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   weaver: 'weaver_worker', ropemaker: 'ropemaker_worker',
   blacksmith: 'blacksmith_worker', toolmaker: 'toolmaker_worker', armorer: 'armorer_worker',
   research_desk: 'researcher',
+  chicken_coop: 'chicken_keeper', livestock_barn: 'rancher', apiary: 'beekeeper',
 };
 
 function roleForBuilding(type: BuildingType): VillagerRole {
@@ -99,7 +101,7 @@ export function validateState(state: GameState): string[] {
 
   for (const key of ALL_RESOURCES) {
     if (state.resources[key] < 0) errors.push(`ERROR: Negative resource ${key}=${state.resources[key]}`);
-    if (state.resources[key] > state.storageCap) errors.push(`ERROR: Resource ${key}=${state.resources[key]} exceeds cap ${state.storageCap}`);
+    if (key !== 'gold' && state.resources[key] > state.storageCap) errors.push(`ERROR: Resource ${key}=${state.resources[key]} exceeds cap ${state.storageCap}`);
   }
 
   if (state.grid.length !== state.height) errors.push(`ERROR: Grid height mismatch`);
@@ -328,6 +330,15 @@ export function tick(state: GameState): GameState {
     }
   }
 
+  // 2b2. Livestock barn bonus food
+  for (const v of villagers) {
+    if (!v.jobBuildingId) continue;
+    const job = buildings.find(b => b.id === v.jobBuildingId);
+    if (job && job.type === 'livestock_barn' && v.state === 'working') {
+      addResource(resources, 'food', 1, storageCap);
+    }
+  }
+
   // 2c. Research progress
   if (research.current && researchKnowledge > 0) {
     const tech = TECH_TREE[research.current];
@@ -435,8 +446,8 @@ export function tick(state: GameState): GameState {
   // Prosperity drives raid bar
   let totalRes = 0;
   for (const key of ALL_RESOURCES) totalRes += resources[key];
-  const prosperity = totalRes / 50 + buildings.length + villagers.length;
-  raidBar += prosperity * 0.5;
+  const raidProsperity = totalRes / 50 + buildings.length + villagers.length;
+  raidBar += raidProsperity * 0.5;
 
   // Trigger raid
   if (raidBar >= 100 && !activeRaid) {
@@ -540,10 +551,44 @@ export function tick(state: GameState): GameState {
     v.hp = Math.min(v.hp, v.maxHp);
   }
 
+  // 14. Merchant timer
+  let merchant: MerchantState | null = state.merchant ? { ...state.merchant } : null;
+  let merchantTimer = state.merchantTimer;
+  const hasMarketplace = buildings.some(b => b.type === 'marketplace');
+  if (merchant) {
+    merchant.ticksLeft -= 1;
+    if (merchant.ticksLeft <= 0) merchant = null;
+  }
+  if (!merchant && hasMarketplace) {
+    merchantTimer -= 1;
+    if (merchantTimer <= 0) {
+      merchant = { ticksLeft: 3 };
+      merchantTimer = 15;
+    }
+  }
+
+  // 15. Prosperity
+  let prosperity = 0;
+  if (villagers.length > 0) {
+    const avgFood = villagers.reduce((s, v) => s + v.food, 0) / villagers.length;
+    if (avgFood > 3) prosperity += 10;
+    if (villagers.every(v => v.homeBuildingId !== null)) prosperity += 10;
+    const avgMorale = villagers.reduce((s, v) => s + v.morale, 0) / villagers.length;
+    if (avgMorale > 60) prosperity += 10;
+    const foodTypes = ['bread', 'wheat', 'food'] as const;
+    for (const ft of foodTypes) { if (resources[ft] > 0) prosperity += 5; }
+    const uniqueBuildings = new Set(buildings.map(b => b.type));
+    prosperity += Math.min(30, uniqueBuildings.size * 5);
+    if (villagers.some(v => v.role === 'guard')) prosperity += 10;
+    if (research.completed.length > 0) prosperity += 10;
+  }
+  prosperity = Math.min(100, prosperity);
+
   const newState: GameState = {
     ...state,
     day: state.day + 1, grid, resources, storageCap, buildings, villagers, fog, territory,
     raidBar, raidLevel, activeRaid, research,
+    merchant, merchantTimer, prosperity,
     nextVillagerId: villagers.length > state.villagers.length
       ? state.nextVillagerId + 1 : state.nextVillagerId,
   };
@@ -634,6 +679,36 @@ export function assignVillager(state: GameState, villagerId: string, buildingId:
   );
 
   return { ...state, buildings: newBuildings, villagers: newVillagers };
+}
+
+// --- Trade ---
+export function buyResource(state: GameState, resource: ResourceType, amount: number): GameState {
+  if (!state.merchant) { console.log('ERROR: No merchant present'); return state; }
+  const price = TRADE_PRICES[resource];
+  if (!price) { console.log(`ERROR: Cannot trade ${resource}`); return state; }
+  const totalCost = price.buy * amount;
+  if (state.resources.gold < totalCost) {
+    console.log(`ERROR: Need ${totalCost} gold, have ${state.resources.gold}`); return state;
+  }
+  const newResources = { ...state.resources };
+  newResources.gold -= totalCost;
+  const added = Math.min(amount, Math.max(0, state.storageCap - newResources[resource]));
+  newResources[resource] += added;
+  if (added < amount) console.log(`Warning: Storage full, only bought ${added} ${resource}`);
+  return { ...state, resources: newResources };
+}
+
+export function sellResource(state: GameState, resource: ResourceType, amount: number): GameState {
+  if (!state.merchant) { console.log('ERROR: No merchant present'); return state; }
+  const price = TRADE_PRICES[resource];
+  if (!price) { console.log(`ERROR: Cannot trade ${resource}`); return state; }
+  if (state.resources[resource] < amount) {
+    console.log(`ERROR: Have ${state.resources[resource]} ${resource}, need ${amount}`); return state;
+  }
+  const newResources = { ...state.resources };
+  newResources[resource] -= amount;
+  newResources.gold += price.sell * amount;
+  return { ...state, resources: newResources };
 }
 
 // --- Set Research ---

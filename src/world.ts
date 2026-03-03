@@ -19,7 +19,8 @@ export type BuildingType =
   | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker'
   | 'blacksmith' | 'toolmaker' | 'armorer'
   | 'town_hall' | 'wall' | 'fence'
-  | 'research_desk';
+  | 'research_desk'
+  | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace';
 
 export interface Building {
   id: string;
@@ -35,7 +36,8 @@ export interface Building {
 export type ResourceType =
   | 'wood' | 'stone' | 'food' | 'wheat' | 'iron_ore' | 'herbs' | 'flax' | 'hemp'
   | 'planks' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
-  | 'basic_tools' | 'sturdy_tools' | 'iron_tools';
+  | 'basic_tools' | 'sturdy_tools' | 'iron_tools'
+  | 'gold';
 
 export interface Resources {
   wood: number;
@@ -56,6 +58,7 @@ export interface Resources {
   basic_tools: number;
   sturdy_tools: number;
   iron_tools: number;
+  gold: number;
 }
 
 export function emptyResources(): Resources {
@@ -63,6 +66,7 @@ export function emptyResources(): Resources {
     wood: 0, stone: 0, food: 0, wheat: 0, iron_ore: 0, herbs: 0, flax: 0, hemp: 0,
     planks: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
     basic_tools: 0, sturdy_tools: 0, iron_tools: 0,
+    gold: 0,
   };
 }
 
@@ -71,6 +75,7 @@ export const ALL_RESOURCES: ResourceType[] = [
   'wood', 'stone', 'food', 'wheat', 'iron_ore', 'herbs', 'flax', 'hemp',
   'planks', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
   'basic_tools', 'sturdy_tools', 'iron_tools',
+  'gold',
 ];
 
 // --- Tools ---
@@ -245,6 +250,26 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 10, stone: 5 }, description: 'Produces knowledge for research',
     maxWorkers: 1, production: null, mapChar: 'D',
   },
+  chicken_coop: {
+    type: 'chicken_coop', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 8 }, description: 'Raises chickens for food',
+    maxWorkers: 1, production: { output: 'food', amountPerWorker: 2, inputs: null }, mapChar: 'C',
+  },
+  livestock_barn: {
+    type: 'livestock_barn', width: 2, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 15, stone: 5 }, description: 'Raises livestock for leather and food',
+    maxWorkers: 1, production: { output: 'leather', amountPerWorker: 1, inputs: null }, mapChar: 'J',
+  },
+  apiary: {
+    type: 'apiary', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 6 }, description: 'Bee hives for herbs',
+    maxWorkers: 1, production: { output: 'herbs', amountPerWorker: 1, inputs: null }, mapChar: 'Y',
+  },
+  marketplace: {
+    type: 'marketplace', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { wood: 20, stone: 10, planks: 5 }, description: 'Enables merchant trading',
+    maxWorkers: 0, production: null, mapChar: '$',
+  },
 };
 
 // --- Skills ---
@@ -260,6 +285,9 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   mill: 'cooking', bakery: 'cooking',
   herb_garden: 'herbalism',
   research_desk: 'crafting',
+  chicken_coop: 'farming',
+  livestock_barn: 'farming',
+  apiary: 'herbalism',
 };
 
 export function skillMultiplier(level: number): number {
@@ -280,7 +308,8 @@ export type VillagerRole =
   | 'flaxer' | 'hemper' | 'miner' | 'sawyer' | 'smelter'
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
   | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker'
-  | 'scout' | 'guard' | 'researcher';
+  | 'scout' | 'guard' | 'researcher'
+  | 'chicken_keeper' | 'rancher' | 'beekeeper';
 
 export type VillagerState = 'sleeping' | 'working' | 'idle' | 'scouting';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
@@ -371,6 +400,25 @@ export interface ResearchState {
   progress: number;
 }
 
+// --- Trade ---
+export interface MerchantState {
+  ticksLeft: number;
+}
+
+export const TRADE_PRICES: Partial<Record<ResourceType, { buy: number; sell: number }>> = {
+  food: { buy: 2, sell: 1 },
+  wheat: { buy: 3, sell: 1 },
+  wood: { buy: 3, sell: 2 },
+  stone: { buy: 4, sell: 2 },
+  planks: { buy: 6, sell: 3 },
+  ingots: { buy: 8, sell: 4 },
+  bread: { buy: 5, sell: 3 },
+  herbs: { buy: 4, sell: 2 },
+  leather: { buy: 5, sell: 3 },
+  linen: { buy: 6, sell: 3 },
+  rope: { buy: 5, sell: 2 },
+};
+
 // --- Game State ---
 export interface GameState {
   day: number;
@@ -389,6 +437,9 @@ export interface GameState {
   raidLevel: number;
   activeRaid: ActiveRaid | null;
   research: ResearchState;
+  merchant: MerchantState | null;
+  merchantTimer: number;
+  prosperity: number;
 }
 
 // --- Names ---
@@ -506,5 +557,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     fog, territory,
     raidBar: 0, raidLevel: 0, activeRaid: null,
     research: { completed: [], current: null, progress: 0 },
+    merchant: null, merchantTimer: 15, prosperity: 0,
   };
 }

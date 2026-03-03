@@ -17,6 +17,7 @@ const ROLE_CHARS: Record<VillagerRole, string> = {
   tanner_worker: 'n', weaver_worker: 'a', ropemaker_worker: 'r',
   blacksmith_worker: 'k', toolmaker_worker: 'o', armorer_worker: 'z',
   scout: 'c', guard: 'g', researcher: 'd',
+  chicken_keeper: 'j', rancher: 'u', beekeeper: 'y',
 };
 
 export function renderMap(state: GameState): string {
@@ -93,6 +94,13 @@ export function renderSummary(state: GameState): string {
   lines.push(state.buildings.length === 0
     ? 'Buildings: (none)'
     : `Buildings: ${Object.entries(counts).map(([t, c]) => `${t}=${c}`).join(' ')}`);
+
+  lines.push(`Prosperity: ${state.prosperity}/100`);
+  if (state.merchant) {
+    lines.push(`Merchant: visiting (${state.merchant.ticksLeft} days left)`);
+  } else if (state.buildings.some(b => b.type === 'marketplace')) {
+    lines.push(`Merchant: arrives in ${state.merchantTimer} days`);
+  }
 
   const errors = validateState(state);
   lines.push(errors.length === 0 ? 'Errors: (none)' : errors.join('\n'));
