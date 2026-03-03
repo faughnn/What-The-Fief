@@ -1,9 +1,9 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation with balance pass. Simulation refactored into `src/simulation/` directory. 139 tests passing.
+- **Status**: V2 spatial simulation with balance + bootstrap pass. 145 tests passing.
 - **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates block enemies/let allies through, guards intercept + patrol routes, melee per-tick). Construction sites. Local buffer production + physical hauling to storehouse buffers. Processing buildings consume local inputs (hauled from storehouse buffer). Physical eating from storehouse buffer. Building repair. Villager death. Rubble/clearing. Wildlife (deer, wolves, boars). Hunters track and kill animals. Physical storehouse resources. Physical marketplace trading (merchants walk to marketplace, buy/sell from marketplace buffer, trader hauls goods to storehouse). Building costs deduct from nearest storehouse. Spoilage on storehouse buffers. Hunter drops to storehouse buffer. Immigration at map edge. Balance proven by tests.
-- **What's next**: Remaining Bellwright gaps — see Bellwright Question below.
+- **What's next**: Remaining Bellwright gaps — building upgrades, content depth.
 
 ## The Bellwright Question
 
@@ -23,10 +23,10 @@ Almost. All major systems are physically grounded:
 9. **No villager housing assignment.** Villagers auto-assigned to nearest empty home.
 10. **No fire/disaster system.**
 11. **No diplomacy/trade routes.**
-12. **Tool equipping from global pool.** autoEquipTool takes from global resources instead of nearest storehouse buffer. Minor physical invariant gap.
-13. **No balanced early game progression test.** Have 30-day survival but no proof that a new player can bootstrap from nothing.
+12. ~~Tool equipping from global pool.~~ **FIXED** — autoEquipTool now deducts from storehouse buffer.
+13. ~~No balanced early game progression test.~~ **FIXED** — bootstrap test: 50w/20s/30f → viable colony in 20 days.
 
-**What IS proven by tests (139 passing):**
+**What IS proven by tests (145 passing):**
 - ✅ 120 ticks = 1 day
 - ✅ Max 1 tile/tick movement (villagers, enemies, animals, merchants — all anti-teleportation tested)
 - ✅ 15 tiles takes ≥15 ticks
@@ -76,6 +76,8 @@ Almost. All major systems are physically grounded:
 - ✅ Guarded colony survives raids (3/4 survive raid level 1)
 - ✅ Undefended colony gets wiped out by raids (2→0)
 - ✅ Winter survivable with stored food
+- ✅ Tool equipping consumes from storehouse buffer (physical)
+- ✅ Early game bootstrap viable (50w/20s/30f → 2 farmers + 1 woodcutter)
 
 ## Active Files
 - `CLAUDE.md` — autonomous instructions, invariants
@@ -102,9 +104,9 @@ Almost. All major systems are physically grounded:
 - `src/tests/test-v2-animals.ts` — 10 tests
 - `src/tests/test-v2-gates-patrol.ts` — 6 tests
 - `src/tests/test-v2-rubble.ts` — 10 tests
-- `src/tests/test-v2-storehouse.ts` — 8 tests
+- `src/tests/test-v2-storehouse.ts` — 10 tests
+- `src/tests/test-v2-balance.ts` — 15 tests
 - `src/tests/test-v2-marketplace.ts` — 13 tests
-- `src/tests/test-v2-balance.ts` — 11 tests
 
 ## Key Decisions
 - Grid convention: grid[y][x]
