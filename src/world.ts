@@ -18,7 +18,8 @@ export type BuildingType =
   | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine'
   | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker'
   | 'blacksmith' | 'toolmaker' | 'armorer'
-  | 'town_hall' | 'wall' | 'fence';
+  | 'town_hall' | 'wall' | 'fence'
+  | 'research_desk';
 
 export interface Building {
   id: string;
@@ -239,6 +240,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 2 }, description: 'Wooden fence',
     maxWorkers: 0, production: null, mapChar: '=',
   },
+  research_desk: {
+    type: 'research_desk', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 10, stone: 5 }, description: 'Produces knowledge for research',
+    maxWorkers: 1, production: null, mapChar: 'D',
+  },
 };
 
 // --- Skills ---
@@ -253,6 +259,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   woodcutter: 'woodcutting',
   mill: 'cooking', bakery: 'cooking',
   herb_garden: 'herbalism',
+  research_desk: 'crafting',
 };
 
 export function skillMultiplier(level: number): number {
@@ -273,7 +280,7 @@ export type VillagerRole =
   | 'flaxer' | 'hemper' | 'miner' | 'sawyer' | 'smelter'
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
   | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker'
-  | 'scout' | 'guard';
+  | 'scout' | 'guard' | 'researcher';
 
 export type VillagerState = 'sleeping' | 'working' | 'idle' | 'scouting';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
@@ -330,6 +337,40 @@ export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }>
   iron: { attack: 5, defense: 3 },
 };
 
+// --- Research ---
+export type TechId =
+  | 'crop_rotation' | 'masonry' | 'herbalism_lore' | 'metallurgy'
+  | 'improved_tools' | 'fortification' | 'military_tactics' | 'civil_engineering';
+
+export interface TechDefinition {
+  id: TechId;
+  name: string;
+  cost: number;  // knowledge points required
+  description: string;
+}
+
+export const TECH_TREE: Record<TechId, TechDefinition> = {
+  crop_rotation: { id: 'crop_rotation', name: 'Crop Rotation', cost: 10, description: 'Farms +1 wheat/worker' },
+  masonry: { id: 'masonry', name: 'Masonry', cost: 10, description: 'Quarries +1 stone/worker' },
+  herbalism_lore: { id: 'herbalism_lore', name: 'Herbalism Lore', cost: 10, description: 'Herb gardens +1 herbs/worker' },
+  metallurgy: { id: 'metallurgy', name: 'Metallurgy', cost: 20, description: 'Smelters +1 ingot/worker' },
+  improved_tools: { id: 'improved_tools', name: 'Improved Tools', cost: 15, description: 'Tool durability +20%' },
+  fortification: { id: 'fortification', name: 'Fortification', cost: 20, description: 'Guards +1 defense' },
+  military_tactics: { id: 'military_tactics', name: 'Military Tactics', cost: 25, description: 'Guards +2 attack' },
+  civil_engineering: { id: 'civil_engineering', name: 'Civil Engineering', cost: 30, description: 'Building costs -25%' },
+};
+
+export const ALL_TECHS: TechId[] = [
+  'crop_rotation', 'masonry', 'herbalism_lore', 'metallurgy',
+  'improved_tools', 'fortification', 'military_tactics', 'civil_engineering',
+];
+
+export interface ResearchState {
+  completed: TechId[];
+  current: TechId | null;
+  progress: number;
+}
+
 // --- Game State ---
 export interface GameState {
   day: number;
@@ -347,6 +388,7 @@ export interface GameState {
   raidBar: number;
   raidLevel: number;
   activeRaid: ActiveRaid | null;
+  research: ResearchState;
 }
 
 // --- Names ---
@@ -463,5 +505,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     villagers, nextVillagerId: placed + 1,
     fog, territory,
     raidBar: 0, raidLevel: 0, activeRaid: null,
+    research: { completed: [], current: null, progress: 0 },
   };
 }

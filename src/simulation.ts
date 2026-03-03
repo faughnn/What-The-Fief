@@ -7,6 +7,7 @@ import {
   skillMultiplier, FoodEaten, ToolTier, TOOL_MULTIPLIER, TOOL_DURABILITY,
   TOOL_RESOURCE, TOOL_EQUIP_PRIORITY, Direction,
   Enemy, ActiveRaid, ENEMY_TEMPLATES, GUARD_COMBAT, EnemyType,
+  TechId, TECH_TREE, ResearchState,
 } from './world.js';
 
 // --- BFS Pathfinding ---
@@ -53,6 +54,7 @@ const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   mill: 'miller', bakery: 'baker', tanner: 'tanner_worker',
   weaver: 'weaver_worker', ropemaker: 'ropemaker_worker',
   blacksmith: 'blacksmith_worker', toolmaker: 'toolmaker_worker', armorer: 'armorer_worker',
+  research_desk: 'researcher',
 };
 
 function roleForBuilding(type: BuildingType): VillagerRole {
@@ -159,13 +161,13 @@ function productionOutput(v: Villager, buildingType: BuildingType, baseAmount: n
 }
 
 // --- Tool Management ---
-function autoEquipTool(v: Villager, resources: Resources): void {
+function autoEquipTool(v: Villager, resources: Resources, durabilityBonus: number = 0): void {
   for (const tier of TOOL_EQUIP_PRIORITY) {
     const res = TOOL_RESOURCE[tier];
     if (resources[res] > 0) {
       resources[res] -= 1;
       v.tool = tier;
-      v.toolDurability = TOOL_DURABILITY[tier];
+      v.toolDurability = Math.floor(TOOL_DURABILITY[tier] * (1 + durabilityBonus));
       return;
     }
   }
@@ -173,12 +175,11 @@ function autoEquipTool(v: Villager, resources: Resources): void {
   v.toolDurability = 0;
 }
 
-function degradeTool(v: Villager, resources: Resources): void {
+function degradeTool(v: Villager, resources: Resources, durabilityBonus: number = 0): void {
   if (v.tool === 'none') return;
   v.toolDurability -= 1;
   if (v.toolDurability <= 0) {
-    // Tool broke — try to auto-equip a new one
-    autoEquipTool(v, resources);
+    autoEquipTool(v, resources, durabilityBonus);
   }
 }
 
@@ -205,6 +206,20 @@ function calculateMorale(v: Villager): number {
   return Math.max(0, Math.min(100, morale));
 }
 
+// --- Tech helpers ---
+function hasTech(research: ResearchState, tech: TechId): boolean {
+  return research.completed.includes(tech);
+}
+
+function techProductionBonus(research: ResearchState, buildingType: BuildingType): number {
+  let bonus = 0;
+  if (buildingType === 'farm' && hasTech(research, 'crop_rotation')) bonus += 1;
+  if (buildingType === 'quarry' && hasTech(research, 'masonry')) bonus += 1;
+  if (buildingType === 'herb_garden' && hasTech(research, 'herbalism_lore')) bonus += 1;
+  if (buildingType === 'smelter' && hasTech(research, 'metallurgy')) bonus += 1;
+  return bonus;
+}
+
 // --- Fog helpers ---
 function revealArea(fog: boolean[][], width: number, height: number, cx: number, cy: number, radius: number): void {
   for (let y = Math.max(0, cy - radius); y <= Math.min(height - 1, cy + radius); y++) {
@@ -223,6 +238,13 @@ export function tick(state: GameState): GameState {
   const fog = state.fog.map(row => [...row]);
   const territory = state.territory.map(row => [...row]);
   const grid = state.grid.map(row => row.map(t => ({ ...t })));
+  const research: ResearchState = {
+    completed: [...state.research.completed],
+    current: state.research.current,
+    progress: state.research.progress,
+  };
+
+  const toolDurBonus = hasTech(research, 'improved_tools') ? 0.2 : 0;
 
   // 1. Auto-assign homeless
   for (const v of villagers) {
@@ -233,12 +255,30 @@ export function tick(state: GameState): GameState {
   }
 
   // 2. Work — data-driven production with skill/trait/morale modifiers
+  let researchKnowledge = 0;
   for (const v of villagers) {
     if (!v.jobBuildingId) continue;
     const job = buildings.find(b => b.id === v.jobBuildingId);
     if (!job) continue;
 
     const template = BUILDING_TEMPLATES[job.type];
+
+    // Research desk: produce knowledge instead of resources
+    if (job.type === 'research_desk') {
+      const entrance = getBuildingEntrance(job);
+      const pathToWork = findPath(grid, state.width, state.height, v.x, v.y, entrance.x, entrance.y);
+      const canReach = (v.x === entrance.x && v.y === entrance.y) || pathToWork.length > 0;
+      if (!canReach || pathToWork.length > MAX_COMMUTE) { v.state = 'idle'; continue; }
+      v.x = entrance.x;
+      v.y = entrance.y;
+      v.state = 'working';
+      if (v.tool === 'none') autoEquipTool(v, resources, toolDurBonus);
+      researchKnowledge += productionOutput(v, job.type, 1);
+      degradeTool(v, resources, toolDurBonus);
+      gainSkillXp(v, job.type);
+      continue;
+    }
+
     if (!template.production) continue;
 
     const entrance = getBuildingEntrance(job);
@@ -257,13 +297,14 @@ export function tick(state: GameState): GameState {
     v.state = 'working';
 
     // Auto-equip tool if none equipped
-    if (v.tool === 'none') autoEquipTool(v, resources);
+    if (v.tool === 'none') autoEquipTool(v, resources, toolDurBonus);
 
-    const output = productionOutput(v, job.type, prod.amountPerWorker);
+    const baseAmount = prod.amountPerWorker + techProductionBonus(research, job.type);
+    const output = productionOutput(v, job.type, baseAmount);
     addResource(resources, prod.output, output, storageCap);
 
     // Tool wear
-    degradeTool(v, resources);
+    degradeTool(v, resources, toolDurBonus);
 
     // Gain XP
     gainSkillXp(v, job.type);
@@ -284,6 +325,17 @@ export function tick(state: GameState): GameState {
       v.scoutTicksLeft = 0;
       v.state = 'idle';
       v.role = 'idle';
+    }
+  }
+
+  // 2c. Research progress
+  if (research.current && researchKnowledge > 0) {
+    const tech = TECH_TREE[research.current];
+    research.progress += researchKnowledge;
+    if (research.progress >= tech.cost) {
+      research.completed.push(research.current);
+      research.current = null;
+      research.progress = 0;
     }
   }
 
@@ -370,7 +422,7 @@ export function tick(state: GameState): GameState {
 
   // 10. Guard equip tools
   for (const v of villagers) {
-    if (v.role === 'guard' && v.tool === 'none') autoEquipTool(v, resources);
+    if (v.role === 'guard' && v.tool === 'none') autoEquipTool(v, resources, toolDurBonus);
   }
 
   // 11. Raid check
@@ -409,6 +461,10 @@ export function tick(state: GameState): GameState {
     const guards = villagers.filter(v => v.role === 'guard');
     const enemies = activeRaid.enemies.filter(e => e.hp > 0);
 
+    // Tech bonuses for combat
+    const attackBonus = hasTech(research, 'military_tactics') ? 2 : 0;
+    const defenseBonus = hasTech(research, 'fortification') ? 1 : 0;
+
     // Resolve rounds until one side is eliminated (max 10 rounds)
     for (let round = 0; round < 10 && guards.some(g => g.hp > 0) && enemies.some(e => e.hp > 0); round++) {
       // Guards attack
@@ -416,14 +472,14 @@ export function tick(state: GameState): GameState {
         if (g.hp <= 0) continue;
         const stats = GUARD_COMBAT[g.tool];
         const target = enemies.find(e => e.hp > 0);
-        if (target) target.hp -= Math.max(1, stats.attack - target.defense);
+        if (target) target.hp -= Math.max(1, stats.attack + attackBonus - target.defense);
       }
       // Enemies attack
       for (const e of enemies) {
         if (e.hp <= 0) continue;
         const target = guards.find(g => g.hp > 0);
         if (target) {
-          const guardDef = GUARD_COMBAT[target.tool].defense;
+          const guardDef = GUARD_COMBAT[target.tool].defense + defenseBonus;
           target.hp -= Math.max(1, e.attack - guardDef);
         }
       }
@@ -487,7 +543,7 @@ export function tick(state: GameState): GameState {
   const newState: GameState = {
     ...state,
     day: state.day + 1, grid, resources, storageCap, buildings, villagers, fog, territory,
-    raidBar, raidLevel, activeRaid,
+    raidBar, raidLevel, activeRaid, research,
     nextVillagerId: villagers.length > state.villagers.length
       ? state.nextVillagerId + 1 : state.nextVillagerId,
   };
@@ -527,13 +583,15 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
     }
   }
 
+  const costReduction = hasTech(state.research, 'civil_engineering') ? 0.25 : 0;
   const newResources: Resources = { ...state.resources };
   for (const [res, amount] of Object.entries(template.cost)) {
     const key = res as keyof Resources;
-    if (newResources[key] < (amount as number)) {
-      console.log(`ERROR: Cannot place ${type} — need ${amount} ${res}, have ${newResources[key]}`); return state;
+    const cost = Math.max(1, Math.floor((amount as number) * (1 - costReduction)));
+    if (newResources[key] < cost) {
+      console.log(`ERROR: Cannot place ${type} — need ${cost} ${res}, have ${newResources[key]}`); return state;
     }
-    newResources[key] -= amount as number;
+    newResources[key] -= cost;
   }
 
   const building: Building = { id: `b${state.nextBuildingId}`, type, x, y, width: bw, height: bh, assignedWorkers: [] };
@@ -576,6 +634,16 @@ export function assignVillager(state: GameState, villagerId: string, buildingId:
   );
 
   return { ...state, buildings: newBuildings, villagers: newVillagers };
+}
+
+// --- Set Research ---
+export function setResearch(state: GameState, techId: TechId): GameState {
+  if (!TECH_TREE[techId]) { console.log(`ERROR: Unknown tech '${techId}'`); return state; }
+  if (state.research.completed.includes(techId)) { console.log(`ERROR: Tech '${techId}' already researched`); return state; }
+  return {
+    ...state,
+    research: { ...state.research, current: techId, progress: state.research.current === techId ? state.research.progress : 0 },
+  };
 }
 
 // --- Set Guard ---

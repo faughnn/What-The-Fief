@@ -2,7 +2,7 @@
 
 import {
   GameState, VillagerRole, BUILDING_TEMPLATES, ResourceType, BuildingType,
-  ALL_RESOURCES, FOOD_PRIORITY,
+  ALL_RESOURCES, FOOD_PRIORITY, ALL_TECHS, TECH_TREE,
 } from './world.js';
 import { validateState } from './simulation.js';
 
@@ -16,7 +16,7 @@ const ROLE_CHARS: Record<VillagerRole, string> = {
   sawyer: 's', smelter: 'e', miller: 'l', baker: 'b',
   tanner_worker: 'n', weaver_worker: 'a', ropemaker_worker: 'r',
   blacksmith_worker: 'k', toolmaker_worker: 'o', armorer_worker: 'z',
-  scout: 'c', guard: 'g',
+  scout: 'c', guard: 'g', researcher: 'd',
 };
 
 export function renderMap(state: GameState): string {
@@ -155,7 +155,35 @@ export function renderCombat(state: GameState): string {
   return lines.join('\n');
 }
 
-export type ViewMode = 'map' | 'summary' | 'all' | 'villagers' | 'economy' | 'combat';
+export function renderResearch(state: GameState): string {
+  const lines: string[] = ['Research:'];
+  const r = state.research;
+  if (r.current) {
+    const tech = TECH_TREE[r.current];
+    lines.push(`  Researching: ${tech.name} (${Math.floor(r.progress)}/${tech.cost})`);
+  } else {
+    lines.push('  Researching: (none)');
+  }
+  lines.push('  Completed:');
+  if (r.completed.length === 0) {
+    lines.push('    (none)');
+  } else {
+    for (const id of r.completed) lines.push(`    [x] ${TECH_TREE[id].name} — ${TECH_TREE[id].description}`);
+  }
+  lines.push('  Available:');
+  const available = ALL_TECHS.filter(id => !r.completed.includes(id));
+  if (available.length === 0) {
+    lines.push('    (all researched)');
+  } else {
+    for (const id of available) {
+      const marker = id === r.current ? '>' : ' ';
+      lines.push(`   ${marker} ${TECH_TREE[id].name} (${TECH_TREE[id].cost}) — ${TECH_TREE[id].description}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+export type ViewMode = 'map' | 'summary' | 'all' | 'villagers' | 'economy' | 'combat' | 'research';
 
 export function renderAll(state: GameState, viewMode: ViewMode): string {
   switch (viewMode) {
@@ -164,6 +192,7 @@ export function renderAll(state: GameState, viewMode: ViewMode): string {
     case 'villagers': return renderVillagers(state);
     case 'economy': return renderEconomy(state);
     case 'combat': return renderCombat(state);
-    case 'all': return [renderMap(state), renderSummary(state), renderVillagers(state), renderEconomy(state), renderCombat(state)].join('\n\n');
+    case 'research': return renderResearch(state);
+    case 'all': return [renderMap(state), renderSummary(state), renderVillagers(state), renderEconomy(state), renderCombat(state), renderResearch(state)].join('\n\n');
   }
 }

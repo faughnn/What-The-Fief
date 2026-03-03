@@ -1,7 +1,7 @@
 // main.ts — CLI entry point
 
-import { createWorld, BuildingType, Direction } from './world.js';
-import { tick, placeBuilding, assignVillager, sendScout, claimTerritory, setGuard } from './simulation.js';
+import { createWorld, BuildingType, Direction, TechId } from './world.js';
+import { tick, placeBuilding, assignVillager, sendScout, claimTerritory, setGuard, setResearch } from './simulation.js';
 import { renderAll, ViewMode } from './render-text.js';
 
 function parseArgs(argv: string[]) {
@@ -14,6 +14,7 @@ function parseArgs(argv: string[]) {
     scout: [] as { villagerId: string; direction: Direction }[],
     claim: [] as { x: number; y: number }[],
     guard: [] as string[],
+    research: null as TechId | null,
     width: 20,
     height: 20,
     seed: 42,
@@ -43,6 +44,7 @@ function parseArgs(argv: string[]) {
         break;
       }
       case '--guard': result.guard.push(args[++i]); break;
+      case '--research': result.research = args[++i] as TechId; break;
       case '--width': result.width = parseInt(args[++i], 10); break;
       case '--height': result.height = parseInt(args[++i], 10); break;
       case '--seed': result.seed = parseInt(args[++i], 10); break;
@@ -61,6 +63,7 @@ function main() {
   for (const s of opts.scout) state = sendScout(state, s.villagerId, s.direction);
   for (const c of opts.claim) state = claimTerritory(state, c.x, c.y);
   for (const g of opts.guard) state = setGuard(state, g);
+  if (opts.research) state = setResearch(state, opts.research);
 
   for (let i = 0; i < opts.ticks; i++) state = tick(state);
 
