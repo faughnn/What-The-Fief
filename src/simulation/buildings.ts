@@ -98,7 +98,9 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
     }
   }
 
-  const maxHp = BUILDING_MAX_HP[type] || 50;
+  const archBonus = hasTech(state.research, 'architecture') ? 1.5 : 1.0;
+  const siegeBonus = hasTech(state.research, 'siege_engineering') && (type === 'wall' || type === 'gate') ? 1.5 : 1.0;
+  const maxHp = Math.floor((BUILDING_MAX_HP[type] || 50) * archBonus * siegeBonus);
   const bufCap = type === 'storehouse' ? STOREHOUSE_BUFFER_CAP : DEFAULT_BUFFER_CAP;
 
   const constructionReq = CONSTRUCTION_TICKS[type] || 60;

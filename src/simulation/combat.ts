@@ -235,9 +235,12 @@ export function processRaidAndCombat(ts: TickState): void {
   }
 
   // Guard AI: detect enemies, move to intercept, fight adjacent
-  // Watchtower guards: stay at tower, shoot enemies within WATCHTOWER_RANGE
-  const attackBonus = hasTech(ts.research, 'military_tactics') ? 2 : 0;
-  const defenseBonus = hasTech(ts.research, 'fortification') ? 1 : 0;
+  // Watchtower guards: stay at tower, shoot enemies within range
+  const watchtowerRange = WATCHTOWER_RANGE + (hasTech(ts.research, 'archery') ? 2 : 0);
+  let attackBonus = hasTech(ts.research, 'military_tactics') ? 2 : 0;
+  let defenseBonus = hasTech(ts.research, 'fortification') ? 1 : 0;
+  if (hasTech(ts.research, 'steel_forging')) attackBonus += 1;
+  if (hasTech(ts.research, 'armored_guards')) defenseBonus += 3;
   const GUARD_DETECT_RANGE = 10;
 
   for (const v of ts.villagers) {
@@ -266,7 +269,7 @@ export function processRaidAndCombat(ts: TickState): void {
       for (const e of ts.enemies) {
         if (e.hp <= 0) continue;
         const dist = Math.abs(e.x - v.x) + Math.abs(e.y - v.y);
-        if (dist <= WATCHTOWER_RANGE && dist < nearestDist) {
+        if (dist <= watchtowerRange && dist < nearestDist) {
           nearestDist = dist;
           nearestEnemy = e;
         }

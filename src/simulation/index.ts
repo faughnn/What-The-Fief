@@ -36,7 +36,7 @@ export function tick(state: GameState): GameState {
     width: state.width,
     height: state.height,
     newTick, newDay, dayTick, isNight, isDawn, isNewDay,
-    toolDurBonus: hasTech(state.research, 'improved_tools') ? 0.2 : 0,
+    toolDurBonus: (hasTech(state.research, 'improved_tools') ? 0.2 : 0) + (hasTech(state.research, 'steel_forging') ? 0.5 : 0),
     originalVillagerCount: state.villagers.length,
     villagers: state.villagers.map(v => ({
       ...v,

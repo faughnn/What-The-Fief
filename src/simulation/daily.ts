@@ -275,11 +275,13 @@ export function processDailyChecks(ts: TickState): void {
   // HP regen (2 HP per day)
   for (const v of ts.villagers) {
     if (v.role === 'guard') {
-      v.maxHp = 15 + Math.floor(v.morale / 10);
+      const armorBonus = hasTech(ts.research, 'armored_guards') ? 5 : 0;
+      v.maxHp = 15 + Math.floor(v.morale / 10) + armorBonus;
     } else {
       v.maxHp = 10;
     }
-    if (v.hp < v.maxHp) v.hp = Math.min(v.maxHp, v.hp + 2);
+    const regenBonus = hasTech(ts.research, 'medicine') ? 1 : 0;
+    if (v.hp < v.maxHp) v.hp = Math.min(v.maxHp, v.hp + 2 + regenBonus);
     v.hp = Math.min(v.hp, v.maxHp);
   }
 
@@ -319,7 +321,7 @@ export function processDisease(ts: TickState): void {
         const spreadRng = ((ts.newTick * 1103515245 + v.x * 12345 + other.x * 67890 + v.y * 2654435761) & 0x7fffffff) / 0x7fffffff;
         if (spreadRng < 0.10) {
           other.sick = true;
-          other.sickDays = 5;
+          other.sickDays = hasTech(ts.research, 'medicine') ? 3 : 5;
         }
       }
     }
@@ -340,8 +342,42 @@ export function processLightning(ts: TickState): void {
   }
 }
 
+// Caravan spawn intervals (in days)
+const CARAVAN_INTERVAL_BASE = 10;
+const CARAVAN_INTERVAL_TRADE_ROUTES = 7;
+const CARAVAN_GOODS_BASE = 8;
+const CARAVAN_GOODS_TRADE_ROUTES = 12;
+
 export function processCaravans(ts: TickState): void {
   const marketplace = ts.buildings.find(b => b.type === 'marketplace' && b.constructed);
+
+  // Auto-spawn caravans from NPC settlements
+  if (ts.isNewDay && marketplace && ts.npcSettlements.length > 0) {
+    const interval = hasTech(ts.research, 'trade_routes') ? CARAVAN_INTERVAL_TRADE_ROUTES : CARAVAN_INTERVAL_BASE;
+    if (ts.newDay > 0 && ts.newDay % interval === 0) {
+      // Pick a settlement (rotate based on day)
+      const settlement = ts.npcSettlements[Math.floor(ts.newDay / interval) % ts.npcSettlements.length];
+      // Don't spawn if one from this settlement is already en route
+      if (!ts.caravans.some(c => c.settlementId === settlement.id)) {
+        const goodsAmount = hasTech(ts.research, 'trade_routes') ? CARAVAN_GOODS_TRADE_ROUTES : CARAVAN_GOODS_BASE;
+        // Spawn at map edge based on settlement direction
+        let sx = 0, sy = Math.floor(ts.height / 2);
+        if (settlement.direction === 'e') sx = ts.width - 1;
+        if (settlement.direction === 'n') { sx = Math.floor(ts.width / 2); sy = 0; }
+        if (settlement.direction === 's') { sx = Math.floor(ts.width / 2); sy = ts.height - 1; }
+        const goods: Partial<Record<string, number>> = {};
+        goods[settlement.specialty] = goodsAmount;
+        ts.caravans.push({
+          id: `c${ts.newDay}_${settlement.id}`,
+          settlementId: settlement.id,
+          x: sx, y: sy,
+          goods,
+          ticksLeft: TICKS_PER_DAY * 5,
+        });
+        ts.events.push(`A caravan from ${settlement.name} is approaching!`);
+      }
+    }
+  }
 
   for (const c of ts.caravans) {
     c.ticksLeft -= 1;
@@ -476,7 +512,7 @@ export function processEventsAndQuests(ts: TickState): void {
         const target = ts.villagers[ts.newDay % ts.villagers.length];
         if (!target.sick) {
           target.sick = true;
-          target.sickDays = 5;
+          target.sickDays = hasTech(ts.research, 'medicine') ? 3 : 5;
           ts.events.push(`${target.name} has fallen ill with a plague!`);
         }
       } else if (eventSeed < 0.65) {

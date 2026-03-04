@@ -457,9 +457,10 @@ export function processVillagerStateMachine(ts: TickState): void {
           if (startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) break;
         }
 
-        // Repair: if building is damaged, repair 1 HP/tick before producing
+        // Repair: if building is damaged, repair HP/tick before producing
         if (job.hp < job.maxHp) {
-          job.hp = Math.min(job.maxHp, job.hp + 1);
+          const repairRate = ts.research.completed.includes('architecture' as TechId) ? 2 : 1;
+          job.hp = Math.min(job.maxHp, job.hp + repairRate);
           break; // spent this tick repairing
         }
 
@@ -540,7 +541,9 @@ export function processVillagerStateMachine(ts: TickState): void {
             if (OUTDOOR_BUILDINGS.includes(job.type)) {
               const isFarm = ['farm', 'flax_field', 'hemp_field', 'chicken_coop'].includes(job.type);
               if (isFarm) {
-                const farmMult = SEASON_FARM_MULT[ts.season];
+                let farmMult = SEASON_FARM_MULT[ts.season];
+                // Irrigation tech: autumn gets full output
+                if (ts.season === 'autumn' && ts.research.completed.includes('irrigation' as TechId)) farmMult = 1.0;
                 if (farmMult === 0) { v.workProgress = 0; break; } // No farming in winter
                 amount = Math.max(1, Math.floor(amount * farmMult));
               }

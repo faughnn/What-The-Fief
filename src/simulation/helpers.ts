@@ -215,9 +215,13 @@ export function hasTech(research: ResearchState, tech: TechId): boolean {
 export function techProductionBonus(research: ResearchState, buildingType: BuildingType): number {
   let bonus = 0;
   if (buildingType === 'farm' && hasTech(research, 'crop_rotation')) bonus += 1;
+  if (buildingType === 'farm' && hasTech(research, 'advanced_farming')) bonus += 1;
   if (buildingType === 'quarry' && hasTech(research, 'masonry')) bonus += 1;
   if (buildingType === 'herb_garden' && hasTech(research, 'herbalism_lore')) bonus += 1;
   if (buildingType === 'smelter' && hasTech(research, 'metallurgy')) bonus += 1;
+  if (buildingType === 'bakery' && hasTech(research, 'basic_cooking')) bonus += 1;
+  // Master crafting: +1 to ALL production buildings
+  if (hasTech(research, 'master_crafting')) bonus += 1;
   return bonus;
 }
 

@@ -103,6 +103,14 @@ export function sellResource(state: GameState, resource: ResourceType, amount: n
 export function setResearch(state: GameState, techId: TechId): GameState {
   if (!TECH_TREE[techId]) { console.log(`ERROR: Unknown tech '${techId}'`); return state; }
   if (state.research.completed.includes(techId)) { console.log(`ERROR: Tech '${techId}' already researched`); return state; }
+  // Check prerequisites
+  const tech = TECH_TREE[techId];
+  for (const prereq of tech.prerequisites) {
+    if (!state.research.completed.includes(prereq)) {
+      console.log(`ERROR: Tech '${techId}' requires '${prereq}' first`);
+      return state;
+    }
+  }
   return {
     ...state,
     research: { ...state.research, current: techId, progress: state.research.current === techId ? state.research.progress : 0 },
