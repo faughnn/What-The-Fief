@@ -187,6 +187,23 @@ export function payTribute(state: GameState): GameState {
   };
 }
 
+export function assaultCamp(state: GameState, villagerId: string, campId: string): GameState {
+  const villager = state.villagers.find(v => v.id === villagerId);
+  if (!villager) { console.log(`ERROR: Villager ${villagerId} not found`); return state; }
+  if (villager.role !== 'guard') { console.log(`ERROR: ${villagerId} is not a guard`); return state; }
+  const camp = state.banditCamps.find(c => c.id === campId);
+  if (!camp) { console.log(`ERROR: Camp ${campId} not found`); return state; }
+
+  const newVillagers = state.villagers.map(v => {
+    if (v.id === villagerId) {
+      return { ...v, skills: { ...v.skills }, traits: [...v.traits], assaultTargetId: campId, state: 'assaulting_camp' as const };
+    }
+    return v;
+  });
+
+  return { ...state, villagers: newVillagers };
+}
+
 export function upgradeBuilding(state: GameState, buildingId: string): GameState {
   const building = state.buildings.find(b => b.id === buildingId);
   if (!building) { console.log(`ERROR: Building ${buildingId} not found`); return state; }

@@ -7,7 +7,7 @@ import {
   TOOL_RESOURCE, TOOL_EQUIP_PRIORITY,
   WeaponType, WEAPON_STATS, WEAPON_DURABILITY, WEAPON_RESOURCE, WEAPON_EQUIP_PRIORITY,
   EnemyEntity, ActiveRaid,
-  AnimalEntity, ResourceDrop,
+  AnimalEntity, ResourceDrop, BanditCamp,
   TechId, ResearchState,
   MerchantState,
   Season, WeatherType, HOUSING_INFO,
@@ -55,6 +55,8 @@ export interface TickState {
   graveyard: { name: string; day: number }[];
   npcSettlements: { id: string; name: string; direction: string; specialty: string }[];
   caravans: { id: string; settlementId: string; x: number; y: number; goods: Partial<Record<string, number>>; ticksLeft: number }[];
+  banditCamps: BanditCamp[];
+  nextCampId: number;
   nextEnemyId: number;
   nextAnimalId: number;
   nextDropId: number;

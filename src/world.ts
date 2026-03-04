@@ -522,7 +522,8 @@ export type VillagerState =
   | 'traveling_to_tavern'
   | 'relaxing'
   | 'traveling_to_heal'
-  | 'healing';
+  | 'healing'
+  | 'assaulting_camp';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
 export type Direction = 'n' | 's' | 'e' | 'w';
 
@@ -572,6 +573,8 @@ export interface Villager {
   // Relationships
   family: string[]; // IDs of family members
   grief: number; // days of grief remaining after family member death
+  // Bandit camp assault
+  assaultTargetId: string | null; // ID of bandit camp to attack
 }
 
 // --- Combat ---
@@ -594,6 +597,27 @@ export const ENEMY_TEMPLATES: Record<EnemyType, Omit<Enemy, 'hp'> & { maxHp: num
   wolf: { type: 'wolf', maxHp: 6, attack: 4, defense: 0 },
   boar: { type: 'boar', maxHp: 15, attack: 2, defense: 2 },
 };
+
+// --- Bandit Camps (persistent world threats) ---
+export interface BanditCamp {
+  id: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  strength: number;       // scales raid size from this camp
+  lastRaidDay: number;    // day of last raid sent from this camp
+  raidInterval: number;   // days between raids from this camp
+}
+
+export const CAMP_BASE_HP = 30;
+export const CAMP_HP_PER_LEVEL = 10;
+export const CAMP_RAID_INTERVAL = 15;  // days between raids from a camp
+export const CAMP_SPAWN_DAY = 15;      // first camp appears after day 15
+export const CAMP_SPAWN_INTERVAL = 25; // new camp every 25 days
+export const CAMP_MAX_COUNT = 3;       // max camps on map
+export const CAMP_CLEAR_GOLD = 30;     // gold reward for clearing a camp
+export const CAMP_CLEAR_RENOWN = 10;   // renown reward for clearing
 
 // V2: Grid-based enemy entity (replaces abstract Enemy for simulation)
 export type SiegeType = 'none' | 'battering_ram' | 'siege_tower';
@@ -836,6 +860,8 @@ export interface GameState {
   graveyard: { name: string; day: number }[];
   npcSettlements: NpcSettlement[];
   caravans: Caravan[];
+  banditCamps: BanditCamp[];
+  nextCampId: number;
 }
 
 export interface NpcSettlement {
@@ -914,6 +940,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     sickDays: 0,
     family: [],
     grief: 0,
+    assaultTargetId: null,
   };
 }
 
@@ -992,5 +1019,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     season: 'spring', weather: 'clear',
     renown: 0, events: [], completedQuests: [], banditUltimatum: null, graveyard: [],
     npcSettlements: [], caravans: [],
+    banditCamps: [], nextCampId: 1,
   };
 }

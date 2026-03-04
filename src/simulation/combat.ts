@@ -6,8 +6,11 @@ import {
   CONSTRUCTION_TICKS, BUILDING_MAX_HP, ALL_RESOURCES,
   WATCHTOWER_RANGE, WATCHTOWER_DAMAGE,
   WEAPON_STATS,
+  BanditCamp, CAMP_BASE_HP, CAMP_HP_PER_LEVEL, CAMP_RAID_INTERVAL,
+  CAMP_SPAWN_DAY, CAMP_SPAWN_INTERVAL, CAMP_MAX_COUNT,
+  CAMP_CLEAR_GOLD, CAMP_CLEAR_RENOWN,
 } from '../world.js';
-import { TickState, isAdjacent, hasTech, degradeWeapon } from './helpers.js';
+import { TickState, isAdjacent, hasTech, degradeWeapon, addToBuffer, isStorehouse } from './helpers.js';
 import { findPath, findPathEnemy } from './movement.js';
 
 // --- Find settlement center (average building position) ---
@@ -78,85 +81,183 @@ function destroyBuilding(
   }
 }
 
+// --- Camp spawning: pick a position at the map edge ---
+function pickCampPosition(ts: TickState, side: number): { x: number; y: number } {
+  const offset = ((ts.newDay * 7919 + side * 104729) & 0x7fffffff) % Math.max(1, Math.min(ts.width, ts.height) - 4);
+  switch (side % 4) {
+    case 0: return { x: Math.min(ts.width - 1, 2 + offset), y: 0 }; // north
+    case 1: return { x: Math.min(ts.width - 1, 2 + offset), y: ts.height - 1 }; // south
+    case 2: return { x: 0, y: Math.min(ts.height - 1, 2 + offset) }; // west
+    default: return { x: ts.width - 1, y: Math.min(ts.height - 1, 2 + offset) }; // east
+  }
+}
+
+// --- Spawn enemies at a camp's location ---
+function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
+  const numBandits = camp.strength + 1;
+  const numWolves = camp.strength >= 3 ? camp.strength - 2 : 0;
+  for (let i = 0; i < numBandits + numWolves; i++) {
+    const type: EnemyType = i < numBandits ? 'bandit' : 'wolf';
+    const t = ENEMY_TEMPLATES[type];
+    // Spread enemies around camp position
+    const ex = Math.max(0, Math.min(ts.width - 1, camp.x + (i % 3) - 1));
+    const ey = Math.max(0, Math.min(ts.height - 1, camp.y + Math.floor(i / 3) - 1));
+    ts.enemies.push({
+      id: `e${ts.nextEnemyId}`, type, x: ex, y: ey,
+      hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
+      siege: 'none', ticksAlive: 0,
+    });
+    ts.nextEnemyId++;
+  }
+  // Siege equipment at higher strength
+  if (camp.strength >= 3) {
+    const numRams = Math.min(camp.strength - 2, 2);
+    for (let i = 0; i < numRams; i++) {
+      ts.enemies.push({
+        id: `e${ts.nextEnemyId}`, type: 'bandit',
+        x: Math.max(0, Math.min(ts.width - 1, camp.x + i)),
+        y: Math.max(0, Math.min(ts.height - 1, camp.y + 1)),
+        hp: 25, maxHp: 25, attack: 5, defense: 3,
+        siege: 'battering_ram', ticksAlive: 0,
+      });
+      ts.nextEnemyId++;
+    }
+  }
+  if (camp.strength >= 5) {
+    ts.enemies.push({
+      id: `e${ts.nextEnemyId}`, type: 'bandit',
+      x: Math.max(0, Math.min(ts.width - 1, camp.x - 1)),
+      y: Math.max(0, Math.min(ts.height - 1, camp.y + 1)),
+      hp: 20, maxHp: 20, attack: 2, defense: 2,
+      siege: 'siege_tower', ticksAlive: 0,
+    });
+    ts.nextEnemyId++;
+  }
+  camp.lastRaidDay = ts.newDay;
+  const dirLabels = camp.y === 0 ? 'north' : camp.y >= ts.height - 1 ? 'south' : camp.x === 0 ? 'west' : 'east';
+  ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${camp.strength >= 3 ? ' with siege equipment' : ''} attacks from the bandit camp to the ${dirLabels}!`);
+}
+
 export function processRaidAndCombat(ts: TickState): void {
   // Track original enemy count (before raid spawning) for cleared check
   const enemyCountBefore = ts.enemies.length;
 
-  // RAID CHECK — raids only start once the colony is established
-  // Milestone gate: population >= 6 AND at least 8 constructed buildings
+  // --- BANDIT CAMP SPAWNING ---
+  // Camps appear at map edges once colony is established
   const constructedBuildings = ts.buildings.filter(b => b.constructed && b.type !== 'rubble').length;
   if (ts.isNewDay && ts.villagers.length >= 6 && constructedBuildings >= 8) {
-    let totalRes = 0;
-    for (const key of ALL_RESOURCES) totalRes += ts.resources[key];
-    const raidProsperity = totalRes / 50 + ts.buildings.length + ts.villagers.length;
-    ts.raidBar += raidProsperity * 0.15;
-  }
-  // Raid level decay — weak colonies don't face escalating raids
-  if (ts.isNewDay && ts.raidLevel > 0 && ts.villagers.length <= 3 && ts.enemies.length === 0) {
-    ts.raidLevel = Math.max(0, ts.raidLevel - 1);
-    ts.raidBar = 0;
+    // Spawn first camp after CAMP_SPAWN_DAY, then new camps every CAMP_SPAWN_INTERVAL
+    const activeCamps = ts.banditCamps.length;
+    if (activeCamps < CAMP_MAX_COUNT) {
+      const shouldSpawn = activeCamps === 0
+        ? ts.newDay >= CAMP_SPAWN_DAY
+        : ts.newDay >= CAMP_SPAWN_DAY + activeCamps * CAMP_SPAWN_INTERVAL;
+      if (shouldSpawn) {
+        // Check we haven't already spawned a camp this session (avoid duplicate spawns)
+        const alreadySpawnedThisDay = ts.banditCamps.some(c => c.lastRaidDay === ts.newDay);
+        if (!alreadySpawnedThisDay) {
+          const side = activeCamps; // rotate sides: 0=N, 1=S, 2=W, 3=E
+          const pos = pickCampPosition(ts, side);
+          const campHp = CAMP_BASE_HP + ts.raidLevel * CAMP_HP_PER_LEVEL;
+          ts.banditCamps.push({
+            id: `camp${ts.nextCampId}`,
+            x: pos.x, y: pos.y,
+            hp: campHp, maxHp: campHp,
+            strength: Math.max(1, ts.raidLevel),
+            lastRaidDay: ts.newDay,
+            raidInterval: CAMP_RAID_INTERVAL,
+          });
+          ts.nextCampId++;
+          ts.events.push(`A bandit camp has been spotted at (${pos.x},${pos.y})!`);
+        }
+      }
+    }
   }
 
-  // Trigger raid — spawn enemies at map edge
-  if (ts.raidBar >= 100 && ts.enemies.length === 0 && ts.isNewDay) {
-    ts.raidLevel += 1;
-    ts.raidBar = 0;
-    const numBandits = ts.raidLevel + 1;
-    const numWolves = ts.raidLevel >= 4 ? ts.raidLevel - 2 : 0;
-    // Spawn at random edge based on day
-    const edgeSide = ts.newDay % 4; // 0=north, 1=south, 2=west, 3=east
-    for (let i = 0; i < numBandits + numWolves; i++) {
-      const type: EnemyType = i < numBandits ? 'bandit' : 'wolf';
-      const t = ENEMY_TEMPLATES[type];
-      let ex: number, ey: number;
-      switch (edgeSide) {
-        case 0: ex = Math.min(ts.width - 1, (i * 3) % ts.width); ey = 0; break;
-        case 1: ex = Math.min(ts.width - 1, (i * 3) % ts.width); ey = ts.height - 1; break;
-        case 2: ex = 0; ey = Math.min(ts.height - 1, (i * 3) % ts.height); break;
-        default: ex = ts.width - 1; ey = Math.min(ts.height - 1, (i * 3) % ts.height); break;
+  // --- RAIDS FROM CAMPS ---
+  // Each camp sends raids on its own interval (replaces raidBar-based spawning when camps exist)
+  if (ts.isNewDay && ts.banditCamps.length > 0 && ts.enemies.length === 0) {
+    for (const camp of ts.banditCamps) {
+      if (ts.newDay - camp.lastRaidDay >= camp.raidInterval) {
+        spawnRaidFromCamp(ts, camp);
+        ts.raidLevel = Math.max(ts.raidLevel, camp.strength);
+        break; // One raid at a time
       }
-      ts.enemies.push({
-        id: `e${ts.nextEnemyId}`, type, x: ex, y: ey,
-        hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-        siege: 'none', ticksAlive: 0,
-      });
-      ts.nextEnemyId++;
     }
-    // Siege equipment at higher raid levels
-    if (ts.raidLevel >= 3) {
-      const numRams = Math.min(ts.raidLevel - 2, 2);
-      for (let i = 0; i < numRams; i++) {
+  }
+
+  // --- FALLBACK: raidBar-based spawning (when no camps exist) ---
+  if (ts.banditCamps.length === 0) {
+    if (ts.isNewDay && ts.villagers.length >= 6 && constructedBuildings >= 8) {
+      let totalRes = 0;
+      for (const key of ALL_RESOURCES) totalRes += ts.resources[key];
+      const raidProsperity = totalRes / 50 + ts.buildings.length + ts.villagers.length;
+      ts.raidBar += raidProsperity * 0.15;
+    }
+    // Raid level decay — weak colonies don't face escalating raids
+    if (ts.isNewDay && ts.raidLevel > 0 && ts.villagers.length <= 3 && ts.enemies.length === 0) {
+      ts.raidLevel = Math.max(0, ts.raidLevel - 1);
+      ts.raidBar = 0;
+    }
+    // Trigger fallback raid — spawn enemies at map edge
+    if (ts.raidBar >= 100 && ts.enemies.length === 0 && ts.isNewDay) {
+      ts.raidLevel += 1;
+      ts.raidBar = 0;
+      const numBandits = ts.raidLevel + 1;
+      const numWolves = ts.raidLevel >= 4 ? ts.raidLevel - 2 : 0;
+      const edgeSide = ts.newDay % 4;
+      for (let i = 0; i < numBandits + numWolves; i++) {
+        const type: EnemyType = i < numBandits ? 'bandit' : 'wolf';
+        const t = ENEMY_TEMPLATES[type];
         let ex: number, ey: number;
         switch (edgeSide) {
-          case 0: ex = Math.min(ts.width - 1, ((numBandits + numWolves + i) * 3) % ts.width); ey = 0; break;
-          case 1: ex = Math.min(ts.width - 1, ((numBandits + numWolves + i) * 3) % ts.width); ey = ts.height - 1; break;
-          case 2: ex = 0; ey = Math.min(ts.height - 1, ((numBandits + numWolves + i) * 3) % ts.height); break;
-          default: ex = ts.width - 1; ey = Math.min(ts.height - 1, ((numBandits + numWolves + i) * 3) % ts.height); break;
+          case 0: ex = Math.min(ts.width - 1, (i * 3) % ts.width); ey = 0; break;
+          case 1: ex = Math.min(ts.width - 1, (i * 3) % ts.width); ey = ts.height - 1; break;
+          case 2: ex = 0; ey = Math.min(ts.height - 1, (i * 3) % ts.height); break;
+          default: ex = ts.width - 1; ey = Math.min(ts.height - 1, (i * 3) % ts.height); break;
         }
         ts.enemies.push({
-          id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
-          hp: 25, maxHp: 25, attack: 5, defense: 3,
-          siege: 'battering_ram', ticksAlive: 0,
+          id: `e${ts.nextEnemyId}`, type, x: ex, y: ey,
+          hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
+          siege: 'none', ticksAlive: 0,
         });
         ts.nextEnemyId++;
       }
-    }
-    if (ts.raidLevel >= 5) {
-      let ex: number, ey: number;
-      switch (edgeSide) {
-        case 0: ex = Math.min(ts.width - 1, ((numBandits + numWolves + 5) * 3) % ts.width); ey = 0; break;
-        case 1: ex = Math.min(ts.width - 1, ((numBandits + numWolves + 5) * 3) % ts.width); ey = ts.height - 1; break;
-        case 2: ex = 0; ey = Math.min(ts.height - 1, ((numBandits + numWolves + 5) * 3) % ts.height); break;
-        default: ex = ts.width - 1; ey = Math.min(ts.height - 1, ((numBandits + numWolves + 5) * 3) % ts.height); break;
+      if (ts.raidLevel >= 3) {
+        const numRams = Math.min(ts.raidLevel - 2, 2);
+        for (let i = 0; i < numRams; i++) {
+          let ex: number, ey: number;
+          switch (edgeSide) {
+            case 0: ex = Math.min(ts.width - 1, ((numBandits + numWolves + i) * 3) % ts.width); ey = 0; break;
+            case 1: ex = Math.min(ts.width - 1, ((numBandits + numWolves + i) * 3) % ts.width); ey = ts.height - 1; break;
+            case 2: ex = 0; ey = Math.min(ts.height - 1, ((numBandits + numWolves + i) * 3) % ts.height); break;
+            default: ex = ts.width - 1; ey = Math.min(ts.height - 1, ((numBandits + numWolves + i) * 3) % ts.height); break;
+          }
+          ts.enemies.push({
+            id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
+            hp: 25, maxHp: 25, attack: 5, defense: 3,
+            siege: 'battering_ram', ticksAlive: 0,
+          });
+          ts.nextEnemyId++;
+        }
       }
-      ts.enemies.push({
-        id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
-        hp: 20, maxHp: 20, attack: 2, defense: 2,
-        siege: 'siege_tower', ticksAlive: 0,
-      });
-      ts.nextEnemyId++;
+      if (ts.raidLevel >= 5) {
+        let ex: number, ey: number;
+        switch (edgeSide) {
+          case 0: ex = Math.min(ts.width - 1, ((numBandits + numWolves + 5) * 3) % ts.width); ey = 0; break;
+          case 1: ex = Math.min(ts.width - 1, ((numBandits + numWolves + 5) * 3) % ts.width); ey = ts.height - 1; break;
+          case 2: ex = 0; ey = Math.min(ts.height - 1, ((numBandits + numWolves + 5) * 3) % ts.height); break;
+          default: ex = ts.width - 1; ey = Math.min(ts.height - 1, ((numBandits + numWolves + 5) * 3) % ts.height); break;
+        }
+        ts.enemies.push({
+          id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
+          hp: 20, maxHp: 20, attack: 2, defense: 2,
+          siege: 'siege_tower', ticksAlive: 0,
+        });
+        ts.nextEnemyId++;
+      }
+      ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${ts.raidLevel >= 3 ? ' with siege equipment' : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
     }
-    ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${ts.raidLevel >= 3 ? ' with siege equipment' : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
   }
 
   // SPATIAL COMBAT (per-tick)
@@ -235,6 +336,59 @@ export function processRaidAndCombat(ts: TickState): void {
     }
   }
 
+  // --- GUARD ASSAULT CAMP: guards ordered to attack a bandit camp ---
+  for (const v of ts.villagers) {
+    if (v.role !== 'guard' || v.hp <= 0 || !v.assaultTargetId) continue;
+    const camp = ts.banditCamps.find(c => c.id === v.assaultTargetId);
+    if (!camp) {
+      // Camp already destroyed — clear order
+      v.assaultTargetId = null;
+      v.state = 'idle';
+      continue;
+    }
+    // If adjacent to camp — attack it
+    if (isAdjacent(v.x, v.y, camp.x, camp.y)) {
+      const baseStats = v.weapon !== 'none'
+        ? { attack: WEAPON_STATS[v.weapon].attack, defense: WEAPON_STATS[v.weapon].defense }
+        : GUARD_COMBAT[v.tool];
+      const atkBonus = hasTech(ts.research, 'military_tactics') ? 2 : 0;
+      camp.hp -= Math.max(1, baseStats.attack + atkBonus);
+      if (v.weapon !== 'none') degradeWeapon(v, ts.resources, ts.buildings);
+      v.state = 'assaulting_camp';
+      // Camp fights back — guards near the camp take damage
+      v.hp -= Math.max(1, Math.floor(camp.strength * 1.5));
+      continue;
+    }
+    // Not adjacent — pathfind toward camp
+    v.state = 'assaulting_camp';
+    const campPath = findPath(ts.grid, ts.width, ts.height, v.x, v.y, camp.x, camp.y);
+    if (campPath.length > 0) {
+      v.x = campPath[0].x;
+      v.y = campPath[0].y;
+    }
+  }
+
+  // --- CAMP CLEARING: reward for destroying a camp ---
+  for (let i = ts.banditCamps.length - 1; i >= 0; i--) {
+    const camp = ts.banditCamps[i];
+    if (camp.hp <= 0) {
+      ts.events.push(`The bandit camp at (${camp.x},${camp.y}) has been destroyed! +${CAMP_CLEAR_GOLD} gold, +${CAMP_CLEAR_RENOWN} renown.`);
+      ts.renown += CAMP_CLEAR_RENOWN;
+      ts.resources.gold += CAMP_CLEAR_GOLD;
+      // Deposit gold into storehouse
+      const sh = ts.buildings.find(b => isStorehouse(b.type) && b.constructed);
+      if (sh) addToBuffer(sh.localBuffer, 'gold', CAMP_CLEAR_GOLD, sh.bufferCapacity);
+      // Clear assault orders referencing this camp
+      for (const v of ts.villagers) {
+        if (v.assaultTargetId === camp.id) {
+          v.assaultTargetId = null;
+          v.state = 'idle';
+        }
+      }
+      ts.banditCamps.splice(i, 1);
+    }
+  }
+
   // Guard AI: detect enemies, move to intercept, fight adjacent
   // Watchtower guards: stay at tower, shoot enemies within range
   const watchtowerRange = WATCHTOWER_RANGE + (hasTech(ts.research, 'archery') ? 2 : 0);
@@ -246,6 +400,8 @@ export function processRaidAndCombat(ts: TickState): void {
 
   for (const v of ts.villagers) {
     if (v.role !== 'guard' || v.hp <= 0) continue;
+    // Skip guards on assault orders (already handled above)
+    if (v.assaultTargetId) continue;
 
     // Check if guard is assigned to a watchtower
     const towerJob = v.jobBuildingId

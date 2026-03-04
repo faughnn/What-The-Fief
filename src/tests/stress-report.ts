@@ -6,7 +6,7 @@ import {
   TICKS_PER_DAY, BUILDING_TEMPLATES, FOOD_PRIORITY,
 } from '../world.js';
 import {
-  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch,
+  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp,
 } from '../simulation.js';
 
 // ================================================================
@@ -318,6 +318,21 @@ function playerAI(state: GameState): GameState {
     }
   }
 
+  // --- ASSAULT BANDIT CAMPS: send spare guards to attack camps when safe ---
+  // Only assault when: 3+ guards, no active enemies, at least 1 camp exists
+  const guardCount = state.villagers.filter(v => v.role === 'guard' && v.hp > 0).length;
+  if (guardCount >= 3 && state.enemies.length === 0 && state.banditCamps.length > 0) {
+    // Find guards not already assaulting and not assigned to watchtower
+    const freeGuards = state.villagers.filter(v =>
+      v.role === 'guard' && v.hp > 0 && !v.assaultTargetId && !v.jobBuildingId
+    );
+    if (freeGuards.length > 0) {
+      // Attack weakest camp first
+      const weakestCamp = [...state.banditCamps].sort((a, b) => a.hp - b.hp)[0];
+      state = assaultCamp(state, freeGuards[0].id, weakestCamp.id);
+    }
+  }
+
   // --- ECONOMY DEPTH: production chains + building upgrades ---
 
   // Research — always queue tech if not researching (even before desk is built)
@@ -536,7 +551,8 @@ for (let day = 0; day < 100; day++) {
     })(),
     villagersHungry: state.villagers.filter(v => v.food <= 2).map(v => `${v.name}(f=${v.food.toFixed(1)},s=${v.state})`),
     disappeared,
-  });
+    camps: state.banditCamps.length,
+  } as any);
 
   prevVillagerIds = currentIds;
   prevVillagerNames = new Map(state.villagers.map(v => [v.id, v.name]));
@@ -575,6 +591,8 @@ for (const s of snapshots) {
   for (const a of s.playerActions) console.log(`  [PLAYER] ${a}`);
   if (s.activeRaid) console.log(`  ** RAID IN PROGRESS **`);
   if (s.enemies > 0) console.log(`  Enemies present: ${s.enemies}`);
+  // @ts-ignore — camp info added dynamically
+  if (s.camps > 0) console.log(`  Bandit camps: ${s.camps}`);
   if (s.sick > 0) console.log(`  Sick: ${s.sick}`);
   if (s.onFire > 0) console.log(`  On fire: ${s.onFire} building(s)`);
   if (s.caravans > 0) console.log(`  Trade caravans: ${s.caravans}`);
@@ -599,6 +617,7 @@ console.log(`  Peak population: ${Math.max(...snapshots.map(s => s.villagers))}`
 console.log(`  Final raid level: ${state.raidLevel}`);
 console.log(`  Final prosperity: ${Math.round(state.prosperity)}`);
 console.log(`  Final resources: wood=${state.resources.wood} stone=${state.resources.stone} food=${state.resources.food} wheat=${state.resources.wheat || 0} gold=${state.resources.gold} leather=${state.resources.leather || 0} planks=${state.resources.planks || 0} rope=${state.resources.rope || 0} sword=${state.resources.sword || 0} bow=${state.resources.bow || 0}`);
+console.log(`  Bandit camps: ${state.banditCamps.length} active${state.banditCamps.length > 0 ? ' at ' + state.banditCamps.map(c => `(${c.x},${c.y}) HP:${c.hp}/${c.maxHp}`).join(', ') : ''}`);
 console.log(`  Research completed: ${state.research.completed.length > 0 ? state.research.completed.join(', ') : 'none'}`);
 console.log(`  Research in progress: ${state.research.current || 'none'} (${state.research.progress}/${state.research.current ? 'active' : '-'})`);
 console.log(`  Buildings standing: ${state.buildings.filter(b => b.type !== 'rubble').length}`);
