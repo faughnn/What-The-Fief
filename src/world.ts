@@ -66,7 +66,9 @@ export type BuildingType =
   // Tier 2 upgraded production buildings
   | 'large_farm' | 'lumber_mill' | 'deep_quarry'
   | 'advanced_smelter' | 'windmill' | 'kitchen'
-  | 'large_storehouse';
+  | 'large_storehouse'
+  // Weapon/armor production
+  | 'weaponsmith' | 'fletcher';
 
 export interface Building {
   id: string;
@@ -92,6 +94,7 @@ export type ResourceType =
   | 'wood' | 'stone' | 'food' | 'wheat' | 'iron_ore' | 'herbs' | 'flax' | 'hemp'
   | 'planks' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
   | 'basic_tools' | 'sturdy_tools' | 'iron_tools'
+  | 'sword' | 'bow'
   | 'gold';
 
 export interface Resources {
@@ -113,6 +116,8 @@ export interface Resources {
   basic_tools: number;
   sturdy_tools: number;
   iron_tools: number;
+  sword: number;
+  bow: number;
   gold: number;
 }
 
@@ -121,6 +126,7 @@ export function emptyResources(): Resources {
     wood: 0, stone: 0, food: 0, wheat: 0, iron_ore: 0, herbs: 0, flax: 0, hemp: 0,
     planks: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
     basic_tools: 0, sturdy_tools: 0, iron_tools: 0,
+    sword: 0, bow: 0,
     gold: 0,
   };
 }
@@ -130,6 +136,7 @@ export const ALL_RESOURCES: ResourceType[] = [
   'wood', 'stone', 'food', 'wheat', 'iron_ore', 'herbs', 'flax', 'hemp',
   'planks', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
   'basic_tools', 'sturdy_tools', 'iron_tools',
+  'sword', 'bow',
   'gold',
 ];
 
@@ -149,6 +156,27 @@ export const TOOL_RESOURCE: Record<Exclude<ToolTier, 'none'>, ResourceType> = {
 };
 
 export const TOOL_EQUIP_PRIORITY: Exclude<ToolTier, 'none'>[] = ['iron', 'sturdy', 'basic'];
+
+// --- Weapons (guard equipment, separate from work tools) ---
+export type WeaponType = 'none' | 'sword' | 'bow';
+
+export const WEAPON_STATS: Record<WeaponType, { attack: number; defense: number; range: number }> = {
+  none: { attack: 0, defense: 0, range: 1 },
+  sword: { attack: 6, defense: 2, range: 1 },
+  bow: { attack: 2, defense: 0, range: 4 },
+};
+
+export const WEAPON_DURABILITY: Record<Exclude<WeaponType, 'none'>, number> = {
+  sword: 40,
+  bow: 30,
+};
+
+export const WEAPON_RESOURCE: Record<Exclude<WeaponType, 'none'>, ResourceType> = {
+  sword: 'sword',
+  bow: 'bow',
+};
+
+export const WEAPON_EQUIP_PRIORITY: Exclude<WeaponType, 'none'>[] = ['sword', 'bow'];
 
 // --- Storage ---
 export const BASE_STORAGE_CAP = 100;
@@ -419,6 +447,17 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 25, stone: 15, planks: 10 }, description: 'Large storehouse — double storage bonus',
     maxWorkers: 0, production: null, mapChar: 'S',
   },
+  // --- Weapon production buildings ---
+  weaponsmith: {
+    type: 'weaponsmith', width: 2, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 15, stone: 10 }, description: 'Forges swords from ingots and planks',
+    maxWorkers: 1, production: { output: 'sword', amountPerWorker: 1, inputs: { ingots: 2, planks: 1 } }, mapChar: 'W',
+  },
+  fletcher: {
+    type: 'fletcher', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 10, stone: 5 }, description: 'Crafts bows from wood and rope',
+    maxWorkers: 1, production: { output: 'bow', amountPerWorker: 1, inputs: { wood: 2, rope: 1 } }, mapChar: 'f',
+  },
 };
 
 // --- Skills ---
@@ -437,6 +476,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   chicken_coop: 'farming',
   livestock_barn: 'farming',
   apiary: 'herbalism',
+  weaponsmith: 'crafting', fletcher: 'crafting',
   // T2 upgraded buildings inherit parent skills
   large_farm: 'farming', deep_quarry: 'mining',
   lumber_mill: 'crafting', advanced_smelter: 'crafting',
@@ -461,6 +501,7 @@ export type VillagerRole =
   | 'flaxer' | 'hemper' | 'miner' | 'sawyer' | 'smelter'
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
   | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker'
+  | 'weaponsmith_worker' | 'fletcher_worker'
   | 'scout' | 'guard' | 'researcher' | 'hunter'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader';
 
@@ -502,6 +543,8 @@ export interface Villager {
   lastAte: FoodEaten;
   tool: ToolTier;
   toolDurability: number;
+  weapon: WeaponType;
+  weaponDurability: number;
   scoutDirection: Direction | null;
   scoutTicksLeft: number;
   hp: number;
@@ -625,6 +668,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   large_farm: 60, lumber_mill: 50, deep_quarry: 60,
   advanced_smelter: 70, windmill: 50, kitchen: 45,
   large_storehouse: 60,
+  weaponsmith: 45, fletcher: 35,
 };
 
 // V2: Construction time (work ticks needed to complete a building)
@@ -647,6 +691,7 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   large_farm: 120, lumber_mill: 100, deep_quarry: 120,
   advanced_smelter: 150, windmill: 100, kitchen: 90,
   large_storehouse: 120,
+  weaponsmith: 90, fletcher: 60,
 };
 
 // V2: Building upgrade paths — from → { to, cost }
@@ -851,6 +896,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     state: 'idle', food: 8, homeless: 0,
     skills: emptySkills(), traits: rollTraits(id), morale: 50, lastAte: 'nothing',
     tool: 'none', toolDurability: 0,
+    weapon: 'none', weaponDurability: 0,
     scoutDirection: null, scoutTicksLeft: 0,
     hp: 10, maxHp: 10,
     // V2 fields

@@ -5,6 +5,7 @@ import {
   Tile, BUILDING_TEMPLATES, BUILDING_SKILL_MAP,
   skillMultiplier, ToolTier, TOOL_MULTIPLIER, TOOL_DURABILITY,
   TOOL_RESOURCE, TOOL_EQUIP_PRIORITY,
+  WeaponType, WEAPON_STATS, WEAPON_DURABILITY, WEAPON_RESOURCE, WEAPON_EQUIP_PRIORITY,
   EnemyEntity, ActiveRaid,
   AnimalEntity, ResourceDrop,
   TechId, ResearchState,
@@ -73,6 +74,7 @@ export const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   mill: 'miller', bakery: 'baker', tanner: 'tanner_worker',
   weaver: 'weaver_worker', ropemaker: 'ropemaker_worker',
   blacksmith: 'blacksmith_worker', toolmaker: 'toolmaker_worker', armorer: 'armorer_worker',
+  weaponsmith: 'weaponsmith_worker', fletcher: 'fletcher_worker',
   research_desk: 'researcher',
   chicken_coop: 'chicken_keeper', livestock_barn: 'rancher', apiary: 'beekeeper',
   hunting_lodge: 'hunter',
@@ -205,6 +207,37 @@ export function degradeTool(v: Villager, resources: Resources, durabilityBonus: 
   v.toolDurability -= 1;
   if (v.toolDurability <= 0) {
     autoEquipTool(v, resources, durabilityBonus, buildings);
+  }
+}
+
+export function autoEquipWeapon(v: Villager, resources: Resources, buildings?: Building[]): void {
+  for (const wtype of WEAPON_EQUIP_PRIORITY) {
+    const res = WEAPON_RESOURCE[wtype];
+    if (resources[res] > 0) {
+      resources[res] -= 1;
+      if (buildings) {
+        for (const b of buildings) {
+          if (isStorehouse(b.type) && b.constructed && (b.localBuffer[res] || 0) > 0) {
+            b.localBuffer[res] = (b.localBuffer[res] || 0) - 1;
+            if ((b.localBuffer[res] || 0) <= 0) delete b.localBuffer[res];
+            break;
+          }
+        }
+      }
+      v.weapon = wtype;
+      v.weaponDurability = WEAPON_DURABILITY[wtype];
+      return;
+    }
+  }
+  v.weapon = 'none';
+  v.weaponDurability = 0;
+}
+
+export function degradeWeapon(v: Villager, resources: Resources, buildings?: Building[]): void {
+  if (v.weapon === 'none') return;
+  v.weaponDurability -= 1;
+  if (v.weaponDurability <= 0) {
+    autoEquipWeapon(v, resources, buildings);
   }
 }
 

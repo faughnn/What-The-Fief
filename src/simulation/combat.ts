@@ -5,8 +5,9 @@ import {
   EnemyEntity, EnemyType, ENEMY_TEMPLATES, GUARD_COMBAT,
   CONSTRUCTION_TICKS, BUILDING_MAX_HP, ALL_RESOURCES,
   WATCHTOWER_RANGE, WATCHTOWER_DAMAGE,
+  WEAPON_STATS,
 } from '../world.js';
-import { TickState, isAdjacent, hasTech } from './helpers.js';
+import { TickState, isAdjacent, hasTech, degradeWeapon } from './helpers.js';
 import { findPath, findPathEnemy } from './movement.js';
 
 // --- Find settlement center (average building position) ---
@@ -277,7 +278,10 @@ export function processRaidAndCombat(ts: TickState): void {
 
       if (nearestEnemy) {
         // Ranged attack — flat damage, enemy can't retaliate
-        nearestEnemy.hp -= WATCHTOWER_DAMAGE;
+        // Bow-equipped tower guard gets bonus damage
+        const bowBonus = v.weapon === 'bow' ? WEAPON_STATS.bow.attack : 0;
+        nearestEnemy.hp -= WATCHTOWER_DAMAGE + bowBonus;
+        if (bowBonus > 0) degradeWeapon(v, ts.resources, ts.buildings);
       }
       continue;
     }
@@ -290,6 +294,13 @@ export function processRaidAndCombat(ts: TickState): void {
       if (e.hp <= 0) continue;
       const dist = Math.abs(e.x - v.x) + Math.abs(e.y - v.y);
       if (dist < nearestDist) { nearestDist = dist; nearestEnemy = e; }
+    }
+
+    // Bow guard: shoot at range before closing to melee
+    if (nearestEnemy && v.weapon === 'bow' && nearestDist <= WEAPON_STATS.bow.range && nearestDist > 1) {
+      nearestEnemy.hp -= Math.max(1, WEAPON_STATS.bow.attack + attackBonus - nearestEnemy.defense);
+      degradeWeapon(v, ts.resources, ts.buildings);
+      continue;
     }
 
     // No enemies or too far — patrol
@@ -313,12 +324,17 @@ export function processRaidAndCombat(ts: TickState): void {
 
     // If adjacent — fight
     if (isAdjacent(v.x, v.y, nearestEnemy.x, nearestEnemy.y)) {
-      const stats = GUARD_COMBAT[v.tool];
+      // Weapon stats override tool-based combat stats when equipped
+      const baseStats = v.weapon !== 'none'
+        ? { attack: WEAPON_STATS[v.weapon].attack, defense: WEAPON_STATS[v.weapon].defense }
+        : GUARD_COMBAT[v.tool];
       // Guard attacks enemy
-      nearestEnemy.hp -= Math.max(1, stats.attack + attackBonus - nearestEnemy.defense);
+      nearestEnemy.hp -= Math.max(1, baseStats.attack + attackBonus - nearestEnemy.defense);
       // Enemy attacks guard
-      const guardDef = stats.defense + defenseBonus;
+      const guardDef = baseStats.defense + defenseBonus;
       v.hp -= Math.max(1, nearestEnemy.attack - guardDef);
+      // Degrade weapon
+      if (v.weapon !== 'none') degradeWeapon(v, ts.resources, ts.buildings);
       continue;
     }
 

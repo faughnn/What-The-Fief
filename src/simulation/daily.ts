@@ -9,7 +9,7 @@ import {
   MerchantState,
 } from '../world.js';
 import {
-  TickState, findHome, autoEquipTool, getBuildingEntrance,
+  TickState, findHome, autoEquipTool, autoEquipWeapon, getBuildingEntrance,
   addResource, addToBuffer, findNearestStorehouse, revealArea, hasTech, isStorehouse,
 } from './helpers.js';
 import { findPath, planPath } from './movement.js';
@@ -242,9 +242,10 @@ export function processDailyChecks(ts: TickState): void {
     }
   }
 
-  // Guard equip tools
+  // Guard equip tools and weapons
   for (const v of ts.villagers) {
     if (v.role === 'guard' && v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
+    if (v.role === 'guard' && v.weapon === 'none') autoEquipWeapon(v, ts.resources, ts.buildings);
   }
 
   // Disease daily: HP loss and duration countdown (after regen, so net effect is visible)

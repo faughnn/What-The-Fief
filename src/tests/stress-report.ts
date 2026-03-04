@@ -185,12 +185,23 @@ function playerAI(state: GameState): GameState {
   if (day >= 18 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower')) {
     state = tryBuild(state, 'watchtower', 13, 13);
   }
+  // Weapon production chain: hemp_field → ropemaker → fletcher (bows for guards)
+  // Only when population can afford the extra workers (3 workers needed)
+  if (day >= 20 && pop >= 12 && countBuildings(state, 'hemp_field') === 0) {
+    state = tryBuild(state, 'hemp_field', 14, 16);
+  }
+  if (day >= 22 && pop >= 12 && countBuildings(state, 'ropemaker') === 0 && countConstructed(state, 'hemp_field') > 0) {
+    state = tryBuild(state, 'ropemaker', 16, 13);
+  }
+  if (day >= 25 && pop >= 12 && countBuildings(state, 'fletcher') === 0 && countConstructed(state, 'ropemaker') > 0) {
+    state = tryBuild(state, 'fletcher', 17, 16);
+  }
 
   // --- WORKER ASSIGNMENT: spread workers across buildings ---
   // Keep 1 idle for construction IF there are unconstructed buildings, otherwise assign all
   const hasUnconstructed = state.buildings.some(b => !b.constructed && b.type !== 'rubble');
   const minIdle = hasUnconstructed ? 1 : 0;
-  const assignmentOrder: BuildingType[] = ['farm', 'woodcutter', 'quarry', 'tanner', 'sawmill', 'research_desk', 'mill', 'bakery', 'large_farm', 'lumber_mill'];
+  const assignmentOrder: BuildingType[] = ['farm', 'woodcutter', 'quarry', 'tanner', 'sawmill', 'research_desk', 'mill', 'bakery', 'hemp_field', 'ropemaker', 'fletcher', 'large_farm', 'lumber_mill'];
   for (const type of assignmentOrder) {
     for (const b of state.buildings.filter(b => b.type === type && b.constructed && b.assignedWorkers.length === 0)) {
       const idle = idleVillagers(state);
@@ -311,7 +322,7 @@ function playerAI(state: GameState): GameState {
 
   // Research — always queue tech if not researching (even before desk is built)
   if (!state.research.current) {
-    const techOrder = ['crop_rotation', 'improved_tools', 'fortification', 'basic_cooking', 'masonry', 'advanced_farming', 'civil_engineering'] as const;
+    const techOrder = ['crop_rotation', 'improved_tools', 'fortification', 'basic_cooking', 'masonry', 'advanced_farming', 'civil_engineering', 'military_tactics', 'archery'] as const;
     for (const tech of techOrder) {
       if (!state.research.completed.includes(tech as any) && state.research.current !== tech) {
         state = setResearch(state, tech as any);
@@ -587,7 +598,7 @@ console.log(`  Total deaths: ${state.graveyard.length}`);
 console.log(`  Peak population: ${Math.max(...snapshots.map(s => s.villagers))}`);
 console.log(`  Final raid level: ${state.raidLevel}`);
 console.log(`  Final prosperity: ${Math.round(state.prosperity)}`);
-console.log(`  Final resources: wood=${state.resources.wood} stone=${state.resources.stone} food=${state.resources.food} wheat=${state.resources.wheat || 0} gold=${state.resources.gold} leather=${state.resources.leather || 0} linen=${state.resources.linen || 0} planks=${state.resources.planks || 0} flour=${state.resources.flour || 0} bread=${state.resources.bread || 0}`);
+console.log(`  Final resources: wood=${state.resources.wood} stone=${state.resources.stone} food=${state.resources.food} wheat=${state.resources.wheat || 0} gold=${state.resources.gold} leather=${state.resources.leather || 0} planks=${state.resources.planks || 0} rope=${state.resources.rope || 0} sword=${state.resources.sword || 0} bow=${state.resources.bow || 0}`);
 console.log(`  Research completed: ${state.research.completed.length > 0 ? state.research.completed.join(', ') : 'none'}`);
 console.log(`  Research in progress: ${state.research.current || 'none'} (${state.research.progress}/${state.research.current ? 'active' : '-'})`);
 console.log(`  Buildings standing: ${state.buildings.filter(b => b.type !== 'rubble').length}`);
@@ -615,7 +626,9 @@ console.log();
 console.log('  Villager roster:');
 for (const v of state.villagers) {
   const clothed = v.clothed ? 'clothed' : 'UNCLOTHED';
-  console.log(`    ${v.name} | HP: ${v.hp}/${v.maxHp} | Role: ${v.role} | Morale: ${v.morale} | Food: ${v.food.toFixed(1)} | ${clothed}`);
+  const weaponStr = v.weapon !== 'none' ? ` | weapon: ${v.weapon}(${v.weaponDurability})` : '';
+  const toolStr = v.tool !== 'none' ? ` | tool: ${v.tool}` : '';
+  console.log(`    ${v.name} | HP: ${v.hp}/${v.maxHp} | Role: ${v.role} | Morale: ${v.morale} | Food: ${v.food.toFixed(1)} | ${clothed}${toolStr}${weaponStr}`);
 }
 console.log();
 
