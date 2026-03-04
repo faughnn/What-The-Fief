@@ -8,7 +8,10 @@ import {
 } from '../world.js';
 import { TickState, computeStorageCap, hasTech } from './helpers.js';
 import { validateState } from './validation.js';
-import { processSeasonAndWeather, processDailyChecks, processMerchant, processProsperity, processEventsAndQuests, processDisease, processLightning, processCaravans } from './daily.js';
+import { processDailyChecks } from './daily.js';
+import { processDisease } from './disease.js';
+import { processSeasonAndWeather, processLightning } from './weather.js';
+import { processCaravans, processMerchant, processProsperity, processEventsAndQuests } from './trade.js';
 import { processVillagerStateMachine } from './villagers.js';
 import { processRaidAndCombat } from './combat.js';
 import { processAnimals } from './animals.js';
@@ -18,7 +21,7 @@ import { processFire } from './buildings.js';
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
 export { placeBuilding, claimTerritory, processFire } from './buildings.js';
-export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob } from './commands.js';
+export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute } from './commands.js';
 
 // ================================================================
 // TICK — V2 spatial simulation
@@ -93,6 +96,8 @@ export function tick(state: GameState): GameState {
     nextVillagerId: state.nextVillagerId,
     constructionPoints: state.constructionPoints,
     constructionPointsMilestones: [...state.constructionPointsMilestones],
+    supplyRoutes: state.supplyRoutes.map(r => ({ ...r })),
+    nextRouteId: state.nextRouteId,
   };
   ts.storageCap = computeStorageCap(ts.buildings);
 
@@ -172,6 +177,8 @@ export function tick(state: GameState): GameState {
     nextBuildingId: ts.nextBuildingId,
     constructionPoints: ts.constructionPoints,
     constructionPointsMilestones: ts.constructionPointsMilestones,
+    supplyRoutes: ts.supplyRoutes,
+    nextRouteId: ts.nextRouteId,
   };
 
   const errors = validateState(newState);

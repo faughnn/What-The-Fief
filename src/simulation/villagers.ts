@@ -239,56 +239,533 @@ function tryIdleTask(v: Villager, ts: TickState): boolean {
   return false;
 }
 
+// --- Helper: eat from a storehouse until satisfied or storehouse empty ---
+// Shared by guards and regular villagers to eliminate duplication.
+function eatAtStorehouse(v: Villager, eatSH: Building | null, ts: TickState): void {
+  let fed = false;
+  while (v.food < 8) {
+    let ateThisRound = false;
+    for (const { resource, satisfaction } of FOOD_PRIORITY) {
+      const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
+      if (bufAmt > 0) {
+        deductFromBuffer(eatSH!.localBuffer, resource, 1);
+        ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
+        v.food = Math.min(10, v.food + satisfaction);
+        v.lastAte = resource as FoodEaten;
+        v.recentMeals.push(resource as FoodEaten);
+        if (v.recentMeals.length > 5) v.recentMeals.shift();
+        fed = true;
+        ateThisRound = true;
+        break;
+      }
+    }
+    if (!ateThisRound) break;
+  }
+  if (!fed) {
+    v.food = Math.max(0, v.food - 0.5);
+    v.lastAte = 'nothing' as FoodEaten;
+    v.recentMeals.push('nothing' as FoodEaten);
+    if (v.recentMeals.length > 5) v.recentMeals.shift();
+  }
+}
+
+// --- Helper: resume work or go home after an interruption (eating, healing) ---
+function resumeWorkOrGoHome(v: Villager, ts: TickState): void {
+  if (ts.dayTick >= HOME_DEPARTURE_TICK) {
+    startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
+  } else if (v.jobBuildingId) {
+    const job = ts.buildings.find(b => b.id === v.jobBuildingId);
+    if (job) {
+      const entrance = getBuildingEntrance(job);
+      planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
+      v.state = job.constructed ? 'traveling_to_work' : 'traveling_to_build';
+    } else {
+      v.state = 'idle';
+    }
+  } else {
+    v.state = 'idle';
+  }
+}
+
+// =====================================================================
+// State handlers — one function per state or logical group
+// =====================================================================
+
+// Returns true if the guard was handled (caller should continue to next villager)
+function handleGuard(v: Villager, ts: TickState): boolean {
+  if (v.state === 'traveling_to_eat') {
+    if (atDestination(v)) { v.state = 'eating'; } else { moveOneStep(v); }
+    return true;
+  }
+  if (v.state === 'eating') {
+    const eatSH = findStorehouseAt(ts.buildings, v.x, v.y);
+    eatAtStorehouse(v, eatSH, ts);
+    v.state = 'idle'; // Return to patrol (combat system takes over)
+    return true;
+  }
+  // Dawn: guards eat at dawn just like regular villagers (food < 8)
+  if (ts.isDawn && v.food < 8) {
+    startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
+    return true;
+  }
+  // Mid-day: if hungry, go eat before patrolling
+  if (v.food <= 3) {
+    startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
+    return true;
+  }
+  // All other guard behavior (patrol, fight) handled in combat section
+  return true;
+}
+
+function handleSleeping(v: Villager, ts: TickState): void {
+  // Shouldn't be sleeping during day — wake up
+  if (v.jobBuildingId) {
+    const job = ts.buildings.find(b => b.id === v.jobBuildingId);
+    if (job) {
+      const entrance = getBuildingEntrance(job);
+      planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
+      v.state = job.constructed ? 'traveling_to_work' : 'traveling_to_build';
+    } else {
+      v.state = 'idle';
+    }
+  } else {
+    v.state = 'idle';
+  }
+}
+
+function handleTravelingToWork(v: Villager, ts: TickState): void {
+  if (atDestination(v)) {
+    // Arrived at workplace — deposit any carried inputs into building's local buffer
+    if (v.carryTotal > 0 && v.jobBuildingId) {
+      const job = ts.buildings.find(b => b.id === v.jobBuildingId);
+      if (job) {
+        for (const [res, amt] of Object.entries(v.carrying)) {
+          if (amt && amt > 0) {
+            addToBuffer(job.localBuffer, res as ResourceType, amt, job.bufferCapacity);
+          }
+        }
+        v.carrying = {};
+        v.carryTotal = 0;
+      }
+    }
+    v.state = 'working';
+    v.workProgress = 0;
+  } else {
+    moveOneStep(v);
+    if (ts.dayTick >= HOME_DEPARTURE_TICK) {
+      startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
+    }
+  }
+}
+
+function handleWorking(v: Villager, ts: TickState): void {
+  if (!v.jobBuildingId) { v.state = 'idle'; return; }
+  const job = ts.buildings.find(b => b.id === v.jobBuildingId);
+  if (!job) { v.state = 'idle'; return; }
+
+  // Mid-day hunger check: interrupt work to eat if dangerously hungry
+  if (v.food <= 3) {
+    if (startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) return;
+  }
+
+  // Repair: if building is damaged, repair HP/tick before producing
+  if (job.hp < job.maxHp) {
+    const repairRate = ts.research.completed.includes('architecture' as TechId) ? 2 : 1;
+    job.hp = Math.min(job.maxHp, job.hp + repairRate);
+    return; // spent this tick repairing
+  }
+
+  // Idle helpers: haul buffer contents then release job — don't produce
+  if (v.role === 'idle') {
+    if (bufferTotal(job.localBuffer) > 0) {
+      startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
+    } else {
+      v.jobBuildingId = null;
+      v.state = 'idle';
+    }
+    return;
+  }
+
+  // Hunger interrupt — very hungry workers stop to eat
+  if (v.food <= 2) {
+    if (startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) return;
+  }
+
+  const template = BUILDING_TEMPLATES[job.type];
+  if (!template.production) {
+    handleNonProductionWork(v, job, ts);
+    return;
+  }
+
+  // Haul when output buffer has a full carry load (not just when completely full)
+  if (bufferOutputTotal(job.localBuffer, job.type) >= CARRY_CAPACITY) {
+    startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
+    return;
+  }
+
+  // Work: accumulate progress
+  v.workProgress++;
+  const tpu = ticksPerUnit(job.type);
+  const mult = productionMultiplier(v, job.type, ts.research, ts.season, ts.weather);
+  const effectiveTpu = Math.max(1, Math.round(tpu / mult));
+
+  if (v.workProgress >= effectiveTpu) {
+    produceAtWorkplace(v, job, template, ts);
+  }
+
+  // Check if should start hauling (buffer has output items and enough to carry)
+  const outputCount = template.production?.inputs
+    ? bufferOutputTotal(job.localBuffer, job.type)
+    : bufferTotal(job.localBuffer);
+  if (outputCount >= CARRY_CAPACITY) {
+    startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
+  }
+
+  // Check if should head home
+  if (ts.dayTick >= HOME_DEPARTURE_TICK) {
+    if (outputCount > 0) {
+      startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
+    } else {
+      startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
+    }
+  }
+}
+
+function handleNonProductionWork(v: Villager, job: Building, ts: TickState): void {
+  // Research desk
+  if (job.type === 'research_desk' && ts.research.current) {
+    v.workProgress++;
+    const RESEARCH_TICKS_PER_POINT = 30;
+    if (v.workProgress >= RESEARCH_TICKS_PER_POINT) {
+      ts.research.progress += 1;
+      const tech = TECH_TREE[ts.research.current];
+      if (ts.research.progress >= tech.cost) {
+        ts.research.completed.push(ts.research.current);
+        ts.research.current = null;
+        ts.research.progress = 0;
+      }
+      v.workProgress = 0;
+    }
+    gainSkillXp(v, job.type);
+  }
+  // Marketplace trader: haul goods from marketplace buffer to storehouse
+  if (job.type === 'marketplace' && bufferTotal(job.localBuffer) > 0) {
+    startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
+  }
+}
+
+function produceAtWorkplace(v: Villager, job: Building, template: typeof BUILDING_TEMPLATES[BuildingType], ts: TickState): void {
+  const prod = template.production!;
+  if (prod.inputs) {
+    // Processing building: needs inputs in building's local buffer
+    if (hasBufferInputs(job.localBuffer, prod.inputs)) {
+      consumeBufferInputs(job.localBuffer, prod.inputs);
+      const bonus = techProductionBonus(ts.research, job.type);
+      addToBuffer(job.localBuffer, prod.output, 1 + bonus, job.bufferCapacity);
+    } else {
+      // No inputs in local buffer — go pick them up from storehouse
+      startPickupInputs(v, job, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
+      return;
+    }
+  } else {
+    // Primary production: no inputs needed
+    const bonus = techProductionBonus(ts.research, job.type);
+    let amount = 1 + bonus;
+    // Season/weather multipliers for outdoor buildings
+    if (OUTDOOR_BUILDINGS.includes(job.type)) {
+      const isFarm = ['farm', 'large_farm', 'flax_field', 'hemp_field', 'chicken_coop'].includes(job.type);
+      if (isFarm) {
+        let farmMult = SEASON_FARM_MULT[ts.season];
+        if (ts.season === 'autumn' && ts.research.completed.includes('irrigation' as TechId)) farmMult = 1.0;
+        if (farmMult === 0) { v.workProgress = 0; return; } // No farming in winter
+        amount = Math.max(1, Math.floor(amount * farmMult));
+      }
+      amount = Math.max(1, Math.floor(amount * WEATHER_OUTDOOR_MULT[ts.weather]));
+    }
+    addToBuffer(job.localBuffer, prod.output, amount, job.bufferCapacity);
+  }
+  v.workProgress = 0;
+
+  // Tool wear & skill XP
+  degradeTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
+  gainSkillXp(v, job.type);
+}
+
+function handleTravelingToStorage(v: Villager, ts: TickState): void {
+  if (atDestination(v)) {
+    if (v.haulingToWork) {
+      handlePickupFromStorehouse(v, ts);
+    } else {
+      handleDropoffAtStorehouse(v, ts);
+    }
+  } else {
+    moveOneStep(v);
+  }
+}
+
+function handlePickupFromStorehouse(v: Villager, ts: TickState): void {
+  if (!v.jobBuildingId) { v.state = 'idle'; v.haulingToWork = false; return; }
+  const job = ts.buildings.find(b => b.id === v.jobBuildingId);
+  if (!job) { v.state = 'idle'; v.haulingToWork = false; return; }
+
+  const template = BUILDING_TEMPLATES[job.type];
+  if (template.production?.inputs) {
+    const pickupSH = findStorehouseAt(ts.buildings, v.x, v.y);
+    for (const [res, amt] of Object.entries(template.production.inputs)) {
+      const needed = amt as number;
+      const shAmt = pickupSH ? (pickupSH.localBuffer[res as ResourceType] || 0) : 0;
+      const available = Math.min(needed * 3, shAmt);
+      const canCarry = Math.min(available, CARRY_CAPACITY - v.carryTotal);
+      if (canCarry > 0) {
+        if (pickupSH) {
+          deductFromBuffer(pickupSH.localBuffer, res as ResourceType, canCarry);
+        }
+        ts.resources[res as ResourceType] = Math.max(0, ts.resources[res as ResourceType] - canCarry);
+        v.carrying[res as ResourceType] = (v.carrying[res as ResourceType] || 0) + canCarry;
+        v.carryTotal += canCarry;
+      }
+    }
+  }
+  // Head back to workplace
+  const entrance = getBuildingEntrance(job);
+  planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
+  v.state = 'traveling_to_work';
+  v.haulingToWork = false;
+}
+
+function handleDropoffAtStorehouse(v: Villager, ts: TickState): void {
+  const targetSH = findStorehouseAt(ts.buildings, v.x, v.y);
+  for (const [res, amt] of Object.entries(v.carrying)) {
+    if (amt && amt > 0) {
+      let deposited = 0;
+      if (targetSH) {
+        deposited = addToBuffer(targetSH.localBuffer, res as ResourceType, amt, targetSH.bufferCapacity);
+      }
+      if (deposited > 0) {
+        addResource(ts.resources, res as ResourceType, deposited, ts.storageCap);
+      }
+      const remaining = amt - deposited;
+      if (remaining > 0) {
+        v.carrying[res as ResourceType] = remaining;
+      } else {
+        delete v.carrying[res as ResourceType];
+      }
+    }
+  }
+  v.carryTotal = Object.values(v.carrying).reduce((s, a) => s + (a || 0), 0);
+
+  // Idle helpers: release temp job and go back to idle task search
+  if (v.role === 'idle') {
+    v.jobBuildingId = null;
+    v.state = 'idle';
+    return;
+  }
+
+  resumeWorkOrGoHome(v, ts);
+}
+
+function handleRelaxing(v: Villager, ts: TickState): void {
+  // At tavern — consume 1 food from nearest storehouse, gain morale, set cooldown
+  const nearestSH = findNearestStorehouse(ts.buildings, ts.grid, ts.width, ts.height, v.x, v.y);
+  let consumed = false;
+  if (nearestSH) {
+    for (const { resource } of FOOD_PRIORITY) {
+      const bufAmt = nearestSH.localBuffer[resource] || 0;
+      if (bufAmt > 0 && ts.resources[resource] > 0) {
+        deductFromBuffer(nearestSH.localBuffer, resource, 1);
+        ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
+        consumed = true;
+        break;
+      }
+    }
+  }
+  if (consumed) {
+    v.morale = Math.min(100, v.morale + 15);
+    v.tavernVisitCooldown = 3;
+  }
+  startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
+}
+
+function handleHealing(v: Villager, ts: TickState): void {
+  // At storehouse — consume 1 herb to cure disease
+  const sh = findStorehouseAt(ts.buildings, v.x, v.y);
+  if (sh && (sh.localBuffer.herbs || 0) > 0 && ts.resources.herbs > 0) {
+    deductFromBuffer(sh.localBuffer, 'herbs', 1);
+    ts.resources.herbs = Math.max(0, ts.resources.herbs - 1);
+    v.sick = false;
+    v.sickDays = 0;
+  }
+  resumeWorkOrGoHome(v, ts);
+}
+
+function handleConstructing(v: Villager, ts: TickState): void {
+  if (!v.jobBuildingId) { v.state = 'idle'; return; }
+  const job = ts.buildings.find(b => b.id === v.jobBuildingId);
+  if (!job) { v.state = 'idle'; return; }
+  if (job.constructed) {
+    v.state = 'working';
+    v.workProgress = 0;
+    return;
+  }
+  // Build: increment construction progress
+  job.constructionProgress++;
+  if (job.constructionProgress >= job.constructionRequired) {
+    if (job.type === 'rubble') {
+      // Rubble cleared — remove it entirely
+      const ridx = ts.buildings.findIndex(b => b.id === job.id);
+      if (ridx >= 0) ts.buildings.splice(ridx, 1);
+      if (job.y < ts.height && job.x < ts.width) {
+        ts.grid[job.y][job.x].building = null;
+      }
+      v.jobBuildingId = null;
+      v.role = 'idle';
+      v.state = 'idle';
+    } else {
+      job.constructed = true;
+      if (v.role === 'idle') {
+        v.jobBuildingId = null;
+        v.state = 'idle';
+      } else {
+        v.state = 'working';
+        v.workProgress = 0;
+      }
+    }
+  }
+  if (ts.dayTick >= HOME_DEPARTURE_TICK) {
+    startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
+  }
+}
+
+function handleEating(v: Villager, ts: TickState): void {
+  const eatSH = findStorehouseAt(ts.buildings, v.x, v.y);
+  eatAtStorehouse(v, eatSH, ts);
+  resumeWorkOrGoHome(v, ts);
+}
+
+// --- Supply route state handlers ---
+
+function handleSupplyTravelingToSource(v: Villager, ts: TickState): void {
+  if (!moveOneStep(v, ts.grid, ts.width, ts.height)) {
+    const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
+    const source = route ? ts.buildings.find(b => b.id === route.fromBuildingId) : null;
+    if (!route || !source) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; return; }
+    planPathToBuilding(v, source, ts.grid, ts.width, ts.height);
+    if (v.path.length === 0) v.state = 'supply_loading'; // Already at source
+  } else if (atDestination(v)) {
+    v.state = 'supply_loading';
+  }
+}
+
+function handleSupplyLoading(v: Villager, ts: TickState): void {
+  const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
+  const source = route ? ts.buildings.find(b => b.id === route.fromBuildingId) : null;
+  if (!route || !source) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; return; }
+
+  // Check we're at the source building
+  const atSource = v.x >= source.x && v.x < source.x + source.width &&
+                    v.y >= source.y && v.y < source.y + source.height;
+  if (!atSource) { v.state = 'supply_traveling_to_source'; return; }
+
+  // Load resources from source buffer
+  let carried = 0;
+  v.carrying = {};
+  if (route.resourceType === 'any') {
+    for (const [res, amt] of Object.entries(source.localBuffer)) {
+      if (!amt || amt <= 0) continue;
+      const toCarry = Math.min(amt, CARRY_CAPACITY - carried);
+      if (toCarry <= 0) break;
+      deductFromBuffer(source.localBuffer, res as ResourceType, toCarry);
+      ts.resources[res as ResourceType] -= toCarry;
+      v.carrying[res as ResourceType] = toCarry;
+      carried += toCarry;
+    }
+  } else {
+    const res = route.resourceType as ResourceType;
+    const available = source.localBuffer[res] || 0;
+    if (available > 0) {
+      const toCarry = Math.min(available, CARRY_CAPACITY);
+      deductFromBuffer(source.localBuffer, res, toCarry);
+      ts.resources[res] -= toCarry;
+      v.carrying[res] = toCarry;
+      carried = toCarry;
+    }
+  }
+  v.carryTotal = carried;
+
+  if (carried > 0) {
+    const dest = ts.buildings.find(b => b.id === route.toBuildingId);
+    if (dest) {
+      planPathToBuilding(v, dest, ts.grid, ts.width, ts.height);
+      v.state = 'supply_traveling_to_dest';
+    } else {
+      // Destination destroyed — drop carrying back into source
+      for (const [res, amt] of Object.entries(v.carrying)) {
+        if (amt && amt > 0) {
+          addToBuffer(source.localBuffer, res as ResourceType, amt, source.bufferCapacity);
+          addResource(ts.resources, res as ResourceType, amt, ts.storageCap);
+        }
+      }
+      v.carrying = {}; v.carryTotal = 0;
+      v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null;
+    }
+  }
+  // If carried === 0, stay at source and retry next tick
+}
+
+function handleSupplyTravelingToDest(v: Villager, ts: TickState): void {
+  if (!moveOneStep(v, ts.grid, ts.width, ts.height)) {
+    const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
+    const dest = route ? ts.buildings.find(b => b.id === route.toBuildingId) : null;
+    if (!route || !dest) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; return; }
+    planPathToBuilding(v, dest, ts.grid, ts.width, ts.height);
+    if (v.path.length === 0) v.state = 'supply_unloading';
+  } else if (atDestination(v)) {
+    v.state = 'supply_unloading';
+  }
+}
+
+function handleSupplyUnloading(v: Villager, ts: TickState): void {
+  const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
+  const dest = route ? ts.buildings.find(b => b.id === route.toBuildingId) : null;
+  if (!route || !dest) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; return; }
+
+  for (const [res, amt] of Object.entries(v.carrying)) {
+    if (!amt || amt <= 0) continue;
+    const deposited = addToBuffer(dest.localBuffer, res as ResourceType, amt, dest.bufferCapacity);
+    if (deposited > 0) addResource(ts.resources, res as ResourceType, deposited, ts.storageCap);
+  }
+  v.carrying = {};
+  v.carryTotal = 0;
+
+  // Head back to source for next load
+  const source = ts.buildings.find(b => b.id === route.fromBuildingId);
+  if (source) {
+    planPathToBuilding(v, source, ts.grid, ts.width, ts.height);
+    v.state = 'supply_traveling_to_source';
+  } else {
+    v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null;
+  }
+}
+
+function handleIdle(v: Villager, ts: TickState): void {
+  if (v.food <= 3) {
+    startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
+  } else if (ts.dayTick >= HOME_DEPARTURE_TICK && v.homeBuildingId) {
+    startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
+  } else {
+    tryIdleTask(v, ts);
+  }
+}
+
+// =====================================================================
+// Main entry point — dispatches to state handlers
+// =====================================================================
+
 export function processVillagerStateMachine(ts: TickState): void {
   for (const v of ts.villagers) {
     // Guards: handle eating/sleeping here, combat behavior in combat.ts
     if (v.role === 'guard') {
-      // Guards need to eat — check hunger and process eating states
-      if (v.state === 'traveling_to_eat') {
-        if (atDestination(v)) { v.state = 'eating'; } else { moveOneStep(v); }
-        continue;
-      }
-      if (v.state === 'eating') {
-        const eatSH = findStorehouseAt(ts.buildings, v.x, v.y);
-        let fed = false;
-        while (v.food < 8) {
-          let ateThisRound = false;
-          for (const { resource, satisfaction } of FOOD_PRIORITY) {
-            const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
-            if (bufAmt > 0) {
-              deductFromBuffer(eatSH!.localBuffer, resource, 1);
-              ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
-              v.food = Math.min(10, v.food + satisfaction);
-              v.lastAte = resource as FoodEaten;
-              v.recentMeals.push(resource as FoodEaten);
-              if (v.recentMeals.length > 5) v.recentMeals.shift();
-              fed = true;
-              ateThisRound = true;
-              break;
-            }
-          }
-          if (!ateThisRound) break;
-        }
-        if (!fed) {
-          v.food = Math.max(0, v.food - 0.5);
-          v.lastAte = 'nothing' as FoodEaten;
-          v.recentMeals.push('nothing' as FoodEaten);
-          if (v.recentMeals.length > 5) v.recentMeals.shift();
-        }
-        v.state = 'idle'; // Return to patrol (combat system takes over)
-        continue;
-      }
-      // Dawn: guards eat at dawn just like regular villagers (food < 8)
-      if (ts.isDawn && v.food < 8) {
-        startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
-        continue;
-      }
-      // Mid-day: if hungry, go eat before patrolling
-      if (v.food <= 3) {
-        startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
-        continue;
-      }
-      // All other guard behavior (patrol, fight) handled in combat section
+      handleGuard(v, ts);
       continue;
     }
 
@@ -306,7 +783,6 @@ export function processVillagerStateMachine(ts: TickState): void {
       const dy = dir === 's' ? 1 : dir === 'n' ? -1 : 0;
       const nx = Math.max(0, Math.min(ts.width - 1, v.x + dx));
       const ny = Math.max(0, Math.min(ts.height - 1, v.y + dy));
-      // Check passability
       if (ts.grid[ny][nx].terrain !== 'water') {
         v.x = nx;
         v.y = ny;
@@ -325,7 +801,6 @@ export function processVillagerStateMachine(ts: TickState): void {
     // NIGHT: everyone sleeps
     if (ts.isNight) {
       if (v.state !== 'sleeping') {
-        // Try to get home
         if (v.homeBuildingId) {
           const home = ts.buildings.find(b => b.id === v.homeBuildingId);
           if (home) {
@@ -343,20 +818,15 @@ export function processVillagerStateMachine(ts: TickState): void {
 
     // DAWN: wake up — heal first if sick, eat if hungry, then go to work
     if (ts.isDawn) {
-      // Sick villagers seek healing at storehouse with herbs
       if (v.sick && trySeekHealing(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) {
         continue;
       }
-
-      // Villagers eat a meal every morning (unless already full)
       if (v.food < 8) {
         if (startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) {
           continue;
         }
       }
-
       if (v.role === 'hauler' && v.supplyRouteId) {
-        // Hauler: resume supply route
         const route = ts.supplyRoutes.find(r => r.id === v.supplyRouteId);
         const source = route ? ts.buildings.find(b => b.id === route.fromBuildingId) : null;
         if (route && source) {
@@ -381,7 +851,6 @@ export function processVillagerStateMachine(ts: TickState): void {
           v.state = 'idle';
         }
       } else {
-        // No job — check idle task priorities (haul, build, clear rubble, repair)
         if (!tryIdleTask(v, ts)) {
           v.state = 'idle';
         }
@@ -389,595 +858,26 @@ export function processVillagerStateMachine(ts: TickState): void {
       continue;
     }
 
-    // DAYTIME STATE MACHINE
+    // DAYTIME STATE MACHINE — dispatch to handlers
     switch (v.state) {
-      case 'sleeping': {
-        // Shouldn't be sleeping during day — wake up
-        if (v.jobBuildingId) {
-          const job = ts.buildings.find(b => b.id === v.jobBuildingId);
-          if (job) {
-            const entrance = getBuildingEntrance(job);
-            planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
-            v.state = job.constructed ? 'traveling_to_work' : 'traveling_to_build';
-          } else {
-            v.state = 'idle';
-          }
-        } else {
-          v.state = 'idle';
-        }
-        break;
-      }
-
-      case 'traveling_to_work': {
-        if (atDestination(v)) {
-          // Arrived at workplace — deposit any carried inputs into building's local buffer
-          if (v.carryTotal > 0 && v.jobBuildingId) {
-            const job = ts.buildings.find(b => b.id === v.jobBuildingId);
-            if (job) {
-              for (const [res, amt] of Object.entries(v.carrying)) {
-                if (amt && amt > 0) {
-                  addToBuffer(job.localBuffer, res as ResourceType, amt, job.bufferCapacity);
-                }
-              }
-              v.carrying = {};
-              v.carryTotal = 0;
-            }
-          }
-          v.state = 'working';
-          v.workProgress = 0;
-        } else {
-          moveOneStep(v);
-          // Check if we should head home instead
-          if (ts.dayTick >= HOME_DEPARTURE_TICK) {
-            startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
-          }
-        }
-        break;
-      }
-
-      case 'working': {
-        if (!v.jobBuildingId) { v.state = 'idle'; break; }
-        const job = ts.buildings.find(b => b.id === v.jobBuildingId);
-        if (!job) { v.state = 'idle'; break; }
-
-        // Mid-day hunger check: interrupt work to eat if dangerously hungry
-        if (v.food <= 3) {
-          if (startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) break;
-        }
-
-        // Repair: if building is damaged, repair HP/tick before producing
-        if (job.hp < job.maxHp) {
-          const repairRate = ts.research.completed.includes('architecture' as TechId) ? 2 : 1;
-          job.hp = Math.min(job.maxHp, job.hp + repairRate);
-          break; // spent this tick repairing
-        }
-
-        // Idle helpers: haul buffer contents then release job — don't produce
-        if (v.role === 'idle') {
-          if (bufferTotal(job.localBuffer) > 0) {
-            startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
-          } else {
-            v.jobBuildingId = null;
-            v.state = 'idle';
-          }
-          break;
-        }
-
-        // Hunger interrupt — very hungry workers stop to eat
-        if (v.food <= 2) {
-          if (startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) break;
-        }
-
-        const template = BUILDING_TEMPLATES[job.type];
-        if (!template.production) {
-          // Non-production building (research desk handled here)
-          if (job.type === 'research_desk' && ts.research.current) {
-            v.workProgress++;
-            const RESEARCH_TICKS_PER_POINT = 30; // 30 ticks per knowledge point
-            const tpu = RESEARCH_TICKS_PER_POINT;
-            if (v.workProgress >= tpu) {
-              ts.research.progress += 1;
-              const tech = TECH_TREE[ts.research.current];
-              if (ts.research.progress >= tech.cost) {
-                ts.research.completed.push(ts.research.current);
-                ts.research.current = null;
-                ts.research.progress = 0;
-              }
-              v.workProgress = 0;
-            }
-            gainSkillXp(v, job.type);
-          }
-          // Marketplace trader: haul goods from marketplace buffer to storehouse
-          if (job.type === 'marketplace' && bufferTotal(job.localBuffer) > 0) {
-            startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
-          }
-          break;
-        }
-
-        // Haul when output buffer has a full carry load (not just when completely full)
-        // This ensures resources reach the storehouse before villagers starve
-        if (bufferOutputTotal(job.localBuffer, job.type) >= CARRY_CAPACITY) {
-          startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
-          break;
-        }
-
-        // Work: accumulate progress
-        v.workProgress++;
-        const tpu = ticksPerUnit(job.type);
-
-        // Apply production multiplier to reduce ticks needed
-        const mult = productionMultiplier(v, job.type, ts.research, ts.season, ts.weather);
-        const effectiveTpu = Math.max(1, Math.round(tpu / mult));
-
-        if (v.workProgress >= effectiveTpu) {
-          const prod = template.production;
-          if (prod.inputs) {
-            // Processing building: needs inputs in building's local buffer
-            if (hasBufferInputs(job.localBuffer, prod.inputs)) {
-              consumeBufferInputs(job.localBuffer, prod.inputs);
-              const bonus = techProductionBonus(ts.research, job.type);
-              addToBuffer(job.localBuffer, prod.output, 1 + bonus, job.bufferCapacity);
-            } else {
-              // No inputs in local buffer — go pick them up from storehouse
-              startPickupInputs(v, job, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
-              break;
-            }
-          } else {
-            // Primary production: no inputs needed
-            const bonus = techProductionBonus(ts.research, job.type);
-            let amount = 1 + bonus;
-            // Season/weather multipliers for outdoor buildings
-            if (OUTDOOR_BUILDINGS.includes(job.type)) {
-              const isFarm = ['farm', 'large_farm', 'flax_field', 'hemp_field', 'chicken_coop'].includes(job.type);
-              if (isFarm) {
-                let farmMult = SEASON_FARM_MULT[ts.season];
-                // Irrigation tech: autumn gets full output
-                if (ts.season === 'autumn' && ts.research.completed.includes('irrigation' as TechId)) farmMult = 1.0;
-                if (farmMult === 0) { v.workProgress = 0; break; } // No farming in winter
-                amount = Math.max(1, Math.floor(amount * farmMult));
-              }
-              amount = Math.max(1, Math.floor(amount * WEATHER_OUTDOOR_MULT[ts.weather]));
-            }
-            addToBuffer(job.localBuffer, prod.output, amount, job.bufferCapacity);
-          }
-          v.workProgress = 0;
-
-          // Tool wear & skill XP
-          degradeTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
-          gainSkillXp(v, job.type);
-        }
-
-        // Check if should start hauling (buffer has output items and enough to carry)
-        const outputCount = template.production?.inputs
-          ? bufferOutputTotal(job.localBuffer, job.type)
-          : bufferTotal(job.localBuffer);
-        if (outputCount >= CARRY_CAPACITY) {
-          startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
-        }
-
-        // Check if should head home
-        if (ts.dayTick >= HOME_DEPARTURE_TICK) {
-          // Pick up whatever output is in the buffer before leaving
-          if (outputCount > 0) {
-            startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
-          } else {
-            startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
-          }
-        }
-        break;
-      }
-
-      case 'traveling_to_storage': {
-        if (atDestination(v)) {
-          if (v.haulingToWork) {
-            // Picking up inputs from storehouse for processing building
-            if (v.jobBuildingId) {
-              const job = ts.buildings.find(b => b.id === v.jobBuildingId);
-              if (job) {
-                const template = BUILDING_TEMPLATES[job.type];
-                if (template.production?.inputs) {
-                  // Pick up needed inputs from storehouse local buffer
-                  const pickupSH = findStorehouseAt(ts.buildings, v.x, v.y);
-                  for (const [res, amt] of Object.entries(template.production.inputs)) {
-                    const needed = amt as number;
-                    const shAmt = pickupSH ? (pickupSH.localBuffer[res as ResourceType] || 0) : 0;
-                    const available = Math.min(needed * 3, shAmt);
-                    const canCarry = Math.min(available, CARRY_CAPACITY - v.carryTotal);
-                    if (canCarry > 0) {
-                      if (pickupSH) {
-                        deductFromBuffer(pickupSH.localBuffer, res as ResourceType, canCarry);
-                      }
-                      // Keep global in sync
-                      ts.resources[res as ResourceType] = Math.max(0, ts.resources[res as ResourceType] - canCarry);
-                      v.carrying[res as ResourceType] = (v.carrying[res as ResourceType] || 0) + canCarry;
-                      v.carryTotal += canCarry;
-                    }
-                  }
-                }
-                // Head back to workplace
-                const entrance = getBuildingEntrance(job);
-                planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
-                v.state = 'traveling_to_work';
-                v.haulingToWork = false;
-              } else {
-                v.state = 'idle';
-                v.haulingToWork = false;
-              }
-            } else {
-              v.state = 'idle';
-              v.haulingToWork = false;
-            }
-          } else {
-            // Dropping off: deposit carried resources into storehouse local buffer
-            const targetSH = findStorehouseAt(ts.buildings, v.x, v.y);
-            for (const [res, amt] of Object.entries(v.carrying)) {
-              if (amt && amt > 0) {
-                let deposited = 0;
-                if (targetSH) {
-                  deposited = addToBuffer(targetSH.localBuffer, res as ResourceType, amt, targetSH.bufferCapacity);
-                }
-                // Only add to global what was actually deposited — prevents resource inflation
-                if (deposited > 0) {
-                  addResource(ts.resources, res as ResourceType, deposited, ts.storageCap);
-                }
-                // Keep undeposited amount in carrying — will go back to workplace buffer
-                const remaining = amt - deposited;
-                if (remaining > 0) {
-                  v.carrying[res as ResourceType] = remaining;
-                } else {
-                  delete v.carrying[res as ResourceType];
-                }
-              }
-            }
-            v.carryTotal = Object.values(v.carrying).reduce((s, a) => s + (a || 0), 0);
-
-            // Idle helpers: release temp job and go back to idle task search
-            if (v.role === 'idle') {
-              v.jobBuildingId = null;
-              v.state = 'idle';
-              break;
-            }
-
-            // Should we go back to work or head home?
-            if (ts.dayTick >= HOME_DEPARTURE_TICK) {
-              startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
-            } else if (v.jobBuildingId) {
-              const job = ts.buildings.find(b => b.id === v.jobBuildingId);
-              if (job) {
-                const entrance = getBuildingEntrance(job);
-                planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
-                v.state = 'traveling_to_work';
-              } else {
-                v.state = 'idle';
-              }
-            } else {
-              v.state = 'idle';
-            }
-          }
-        } else {
-          moveOneStep(v);
-        }
-        break;
-      }
-
-      case 'traveling_home': {
-        if (atDestination(v)) {
-          v.state = 'sleeping';
-        } else {
-          moveOneStep(v);
-        }
-        break;
-      }
-
-      case 'traveling_to_tavern': {
-        if (atDestination(v)) {
-          v.state = 'relaxing';
-        } else {
-          moveOneStep(v);
-        }
-        break;
-      }
-
-      case 'relaxing': {
-        // At tavern — consume 1 food from nearest storehouse, gain morale, set cooldown
-        const nearestSH = findNearestStorehouse(ts.buildings, ts.grid, ts.width, ts.height, v.x, v.y);
-        let consumed = false;
-        if (nearestSH) {
-          for (const { resource } of FOOD_PRIORITY) {
-            const bufAmt = nearestSH.localBuffer[resource] || 0;
-            if (bufAmt > 0 && ts.resources[resource] > 0) {
-              deductFromBuffer(nearestSH.localBuffer, resource, 1);
-              ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
-              consumed = true;
-              break;
-            }
-          }
-        }
-        if (consumed) {
-          v.morale = Math.min(100, v.morale + 15);
-          v.tavernVisitCooldown = 3;
-        }
-        // Head home after tavern visit
-        startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
-        break;
-      }
-
-      case 'traveling_to_heal': {
-        if (atDestination(v)) {
-          v.state = 'healing';
-        } else {
-          moveOneStep(v);
-        }
-        break;
-      }
-
-      case 'healing': {
-        // At storehouse — consume 1 herb to cure disease
-        const sh = findStorehouseAt(ts.buildings, v.x, v.y);
-        if (sh && (sh.localBuffer.herbs || 0) > 0 && ts.resources.herbs > 0) {
-          deductFromBuffer(sh.localBuffer, 'herbs', 1);
-          ts.resources.herbs = Math.max(0, ts.resources.herbs - 1);
-          v.sick = false;
-          v.sickDays = 0;
-        }
-        // Go to work or home after healing attempt
-        if (v.jobBuildingId) {
-          const job = ts.buildings.find(b => b.id === v.jobBuildingId);
-          if (job) {
-            const entrance = getBuildingEntrance(job);
-            planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
-            v.state = job.constructed ? 'traveling_to_work' : 'traveling_to_build';
-          } else {
-            v.state = 'idle';
-          }
-        } else {
-          v.state = 'idle';
-        }
-        break;
-      }
-
-      case 'traveling_to_build': {
-        if (atDestination(v)) {
-          v.state = 'constructing';
-        } else {
-          moveOneStep(v);
-          if (ts.dayTick >= HOME_DEPARTURE_TICK) {
-            startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
-          }
-        }
-        break;
-      }
-
-      case 'constructing': {
-        if (!v.jobBuildingId) { v.state = 'idle'; break; }
-        const job = ts.buildings.find(b => b.id === v.jobBuildingId);
-        if (!job) { v.state = 'idle'; break; }
-        if (job.constructed) {
-          // Building finished — switch to production
-          v.state = 'working';
-          v.workProgress = 0;
-          break;
-        }
-        // Build: increment construction progress
-        job.constructionProgress++;
-        if (job.constructionProgress >= job.constructionRequired) {
-          if (job.type === 'rubble') {
-            // Rubble cleared — remove it entirely
-            const ridx = ts.buildings.findIndex(b => b.id === job.id);
-            if (ridx >= 0) ts.buildings.splice(ridx, 1);
-            if (job.y < ts.height && job.x < ts.width) {
-              ts.grid[job.y][job.x].building = null;
-            }
-            v.jobBuildingId = null;
-            v.role = 'idle';
-            v.state = 'idle';
-          } else {
-            job.constructed = true;
-            // Idle helpers: release job after construction, don't start producing
-            if (v.role === 'idle') {
-              v.jobBuildingId = null;
-              v.state = 'idle';
-            } else {
-              // Switch to production on next tick
-              v.state = 'working';
-              v.workProgress = 0;
-            }
-          }
-        }
-        // Head home when needed
-        if (ts.dayTick >= HOME_DEPARTURE_TICK) {
-          startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
-        }
-        break;
-      }
-
-      case 'traveling_to_eat': {
-        if (atDestination(v)) {
-          v.state = 'eating';
-        } else {
-          moveOneStep(v);
-          if (ts.dayTick >= HOME_DEPARTURE_TICK) {
-            startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
-          }
-        }
-        break;
-      }
-
-      case 'eating': {
-        // At a storehouse — eat until satisfied (food >= 6) or storehouse empty
-        const eatSH = findStorehouseAt(ts.buildings, v.x, v.y);
-        let fed = false;
-        while (v.food < 8) {
-          let ateThisRound = false;
-          for (const { resource, satisfaction } of FOOD_PRIORITY) {
-            const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
-            if (bufAmt > 0) {
-              deductFromBuffer(eatSH!.localBuffer, resource, 1);
-              ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
-              v.food = Math.min(10, v.food + satisfaction);
-              v.lastAte = resource as FoodEaten;
-              v.recentMeals.push(resource as FoodEaten);
-              if (v.recentMeals.length > 5) v.recentMeals.shift();
-              fed = true;
-              ateThisRound = true;
-              break;
-            }
-          }
-          if (!ateThisRound) break; // No food left in storehouse
-        }
-        if (!fed) {
-          v.food = Math.max(0, v.food - 0.5);
-          v.lastAte = 'nothing' as FoodEaten;
-          v.recentMeals.push('nothing' as FoodEaten);
-          if (v.recentMeals.length > 5) v.recentMeals.shift();
-        }
-
-        // Done eating — resume work or go home
-        if (ts.dayTick >= HOME_DEPARTURE_TICK) {
-          startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
-        } else if (v.jobBuildingId) {
-          const job = ts.buildings.find(b => b.id === v.jobBuildingId);
-          if (job) {
-            const entrance = getBuildingEntrance(job);
-            planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
-            v.state = job.constructed ? 'traveling_to_work' : 'traveling_to_build';
-          } else {
-            v.state = 'idle';
-          }
-        } else {
-          v.state = 'idle';
-        }
-        break;
-      }
-
-      // --- Supply route hauler states ---
-      case 'supply_traveling_to_source': {
-        if (!moveOneStep(v, ts.grid, ts.width, ts.height)) {
-          // Find route and source building
-          const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
-          const source = route ? ts.buildings.find(b => b.id === route.fromBuildingId) : null;
-          if (!route || !source) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; break; }
-          planPathToBuilding(v, source, ts.grid, ts.width, ts.height);
-          if (v.path.length === 0) v.state = 'supply_loading'; // Already at source
-        } else if (atDestination(v)) {
-          v.state = 'supply_loading';
-        }
-        break;
-      }
-
-      case 'supply_loading': {
-        // Pick up resources from source building buffer
-        const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
-        const source = route ? ts.buildings.find(b => b.id === route.fromBuildingId) : null;
-        if (!route || !source) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; break; }
-
-        // Check we're at the source building
-        const atSource = v.x >= source.x && v.x < source.x + source.width &&
-                          v.y >= source.y && v.y < source.y + source.height;
-        if (!atSource) { v.state = 'supply_traveling_to_source'; break; }
-
-        // Load resources from source buffer
-        let carried = 0;
-        v.carrying = {};
-        if (route.resourceType === 'any') {
-          // Pick up any available resources
-          for (const [res, amt] of Object.entries(source.localBuffer)) {
-            if (!amt || amt <= 0) continue;
-            const toCarry = Math.min(amt, CARRY_CAPACITY - carried);
-            if (toCarry <= 0) break;
-            deductFromBuffer(source.localBuffer, res as ResourceType, toCarry);
-            ts.resources[res as ResourceType] -= toCarry;
-            v.carrying[res as ResourceType] = toCarry;
-            carried += toCarry;
-          }
-        } else {
-          // Pick up specific resource type
-          const res = route.resourceType as ResourceType;
-          const available = source.localBuffer[res] || 0;
-          if (available > 0) {
-            const toCarry = Math.min(available, CARRY_CAPACITY);
-            deductFromBuffer(source.localBuffer, res, toCarry);
-            ts.resources[res] -= toCarry;
-            v.carrying[res] = toCarry;
-            carried = toCarry;
-          }
-        }
-        v.carryTotal = carried;
-
-        if (carried > 0) {
-          // Head to destination
-          const dest = ts.buildings.find(b => b.id === route.toBuildingId);
-          if (dest) {
-            planPathToBuilding(v, dest, ts.grid, ts.width, ts.height);
-            v.state = 'supply_traveling_to_dest';
-          } else {
-            // Destination destroyed — drop carrying back into source
-            for (const [res, amt] of Object.entries(v.carrying)) {
-              if (amt && amt > 0) {
-                addToBuffer(source.localBuffer, res as ResourceType, amt, source.bufferCapacity);
-                addResource(ts.resources, res as ResourceType, amt, ts.storageCap);
-              }
-            }
-            v.carrying = {}; v.carryTotal = 0;
-            v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null;
-          }
-        } else {
-          // Nothing to pick up — wait a bit then try again (go back to traveling)
-          // Just stay at source and retry next tick
-        }
-        break;
-      }
-
-      case 'supply_traveling_to_dest': {
-        if (!moveOneStep(v, ts.grid, ts.width, ts.height)) {
-          const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
-          const dest = route ? ts.buildings.find(b => b.id === route.toBuildingId) : null;
-          if (!route || !dest) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; break; }
-          planPathToBuilding(v, dest, ts.grid, ts.width, ts.height);
-          if (v.path.length === 0) v.state = 'supply_unloading';
-        } else if (atDestination(v)) {
-          v.state = 'supply_unloading';
-        }
-        break;
-      }
-
-      case 'supply_unloading': {
-        // Deposit resources into destination building buffer
-        const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
-        const dest = route ? ts.buildings.find(b => b.id === route.toBuildingId) : null;
-        if (!route || !dest) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; break; }
-
-        for (const [res, amt] of Object.entries(v.carrying)) {
-          if (!amt || amt <= 0) continue;
-          const deposited = addToBuffer(dest.localBuffer, res as ResourceType, amt, dest.bufferCapacity);
-          if (deposited > 0) addResource(ts.resources, res as ResourceType, deposited, ts.storageCap);
-        }
-        v.carrying = {};
-        v.carryTotal = 0;
-
-        // Head back to source for next load
-        const source = ts.buildings.find(b => b.id === route.fromBuildingId);
-        if (source) {
-          planPathToBuilding(v, source, ts.grid, ts.width, ts.height);
-          v.state = 'supply_traveling_to_source';
-        } else {
-          v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null;
-        }
-        break;
-      }
-
-      case 'idle': {
-        // Idle villagers: check hunger first, then try idle task priorities
-        if (v.food <= 3) {
-          startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
-        } else if (ts.dayTick >= HOME_DEPARTURE_TICK && v.homeBuildingId) {
-          startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height);
-        } else {
-          // Try to find useful work (haul, build, clear, repair)
-          tryIdleTask(v, ts);
-        }
-        break;
-      }
+      case 'sleeping':                   handleSleeping(v, ts); break;
+      case 'traveling_to_work':          handleTravelingToWork(v, ts); break;
+      case 'working':                    handleWorking(v, ts); break;
+      case 'traveling_to_storage':       handleTravelingToStorage(v, ts); break;
+      case 'traveling_home':             if (atDestination(v)) { v.state = 'sleeping'; } else { moveOneStep(v); } break;
+      case 'traveling_to_tavern':        if (atDestination(v)) { v.state = 'relaxing'; } else { moveOneStep(v); } break;
+      case 'relaxing':                   handleRelaxing(v, ts); break;
+      case 'traveling_to_heal':          if (atDestination(v)) { v.state = 'healing'; } else { moveOneStep(v); } break;
+      case 'healing':                    handleHealing(v, ts); break;
+      case 'traveling_to_build':         if (atDestination(v)) { v.state = 'constructing'; } else { moveOneStep(v); if (ts.dayTick >= HOME_DEPARTURE_TICK) startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height); } break;
+      case 'constructing':              handleConstructing(v, ts); break;
+      case 'traveling_to_eat':           if (atDestination(v)) { v.state = 'eating'; } else { moveOneStep(v); if (ts.dayTick >= HOME_DEPARTURE_TICK) startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height); } break;
+      case 'eating':                     handleEating(v, ts); break;
+      case 'supply_traveling_to_source': handleSupplyTravelingToSource(v, ts); break;
+      case 'supply_loading':             handleSupplyLoading(v, ts); break;
+      case 'supply_traveling_to_dest':   handleSupplyTravelingToDest(v, ts); break;
+      case 'supply_unloading':           handleSupplyUnloading(v, ts); break;
+      case 'idle':                       handleIdle(v, ts); break;
     }
   }
 
@@ -985,7 +885,6 @@ export function processVillagerStateMachine(ts: TickState): void {
   if (ts.dayTick >= TICKS_PER_DAY - 5 && !ts.isNight) {
     for (const v of ts.villagers) {
       if (v.state !== 'sleeping' && v.state !== 'traveling_home' && v.state !== 'scouting') {
-        // Drop any carrying into nearest storehouse buffer (if reachable)
         const dropSH = findNearestStorehouse(ts.buildings, ts.grid, ts.width, ts.height, v.x, v.y);
         for (const [res, amt] of Object.entries(v.carrying)) {
           if (amt && amt > 0) {
