@@ -116,17 +116,16 @@ function playerAI(state: GameState): GameState {
     state = tryBuild(state, 'storehouse', centerX, centerY);
   }
 
-  // --- HOUSING: build only when needed, cap at 10 tents max ---
+  // --- HOUSING: build ahead of demand, cap at 10 tents max ---
   const homes = state.buildings.filter(b => ['tent', 'house', 'manor'].includes(b.type) && b.type !== 'rubble');
   const homeCapacity = homes.reduce((sum, b) => {
     const cap = b.type === 'tent' ? 1 : b.type === 'house' ? 2 : 4;
     return sum + cap;
   }, 0);
   const tentCount = homes.filter(b => b.type === 'tent').length;
-  // Only build tent if wood is sufficient (reserve wood for economy buildings)
-  // After day 8, prioritize sawmill/research desk over housing
+  // Build 1 tent ahead of current pop so immigration has housing ready
   const woodReserve = day < 8 ? 8 : 18;
-  if (homeCapacity < pop && tentCount < 10 && canAfford(state, 'tent') && state.resources.wood >= woodReserve) {
+  if (homeCapacity <= pop && tentCount < 10 && canAfford(state, 'tent') && state.resources.wood >= woodReserve) {
     state = tryBuild(state, 'tent', centerX, centerY);
   }
 

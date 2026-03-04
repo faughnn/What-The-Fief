@@ -630,6 +630,10 @@ export const CAMP_MAX_COUNT = 3;       // max camps on map
 export const CAMP_CLEAR_GOLD = 30;     // gold reward for clearing a camp
 export const CAMP_CLEAR_RENOWN = 10;   // renown reward for clearing
 
+// Recruitment via Renown
+export const RENOWN_PER_RECRUIT = 5;   // renown cost per new settler (after first 4 free)
+export const FREE_SETTLERS = 4;        // first N settlers arrive free (bootstrap)
+
 // V2: Grid-based enemy entity (replaces abstract Enemy for simulation)
 export type SiegeType = 'none' | 'battering_ram' | 'siege_tower';
 

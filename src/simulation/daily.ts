@@ -7,6 +7,7 @@ import {
   SEASON_MORALE, WEATHER_MORALE, HOUSING_INFO,
   FoodEaten, TICKS_PER_DAY, ALL_RESOURCES,
   MerchantState,
+  RENOWN_PER_RECRUIT, FREE_SETTLERS,
 } from '../world.js';
 import {
   TickState, findHome, autoEquipTool, autoEquipWeapon, getBuildingEntrance,
@@ -208,8 +209,7 @@ export function processDailyChecks(ts: TickState): void {
   }
 
   // Immigration — new villagers arrive at map edge and walk home
-  // Check food in STOREHOUSE BUFFERS (not global) — global includes farm buffers
-  // that villagers can't eat from. Only invite settlers when food is physically accessible.
+  // Requires: food in storehouse + renown (after first FREE_SETTLERS villagers)
   let storehouseEdible = 0;
   for (const b of ts.buildings) {
     if (!isStorehouse(b.type) || !b.constructed) continue;
@@ -217,7 +217,9 @@ export function processDailyChecks(ts: TickState): void {
       storehouseEdible += (b.localBuffer[resource] || 0);
     }
   }
-  if (storehouseEdible > ts.villagers.length * 3) {
+  const totalRecruits = ts.villagers.length;
+  const renownCost = totalRecruits >= FREE_SETTLERS ? RENOWN_PER_RECRUIT : 0;
+  if (storehouseEdible > ts.villagers.length * 3 && ts.renown >= renownCost) {
     const emptyHome = findHome(ts.buildings, ts.villagers);
     if (emptyHome) {
       const home = ts.buildings.find(b => b.id === emptyHome)!;
@@ -238,6 +240,7 @@ export function processDailyChecks(ts: TickState): void {
       planPath(newV, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
       newV.state = 'traveling_home';
       ts.villagers.push(newV);
+      ts.renown -= renownCost;
       ts.events.push(`A new settler, ${newV.name}, arrives!`);
     }
   }
