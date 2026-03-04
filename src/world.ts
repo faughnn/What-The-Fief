@@ -586,6 +586,8 @@ export interface Villager {
   grief: number; // days of grief remaining after family member death
   // Bandit camp assault
   assaultTargetId: string | null; // ID of bandit camp to attack
+  // Job preference (player-set)
+  preferredJob: BuildingType | null; // preferred building type for auto-assign
 }
 
 // --- Combat ---
@@ -974,6 +976,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     family: [],
     grief: 0,
     assaultTargetId: null,
+    preferredJob: null,
   };
 }
 

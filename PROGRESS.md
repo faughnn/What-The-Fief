@@ -1,8 +1,8 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 457 tests passing (34 test files). 100-day stress test: 16 pop, 4 deaths, 0 departures from starvation, 0 errors, 9 techs researched, prosperity 85. All villagers clothed.
-- **What exists**: 120 ticks/day. 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites. Building upgrades (tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse). Spatial combat (enemies march from camps/edges, walls/fences block, guards intercept/patrol, melee, watchtower ranged 5-tile). Weapon variety: sword (atk 6, def 2, melee) and bow (atk 2, range 4, ranged). Guards auto-equip from storehouse. Weaponsmith (ingots+planks→sword), fletcher (wood+rope→bow). Bow guards shoot at 4-tile range without watchtower. Watchtower+bow = bonus damage. Weapon durability degrades per combat tick. **Guard formations: charge (infinite detect range), hold (3-tile, stays put), patrol (10-tile default). Front line (closes to melee), back line (stays at range with bow).** **Bandit camps: persistent camps spawn at map edges every 25 days, raids originate FROM camps, guards can assault/clear camps for gold+renown rewards. Camps scale with raid level, max 3 active. lastCampSpawnDay prevents instant respawn.** Siege equipment (battering rams, siege towers). Wildlife + hunting + self-defense. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth. Food variety morale. Tavern/recreation. Fire/disaster (spread, extinguish, wells). Disease (physical spread, herb healing). Lightning. Bandit ultimatums. Family bonds/grief. Church morale. Graveyard. NPC settlements + trade caravans (auto-spawn with trade_routes tech). Scout fog reveal. Multi-tile footprints. Immigration at map edge. Marketplace trading. Tool tiers with durability (steel_forging bonus). Skill leveling. 3-tier research tree (20 techs). 7 production building upgrade tiers. isStorehouse abstraction. **Idle villager auto-assignment: breadth-first (1 per building first, then fill to max). Idle task priorities: haul full buffers → build → clear → repair. Processing worker job corruption fix.**
+- **Status**: V2 spatial simulation. 562 tests passing (36 test files). 100-day stress test: 14 pop, 4 deaths, 0 errors, 9 techs researched, prosperity 85. All villagers clothed.
+- **What exists**: 120 ticks/day. 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites. Building upgrades (tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse). Spatial combat (enemies march from camps/edges, walls/fences block, guards intercept/patrol, melee, watchtower ranged 5-tile). Weapon variety: sword (atk 6, def 2, melee) and bow (atk 2, range 4, ranged). Guards auto-equip from storehouse. Weaponsmith (ingots+planks→sword), fletcher (wood+rope→bow). Bow guards shoot at 4-tile range without watchtower. Watchtower+bow = bonus damage. Weapon durability degrades per combat tick. **Guard formations: charge (infinite detect range), hold (3-tile, stays put), patrol (10-tile default). Front line (closes to melee), back line (stays at range with bow).** **Bandit camps: persistent camps spawn at map edges every 25 days, raids originate FROM camps, guards can assault/clear camps for gold+renown rewards. Camps scale with raid level, max 3 active. lastCampSpawnDay prevents instant respawn.** Siege equipment (battering rams, siege towers). Wildlife + hunting + self-defense. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth. Food variety morale. Tavern/recreation. Fire/disaster (spread, extinguish, wells). Disease (physical spread, herb healing). Lightning. Bandit ultimatums. Family bonds/grief. Church morale. Graveyard. NPC settlements + trade caravans (auto-spawn with trade_routes tech). Scout fog reveal. Multi-tile footprints. Immigration at map edge. Marketplace trading. Tool tiers with durability (steel_forging bonus). Skill leveling. 3-tier research tree (20 techs). 7 production building upgrade tiers. isStorehouse abstraction. **Idle villager auto-assignment: breadth-first (1 per building first, then fill to max). Idle task priorities: haul full buffers → build → clear → repair. Processing worker job corruption fix.** **Villager starting aptitudes: 1-2 random skills at 10-30 points (deterministic per ID). Skill-aware auto-assign picks best-skilled villager per building.** **Per-villager job priorities: setPreferredJob command lets player mark villager's preferred building type. Auto-assign Pass 0 fills preferred villagers first, then breadth-first, then fill-to-max.**
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -56,7 +56,9 @@
 - ✅ **Idle villager auto-assignment**: breadth-first (1 worker per building, then fill to max). Construction reserve. 23 tests.
 - ✅ **Idle task priorities**: haul full buffers → build unconstructed → clear rubble → repair. Matches Bellwright priority system.
 - ✅ **Processing worker job fix**: workers don't lose their assignment when inputs unavailable
-- ✅ 100-day stress test: player AI grows to 16 pop, 9 techs, prosperity 85, all clothed, 0 errors
+- ✅ **Villager starting aptitudes**: 1-2 random skills at 10-30, deterministic per ID. Skill-aware auto-assign. 91 tests.
+- ✅ **Per-villager job priorities**: setPreferredJob command. Auto-assign Pass 0 fills preferred villagers first. 14 tests.
+- ✅ 100-day stress test: player AI grows to 14 pop, 9 techs, prosperity 85, all clothed, 0 errors
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
@@ -65,24 +67,20 @@
 2. **No outposts.** Bellwright has player-built resource extraction outposts connected via caravan supply chains.
 
 **Priority 2 — Economy polish:**
-3. **No profession system.** Bellwright has profession-gated research and production. ColonySim assigns roles by building type with no profession prerequisites.
-4. **No per-villager job priorities.** Bellwright has granular 1-9 priority system per villager.
-
-**Priority 3 — Quality of life:**
-5. **No construction points.** Bellwright gates building count via prosperity-earned construction points.
-6. **No decoration/morale buildings beyond tavern+church.**
-7. **No player-directed caravan routes.**
+3. **No decoration/morale buildings beyond tavern+church.** Bellwright has fountains, gardens, statues.
+4. **No construction points.** Bellwright gates building count via prosperity-earned construction points.
+5. **No player-directed caravan routes.** Currently only auto-spawn from NPC settlements.
 
 ### Honest priority order for closing gaps:
-1. Profession system (gate research/production by villager profession)
-2. Multi-settlement basics (outposts, supply routes)
-3. Per-villager job priorities
+1. Decoration/morale buildings (simple add, fills visible gap)
+2. Construction points (prosperity-gated building count)
+3. Multi-settlement basics (outposts, supply routes)
 4. Village liberation loop
 
 ## Active Files
-- `src/world.ts` — data types (~1050 lines)
+- `src/world.ts` — data types (~1060 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
-- `src/tests/test-v2-*.ts` — 34 test files, 457 tests total
+- `src/tests/test-v2-*.ts` — 36 test files, 562 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions

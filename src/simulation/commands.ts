@@ -220,6 +220,22 @@ export function assaultCamp(state: GameState, villagerId: string, campId: string
   return { ...state, villagers: newVillagers };
 }
 
+export function setPreferredJob(state: GameState, villagerId: string, jobType: BuildingType | null): GameState {
+  const villager = state.villagers.find(v => v.id === villagerId);
+  if (!villager) { console.log(`ERROR: Villager ${villagerId} not found`); return state; }
+  if (jobType !== null && !BUILDING_TEMPLATES[jobType]) {
+    console.log(`ERROR: Unknown building type '${jobType}'`); return state;
+  }
+  if (jobType !== null && BUILDING_TEMPLATES[jobType].maxWorkers === 0) {
+    console.log(`ERROR: ${jobType} has no worker slots`); return state;
+  }
+
+  const newVillagers = state.villagers.map(v =>
+    v.id === villagerId ? { ...v, skills: { ...v.skills }, traits: [...v.traits], preferredJob: jobType } : v
+  );
+  return { ...state, villagers: newVillagers };
+}
+
 export function upgradeBuilding(state: GameState, buildingId: string): GameState {
   const building = state.buildings.find(b => b.id === buildingId);
   if (!building) { console.log(`ERROR: Building ${buildingId} not found`); return state; }

@@ -213,23 +213,51 @@ export function processDailyChecks(ts: TickState): void {
     'foraging_hut', 'chicken_coop', 'livestock_barn', 'apiary',
   ];
 
-  const assignOneIdle = (b: Building, type: BuildingType): boolean => {
-    const idleVillagers = ts.villagers.filter(v => v.role === 'idle' && v.hp > 0);
-    if (idleVillagers.length <= minIdleReserve) return false;
-    // Pick the idle villager with the highest relevant skill for this building
+  const pickBestIdle = (type: BuildingType, candidates: Villager[]): Villager => {
     const skill = BUILDING_SKILL_MAP[type];
-    let best = idleVillagers[0];
+    let best = candidates[0];
     if (skill) {
-      for (const v of idleVillagers) {
+      for (const v of candidates) {
         if (v.skills[skill] > best.skills[skill]) best = v;
       }
     }
-    best.role = roleForBuilding(type);
-    best.jobBuildingId = b.id;
-    best.state = 'idle';
-    b.assignedWorkers.push(best.id);
+    return best;
+  };
+
+  const doAssign = (b: Building, type: BuildingType, v: Villager): void => {
+    v.role = roleForBuilding(type);
+    v.jobBuildingId = b.id;
+    v.state = 'idle';
+    b.assignedWorkers.push(v.id);
+  };
+
+  const assignOneIdle = (b: Building, type: BuildingType): boolean => {
+    const idleVillagers = ts.villagers.filter(v => v.role === 'idle' && v.hp > 0);
+    if (idleVillagers.length <= minIdleReserve) return false;
+    // Prefer villagers whose preferredJob matches this building type
+    const preferred = idleVillagers.filter(v => v.preferredJob === type);
+    const best = preferred.length > 0
+      ? pickBestIdle(type, preferred)
+      : pickBestIdle(type, idleVillagers);
+    doAssign(b, type, best);
     return true;
   };
+
+  // Pass 0: Assign villagers with preferred jobs to matching buildings (highest priority)
+  for (const type of autoAssignOrder) {
+    for (const b of ts.buildings) {
+      if (b.type !== type || !b.constructed || b.type === 'rubble') continue;
+      const maxW = BUILDING_TEMPLATES[type].maxWorkers;
+      if (maxW === 0 || b.assignedWorkers.length >= maxW) continue;
+      // Only assign preferred villagers in this pass
+      const preferred = ts.villagers.filter(v => v.role === 'idle' && v.hp > 0 && v.preferredJob === type);
+      if (preferred.length === 0) continue;
+      const idleCount = ts.villagers.filter(v => v.role === 'idle' && v.hp > 0).length;
+      if (idleCount <= minIdleReserve) break;
+      const best = pickBestIdle(type, preferred);
+      doAssign(b, type, best);
+    }
+  }
 
   // Pass 1: Ensure every building has at least 1 worker (breadth-first)
   for (const type of autoAssignOrder) {
