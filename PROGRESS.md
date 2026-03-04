@@ -1,9 +1,9 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation — complete Bellwright colony sim. 317 tests passing. 100-day stress test (12,000 ticks) with zero errors.
-- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates, guards intercept + patrol, melee, watchtower ranged 5-tile). Construction sites. Building upgrades (tent→house→manor). Local buffer production + physical hauling. Processing buildings (sawmill, mill, bakery, tanner, weaver, smelter, ropemaker). Physical eating from storehouse. Building repair. Villager death + graveyard. Rubble/clearing. Wildlife + hunting. Physical storehouse resources. Marketplace trading. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth (linen/leather, 10-day durability, winter cold penalty). Food variety morale bonus. Tavern/recreation (morale boost, cooldown). Fire/disaster (spread, extinguish, wells). Siege equipment (battering rams, siege towers). Disease system (physical spread, herb healing). Lightning strikes during storms. Bandit ultimatums (pay tribute or face raid). Villager relationships (family bonds, grief, co-location morale). Church (area morale boost). Graveyard (death records). NPC settlements + trade caravans. Scout fog reveal. Multi-tile building footprints. Immigration at map edge. Balance proven by tests. 100-day long simulation stress-tested with zero validation errors.
-- **What's next**: Text renderer (separate module). The simulation is complete.
+- **Status**: V2 spatial simulation — complete Bellwright colony sim. 317 tests passing. 100-day stress test with player AI: colony survives to day 100 with 11 pop, 0 deaths, 0 errors.
+- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates, guards intercept + patrol, melee, watchtower ranged 5-tile). Construction sites. Building upgrades (tent→house→manor). Local buffer production + physical hauling. Processing buildings (sawmill, mill, bakery, tanner, weaver, smelter, ropemaker). Physical eating from storehouse. Building repair. Villager death + graveyard. Rubble/clearing. Wildlife + hunting. Physical storehouse resources. Marketplace trading. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth (linen/leather, 10-day durability, winter cold penalty). Food variety morale bonus. Tavern/recreation (morale boost, cooldown). Fire/disaster (spread, extinguish, wells). Siege equipment (battering rams, siege towers). Disease system (physical spread, herb healing). Lightning strikes during storms. Bandit ultimatums (pay tribute or face raid). Villager relationships (family bonds, grief, co-location morale). Church (area morale boost). Graveyard (death records). NPC settlements + trade caravans. Scout fog reveal. Multi-tile building footprints. Immigration at map edge. Physical resource pipeline (storehouse buffer = source of truth for global resources). Balance proven by tests. 100-day stress test with player AI survives with 11 villagers.
+- **What's next**: Fix revolving-door settler issue (new settlers at map edge depart before eating). Text renderer.
 
 ## The Bellwright Question
 
@@ -13,6 +13,7 @@
 
 - Physical movement (1 tile/tick max, pathfinding, water/wall blocking)
 - Physical resource production (presence required, local buffers, hauling)
+- Physical resource pipeline (storehouse buffer is source of truth, global synced on deposit)
 - Physical combat (enemies march from edges, walls block, guards intercept, siege equipment)
 - Physical eating (travel to storehouse, consume from buffer)
 - Physical healing (sick villagers travel to storehouse for herbs)
@@ -28,6 +29,8 @@
 - Bandit ultimatums with tribute payment
 - Death records in graveyard
 
+**Known issue:** New settlers spawning at map edge occasionally depart before reaching the storehouse to eat (revolving door). Colony still survives and thrives.
+
 **Minor items NOT implemented (not core Bellwright):**
 - No moat/water defenses (Bellwright-adjacent, not core)
 - No multiple-floor buildings (Bellwright doesn't have this either)
@@ -36,7 +39,7 @@
 **What IS proven by tests (317 passing, including 100-day stress test):**
 - ✅ 120 ticks = 1 day, max 1 tile/tick movement
 - ✅ Production requires physical presence, goes to local buffer
-- ✅ Hauling: local buffer → storehouse (physical)
+- ✅ Hauling: local buffer → storehouse (physical), only adds to global what deposits
 - ✅ Water/buildings block movement, gates selective
 - ✅ Seasonal farming (winter=0, summer bonus, resumes in spring)
 - ✅ Watchtower ranged attack (≤5 tiles, guard stays at tower)
@@ -58,16 +61,21 @@
 - ✅ All combat (melee, patrol, enemy march, wall/gate mechanics)
 - ✅ Construction, repair, rubble, processing, eating, tools
 - ✅ Wildlife, hunting, marketplace, balance tests
-- ✅ 100-day stress test: 12,000 ticks, zero ERROR: lines, colony survives
+- ✅ Storehouse buffer sync: global resources = storehouse buffer contents
+- ✅ 100-day stress test: player AI builds colony, 11 villagers survive, 0 errors
 
 ## Active Files
 - `src/world.ts` — data types (~900 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/tests/test-v2-*.ts` — 28 test files, 317 tests total
+- `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
 - Grid: grid[y][x]. 120 ticks/day. 1 tile/tick max.
-- Resources in storehouse local buffers. Eating from storehouse.
+- Resources in storehouse local buffers. Global resources = sum of storehouse buffers only. Eating from storehouse buffer.
+- Storehouse buffer cap: 2000 per storehouse. Global per-resource cap: 150 per storehouse.
+- Building costs deduct from both global AND storehouse buffer.
+- Hauling deposits only add to global what actually fits in storehouse buffer.
 - Seasonal farming: winter=0, autumn=0.7, summer=1.3.
 - Watchtower: guards stay at tower, shoot at 5-tile range (2 dmg/tick).
 - Building upgrades: tent→house→manor. Same-size in-place; size-change checks footprint.
@@ -81,3 +89,5 @@
 - Church: constructed church within 5 tiles of home = +10 morale.
 - Graveyard: records name and day of death. Dead from combat and daily checks both recorded.
 - Caravans: NPC settlements send caravans that walk 1 tile/tick to marketplace, deposit goods, leave after timer.
+- Raids milestone-gated: require pop >= 6 and buildings >= 8 before triggering.
+- Immigration checks storehouse food (not global) to gate new settlers.
