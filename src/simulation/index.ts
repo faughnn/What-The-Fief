@@ -91,6 +91,8 @@ export function tick(state: GameState): GameState {
     nextCampId: state.nextCampId,
     lastCampSpawnDay: state.lastCampSpawnDay,
     nextVillagerId: state.nextVillagerId,
+    constructionPoints: state.constructionPoints,
+    constructionPointsMilestones: [...state.constructionPointsMilestones],
   };
   ts.storageCap = computeStorageCap(ts.buildings);
 
@@ -168,6 +170,8 @@ export function tick(state: GameState): GameState {
     nextAnimalId: ts.nextAnimalId,
     nextDropId: ts.nextDropId,
     nextBuildingId: ts.nextBuildingId,
+    constructionPoints: ts.constructionPoints,
+    constructionPointsMilestones: ts.constructionPointsMilestones,
   };
 
   const errors = validateState(newState);

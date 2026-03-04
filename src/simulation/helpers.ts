@@ -63,6 +63,8 @@ export interface TickState {
   nextDropId: number;
   nextBuildingId: number;
   nextVillagerId: number;
+  constructionPoints: number;
+  constructionPointsMilestones: number[];
 }
 
 // --- Check if two positions are adjacent (Manhattan distance <= 1) ---

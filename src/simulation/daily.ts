@@ -9,6 +9,7 @@ import {
   FoodEaten, TICKS_PER_DAY, ALL_RESOURCES,
   MerchantState,
   RENOWN_PER_RECRUIT, FREE_SETTLERS,
+  CONSTRUCTION_POINT_MILESTONES, CONSTRUCTION_POINT_PER_IMMIGRANT,
 } from '../world.js';
 import {
   TickState, findHome, autoEquipTool, autoEquipWeapon, getBuildingEntrance,
@@ -344,6 +345,7 @@ export function processDailyChecks(ts: TickState): void {
       ts.villagers.push(newV);
       ts.nextVillagerId++;
       ts.renown -= renownCost;
+      ts.constructionPoints += CONSTRUCTION_POINT_PER_IMMIGRANT;
       ts.events.push(`A new settler, ${newV.name}, arrives!`);
     }
   }
@@ -568,6 +570,14 @@ export function processProsperity(ts: TickState): void {
     if (ts.research.completed.length > 0) ts.prosperity += 10;
   }
   ts.prosperity = Math.min(100, ts.prosperity);
+
+  // Award construction points for prosperity milestones
+  for (const ms of CONSTRUCTION_POINT_MILESTONES) {
+    if (ts.prosperity >= ms.prosperity && !ts.constructionPointsMilestones.includes(ms.prosperity)) {
+      ts.constructionPoints += ms.points;
+      ts.constructionPointsMilestones.push(ms.prosperity);
+    }
+  }
 }
 
 export function processEventsAndQuests(ts: TickState): void {

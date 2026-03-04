@@ -1,17 +1,17 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 602 tests passing (38 test files). 100-day stress test: 14 pop, 4 deaths, 0 errors, 9 techs researched, prosperity 85. All villagers clothed.
-- **What exists**: 120 ticks/day. 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites. Building upgrades (tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse). Spatial combat (enemies march from camps/edges, walls/fences block, guards intercept/patrol, melee, watchtower ranged 5-tile). Weapon variety: sword (atk 6, def 2, melee) and bow (atk 2, range 4, ranged). Guards auto-equip from storehouse. Weaponsmith (ingots+planks→sword), fletcher (wood+rope→bow). Bow guards shoot at 4-tile range without watchtower. Watchtower+bow = bonus damage. Weapon durability degrades per combat tick. **Guard formations: charge (infinite detect range), hold (3-tile, stays put), patrol (10-tile default). Front line (closes to melee), back line (stays at range with bow).** **Bandit camps: persistent camps spawn at map edges every 25 days, raids originate FROM camps, guards can assault/clear camps for gold+renown rewards. Camps scale with raid level, max 3 active. lastCampSpawnDay prevents instant respawn.** Siege equipment (battering rams, siege towers). Wildlife + hunting + self-defense. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth. Food variety morale. Tavern/recreation. Fire/disaster (spread, extinguish, wells). Disease (physical spread, herb healing). Lightning. Bandit ultimatums. Family bonds/grief. Church morale. Graveyard. NPC settlements + trade caravans (auto-spawn with trade_routes tech). Scout fog reveal. Multi-tile footprints. Immigration at map edge. Marketplace trading. Tool tiers with durability (steel_forging bonus). Skill leveling. 3-tier research tree (20 techs). 7 production building upgrade tiers. isStorehouse abstraction. **Idle villager auto-assignment: breadth-first (1 per building first, then fill to max). Idle task priorities: haul full buffers → build → clear → repair. Processing worker job corruption fix.** **Villager starting aptitudes: 1-2 random skills at 10-30 points (deterministic per ID). Skill-aware auto-assign picks best-skilled villager per building.** **Per-villager job priorities: setPreferredJob command lets player mark villager's preferred building type. Auto-assign Pass 0 fills preferred villagers first, then breadth-first, then fill-to-max.** Decoration buildings (garden +5 morale, fountain +5 morale + fire prevention, statue +10 morale) boost nearby homes. Fountain immune to lightning. Same type doesn't stack. **Outpost building: remote mini-storehouse (buffer 100, storage cap +25). Workers haul to nearest outpost. Placed on any terrain. Enables distributed resource extraction.**
+- **Status**: V2 spatial simulation. 628 tests passing (39 test files). 100-day stress test: 14 pop, 4 deaths, 0 errors, 9 techs researched, prosperity 85. All villagers clothed.
+- **What exists**: 120 ticks/day. 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites. Building upgrades (tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse). Spatial combat (enemies march from camps/edges, walls/fences block, guards intercept/patrol, melee, watchtower ranged 5-tile). Weapon variety: sword (atk 6, def 2, melee) and bow (atk 2, range 4, ranged). Guards auto-equip from storehouse. Weaponsmith (ingots+planks→sword), fletcher (wood+rope→bow). Bow guards shoot at 4-tile range without watchtower. Watchtower+bow = bonus damage. Weapon durability degrades per combat tick. **Guard formations: charge (infinite detect range), hold (3-tile, stays put), patrol (10-tile default). Front line (closes to melee), back line (stays at range with bow).** **Bandit camps: persistent camps spawn at map edges every 25 days, raids originate FROM camps, guards can assault/clear camps for gold+renown rewards. Camps scale with raid level, max 3 active. lastCampSpawnDay prevents instant respawn.** Siege equipment (battering rams, siege towers). Wildlife + hunting + self-defense. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth. Food variety morale. Tavern/recreation. Fire/disaster (spread, extinguish, wells). Disease (physical spread, herb healing). Lightning. Bandit ultimatums. Family bonds/grief. Church morale. Graveyard. NPC settlements + trade caravans (auto-spawn with trade_routes tech). Scout fog reveal. Multi-tile footprints. Immigration at map edge. Marketplace trading. Tool tiers with durability (steel_forging bonus). Skill leveling. 3-tier research tree (20 techs). 7 production building upgrade tiers. isStorehouse abstraction. **Idle villager auto-assignment: breadth-first (1 per building first, then fill to max). Idle task priorities: haul full buffers → build → clear → repair. Processing worker job corruption fix.** **Villager starting aptitudes: 1-2 random skills at 10-30 points (deterministic per ID). Skill-aware auto-assign picks best-skilled villager per building.** **Per-villager job priorities: setPreferredJob command lets player mark villager's preferred building type. Auto-assign Pass 0 fills preferred villagers first, then breadth-first, then fill-to-max.** Decoration buildings (garden +5 morale, fountain +5 morale + fire prevention, statue +10 morale) boost nearby homes. Fountain immune to lightning. Same type doesn't stack. **Outpost building: remote mini-storehouse (buffer 100, storage cap +25). Workers haul to nearest outpost. Placed on any terrain. Enables distributed resource extraction.** **Construction points: building count gated by prosperity-earned points. Start with 20 points. Each building costs 1 point (rubble exempt). Immigration grants +2 per settler. Prosperity milestones (50/65/80/90) award 5/5/10/10 bonus points. Prevents overbuilding early, rewards prosperity.**
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
 
 **Is this a complete 2D Bellwright? Be extremely strict and pedantic.**
 
-**No.** The physical foundation, economy depth, combat systems, persistent threats, and worker management are strong. The 100-day stress test proves a competent player AI can grow to 16 population with 9 techs researched and prosperity 85. But several core Bellwright systems are still missing.
+**No.** The physical foundation, economy depth, combat systems, persistent threats, and worker management are strong. The 100-day stress test proves a competent player AI can grow to 14 population with 9 techs researched and prosperity 85. But several core Bellwright systems are still missing.
 
-### What IS working (proven by 457 tests + 100-day stress test):
+### What IS working (proven by 628 tests + 100-day stress test):
 - ✅ 120 ticks/day, 1 tile/tick max, BFS pathfinding
 - ✅ Physical production: presence required, local buffers, hauling to storehouse
 - ✅ Processing buildings: miller fetches wheat from storehouse, produces flour at mill
@@ -60,6 +60,7 @@
 - ✅ **Per-villager job priorities**: setPreferredJob command. Auto-assign Pass 0 fills preferred villagers first. 14 tests.
 - ✅ **Decoration buildings**: garden (+5 morale), fountain (+5 morale + fire prevention), statue (+10 morale). Proximity-based, same type doesn't stack. 21 tests.
 - ✅ **Outpost building**: remote mini-storehouse (buffer 100, cap +25). Any terrain. Enables distributed resource extraction. 19 tests.
+- ✅ **Construction points**: prosperity-gated building count. 20 initial + 2/immigrant + milestone bonuses. Rubble exempt. 26 tests.
 - ✅ 100-day stress test: player AI grows to 14 pop, 9 techs, prosperity 85, all clothed, 0 errors
 
 ### GAPS — What Bellwright has that this sim doesn't:
@@ -69,19 +70,18 @@
 2. **No player-directed supply routes.** Outposts exist but no dedicated caravan/hauler system for long-distance transport between outposts and main storehouse.
 
 **Priority 2 — Economy polish:**
-3. **No construction points.** Bellwright gates building count via prosperity-earned construction points.
-4. **No population happiness events.** Bellwright has festivals, feasts, and morale events beyond random encounters.
+3. **No population happiness events.** Bellwright has festivals, feasts, and morale events beyond random encounters.
 
 ### Honest priority order for closing gaps:
 1. Supply routes (player-directed caravans between outpost ↔ storehouse)
-2. Construction points (prosperity-gated building count)
+2. Population happiness events (festivals, feasts)
 3. Multi-settlement basics (NPC villages on the map, liberation)
 4. Village liberation loop
 
 ## Active Files
-- `src/world.ts` — data types (~1060 lines)
+- `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
-- `src/tests/test-v2-*.ts` — 38 test files, 602 tests total
+- `src/tests/test-v2-*.ts` — 39 test files, 628 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
@@ -116,3 +116,4 @@
 - Wildlife: hostile animals (wolves, boars) gated behind day 10 or having guards. Non-combat villagers flee within 3 tiles. Self-defense: guard 4, hunter 3, worker 2.
 - Guard formations: GuardMode (charge/hold/patrol) controls detect range and pursuit behavior. GuardLine (front/back) controls engagement distance. Back-line bow guards shoot at range, don't close. Hold guards stay put, only fight adjacent. Charge guards pursue at any distance.
 - Auto-assign: breadth-first (1 per building first, then fill to max capacity). Haul threshold: only idle-haul when buffer >= CARRY_CAPACITY. Processing workers don't go idle when inputs unavailable (prevents job corruption).
+- Construction points: 20 initial, 1 per building (rubble free), +2 per immigrant, milestones at prosperity 50/65/80/90 grant 5/5/10/10 points. Total possible: 20 + immigrants*2 + 30 from milestones.

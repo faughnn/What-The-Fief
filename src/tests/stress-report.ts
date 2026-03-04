@@ -604,6 +604,7 @@ console.log(`  Final resources: wood=${state.resources.wood} stone=${state.resou
 console.log(`  Bandit camps: ${state.banditCamps.length} active${state.banditCamps.length > 0 ? ' at ' + state.banditCamps.map(c => `(${c.x},${c.y}) HP:${c.hp}/${c.maxHp}`).join(', ') : ''}`);
 console.log(`  Research completed: ${state.research.completed.length > 0 ? state.research.completed.join(', ') : 'none'}`);
 console.log(`  Research in progress: ${state.research.current || 'none'} (${state.research.progress}/${state.research.current ? 'active' : '-'})`);
+console.log(`  Construction points remaining: ${state.constructionPoints} (milestones: ${state.constructionPointsMilestones.join(', ') || 'none'})`);
 console.log(`  Buildings standing: ${state.buildings.filter(b => b.type !== 'rubble').length}`);
 console.log(`  Rubble piles: ${state.buildings.filter(b => b.type === 'rubble').length}`);
 console.log(`  Errors: ${errorLines.length}`);

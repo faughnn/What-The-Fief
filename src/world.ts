@@ -197,6 +197,18 @@ export const STOREHOUSE_BONUS = 50;
 export const TICKS_PER_DAY = 120;
 export const NIGHT_TICKS = 30;       // ticks 0-29 = night, 30-119 = day
 export const CARRY_CAPACITY = 5;
+// --- Construction Points ---
+export const INITIAL_CONSTRUCTION_POINTS = 20;
+export const CONSTRUCTION_POINT_MILESTONES: { prosperity: number; points: number }[] = [
+  { prosperity: 50, points: 5 },
+  { prosperity: 65, points: 5 },
+  { prosperity: 80, points: 10 },
+  { prosperity: 90, points: 10 },
+];
+export const CONSTRUCTION_POINT_PER_IMMIGRANT = 2;
+// Buildings that don't cost construction points
+export const FREE_CONSTRUCTION: BuildingType[] = ['rubble'];
+
 export const DEFAULT_BUFFER_CAP = 20;
 export const STOREHOUSE_BUFFER_CAP = 2000;
 export const OUTPOST_BUFFER_CAP = 100;
@@ -914,6 +926,9 @@ export interface GameState {
   banditCamps: BanditCamp[];
   nextCampId: number;
   lastCampSpawnDay: number;
+  // Construction points — gating building count
+  constructionPoints: number; // available points to spend
+  constructionPointsMilestones: number[]; // prosperity thresholds already claimed
 }
 
 export interface NpcSettlement {
@@ -1090,5 +1105,7 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     renown: 0, events: [], completedQuests: [], banditUltimatum: null, graveyard: [],
     npcSettlements: [], caravans: [],
     banditCamps: [], nextCampId: 1, lastCampSpawnDay: -999,
+    constructionPoints: INITIAL_CONSTRUCTION_POINTS,
+    constructionPointsMilestones: [],
   };
 }

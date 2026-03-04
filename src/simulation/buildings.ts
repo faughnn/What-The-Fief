@@ -4,6 +4,7 @@ import {
   GameState, BuildingType, Building, Resources, ResourceType, Tile,
   BUILDING_TEMPLATES, BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP, OUTPOST_BUFFER_CAP,
+  FREE_CONSTRUCTION,
 } from '../world.js';
 import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance, isStorehouse } from './helpers.js';
 import { findPath } from './movement.js';
@@ -98,6 +99,12 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
     }
   }
 
+  // Construction points check
+  if (!FREE_CONSTRUCTION.includes(type) && state.constructionPoints <= 0) {
+    console.log(`ERROR: No construction points remaining (need prosperity milestones)`);
+    return state;
+  }
+
   const archBonus = hasTech(state.research, 'architecture') ? 1.5 : 1.0;
   const siegeBonus = hasTech(state.research, 'siege_engineering') && (type === 'wall' || type === 'gate') ? 1.5 : 1.0;
   const maxHp = Math.floor((BUILDING_MAX_HP[type] || 50) * archBonus * siegeBonus);
@@ -123,11 +130,13 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
     row.map((tile, gx) => (gx >= x && gx < x + bw && gy >= y && gy < y + bh) ? { ...tile, building } : tile)
   );
 
+  const pointCost = FREE_CONSTRUCTION.includes(type) ? 0 : 1;
   return {
     ...state, grid: newGrid, resources: newResources,
     buildings: [...newBuildings0, building],
     nextBuildingId: state.nextBuildingId + 1,
     storageCap: computeStorageCap([...newBuildings0, building]),
+    constructionPoints: state.constructionPoints - pointCost,
   };
 }
 
