@@ -77,7 +77,9 @@ export type BuildingType =
   // Weapon/armor production
   | 'weaponsmith' | 'fletcher'
   // Decoration / morale buildings
-  | 'garden' | 'fountain' | 'statue';
+  | 'garden' | 'fountain' | 'statue'
+  // Outpost
+  | 'outpost';
 
 export interface Building {
   id: string;
@@ -197,6 +199,7 @@ export const NIGHT_TICKS = 30;       // ticks 0-29 = night, 30-119 = day
 export const CARRY_CAPACITY = 5;
 export const DEFAULT_BUFFER_CAP = 20;
 export const STOREHOUSE_BUFFER_CAP = 2000;
+export const OUTPOST_BUFFER_CAP = 100;
 export const HOME_DEPARTURE_TICK = 95; // villagers start heading home at this tick-in-day
 
 // --- Spoilage rates (fraction lost per tick) ---
@@ -487,6 +490,12 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     type: 'statue', width: 1, height: 1, allowedTerrain: ['grass'],
     cost: { stone: 15, gold: 5 }, description: 'Statue — strong morale boost to nearby homes',
     maxWorkers: 0, production: null, mapChar: '!',
+  },
+  // --- Outpost ---
+  outpost: {
+    type: 'outpost', width: 1, height: 1, allowedTerrain: ['grass', 'forest', 'stone'],
+    cost: { wood: 10, stone: 5 }, description: 'Remote supply point — acts as mini-storehouse',
+    maxWorkers: 0, production: null, mapChar: 'O',
   },
 };
 

@@ -111,6 +111,7 @@ export function computeStorageCap(buildings: Building[]): number {
   for (const b of buildings) {
     if (b.type === 'storehouse') cap += STOREHOUSE_BONUS;
     if (b.type === 'large_storehouse') cap += STOREHOUSE_BONUS * 2;
+    if (b.type === 'outpost') cap += Math.floor(STOREHOUSE_BONUS / 2);
   }
   return cap;
 }
@@ -279,7 +280,7 @@ export function revealArea(fog: boolean[][], width: number, height: number, cx: 
 }
 
 export function isStorehouse(type: BuildingType): boolean {
-  return type === 'storehouse' || type === 'large_storehouse';
+  return type === 'storehouse' || type === 'large_storehouse' || type === 'outpost';
 }
 
 export function findStorehouseAt(buildings: Building[], x: number, y: number): Building | null {
