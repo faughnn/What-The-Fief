@@ -623,9 +623,9 @@ export interface BanditCamp {
 
 export const CAMP_BASE_HP = 30;
 export const CAMP_HP_PER_LEVEL = 10;
-export const CAMP_RAID_INTERVAL = 15;  // days between raids from a camp
-export const CAMP_SPAWN_DAY = 15;      // first camp appears after day 15
-export const CAMP_SPAWN_INTERVAL = 25; // new camp every 25 days
+export const CAMP_RAID_INTERVAL = 25;  // days between raids from a camp
+export const CAMP_SPAWN_DAY = 25;      // first camp appears after day 25
+export const CAMP_SPAWN_INTERVAL = 30; // new camp every 30 days
 export const CAMP_MAX_COUNT = 3;       // max camps on map
 export const CAMP_CLEAR_GOLD = 30;     // gold reward for clearing a camp
 export const CAMP_CLEAR_RENOWN = 10;   // renown reward for clearing

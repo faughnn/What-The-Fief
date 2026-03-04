@@ -152,8 +152,8 @@ function playerAI(state: GameState): GameState {
   if (day >= 5 && countBuildings(state, 'tanner') === 0) {
     state = tryBuild(state, 'tanner', 17, 13);
   }
-  // Second woodcutter — only when pop can afford the extra worker slot
-  if (day >= 15 && countBuildings(state, 'woodcutter') < 2 && pop >= 12) {
+  // Second woodcutter — build when wood is consistently low
+  if (day >= 10 && countBuildings(state, 'woodcutter') < 2 && pop >= 6 && state.resources.wood < 10) {
     state = tryBuild(state, 'woodcutter', 14, 17);
   }
   // Sawmill — PRIORITY, needed for planks (upgrades, windmill, etc.)
@@ -180,31 +180,29 @@ function playerAI(state: GameState): GameState {
   if (day >= 10 && countBuildings(state, 'well') === 0) {
     state = tryBuild(state, 'well', centerX, centerY + 2);
   }
-  // Watchtower
-  if (day >= 18 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower')) {
+  // Watchtower — high priority once we have guards
+  if (day >= 12 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower')) {
     state = tryBuild(state, 'watchtower', 13, 13);
   }
   // Weapon production chain: hemp_field → ropemaker → fletcher (bows for guards)
-  // Only when population can afford the extra workers (3 workers needed)
-  if (day >= 20 && pop >= 12 && countBuildings(state, 'hemp_field') === 0) {
+  if (day >= 15 && pop >= 8 && countBuildings(state, 'hemp_field') === 0) {
     state = tryBuild(state, 'hemp_field', 14, 16);
   }
-  if (day >= 22 && pop >= 12 && countBuildings(state, 'ropemaker') === 0 && countConstructed(state, 'hemp_field') > 0) {
+  if (day >= 17 && pop >= 8 && countBuildings(state, 'ropemaker') === 0 && countConstructed(state, 'hemp_field') > 0) {
     state = tryBuild(state, 'ropemaker', 16, 13);
   }
-  if (day >= 25 && pop >= 12 && countBuildings(state, 'fletcher') === 0 && countConstructed(state, 'ropemaker') > 0) {
+  if (day >= 20 && pop >= 8 && countBuildings(state, 'fletcher') === 0 && countConstructed(state, 'ropemaker') > 0) {
     state = tryBuild(state, 'fletcher', 17, 16);
   }
 
   // --- WORKER ASSIGNMENT: spread workers across buildings ---
-  // Keep 1 idle for construction IF there are unconstructed buildings, otherwise assign all
-  const hasUnconstructed = state.buildings.some(b => !b.constructed && b.type !== 'rubble');
-  const minIdle = hasUnconstructed ? 1 : 0;
-  const assignmentOrder: BuildingType[] = ['farm', 'woodcutter', 'quarry', 'tanner', 'sawmill', 'research_desk', 'mill', 'bakery', 'hemp_field', 'ropemaker', 'fletcher', 'large_farm', 'lumber_mill'];
+  // Idle villagers auto-construct via tryIdleTask, so no need to reserve one.
+  // Priority: food chain first, then economy, then research
+  const assignmentOrder: BuildingType[] = ['farm', 'mill', 'bakery', 'woodcutter', 'quarry', 'tanner', 'sawmill', 'research_desk', 'hemp_field', 'ropemaker', 'fletcher', 'large_farm', 'lumber_mill', 'windmill', 'kitchen'];
   for (const type of assignmentOrder) {
     for (const b of state.buildings.filter(b => b.type === type && b.constructed && b.assignedWorkers.length === 0)) {
       const idle = idleVillagers(state);
-      if (idle.length <= minIdle) break;
+      if (idle.length === 0) break;
       state = assignVillager(state, idle[0], b.id);
     }
   }
@@ -258,14 +256,21 @@ function playerAI(state: GameState): GameState {
     // East wall: x=18, y=13-17
     for (let y = 13; y <= 17; y++) if (!gatePositions.has(`18,${y}`)) perimeterSpots.push({ x: 18, y });
 
-    // Phase 1: Fences (instant-build, cheap wood) for immediate protection
-    for (const spot of perimeterSpots) {
-      if (gatePositions.has(`${spot.x},${spot.y}`)) continue; // Skip gate positions
-      if (spot.y >= state.height || spot.x >= state.width) continue;
-      const tile = state.grid[spot.y][spot.x];
-      if (tile.terrain !== 'grass' || tile.building || !state.territory[spot.y][spot.x]) continue;
-      if (!canAfford(state, 'fence')) continue;
-      state = placeBuilding(state, 'fence', spot.x, spot.y);
+    // Only build fences when we have wood to spare (reserve 15 for watchtower + other needs)
+    const canBuildFences = state.resources.wood >= 15 || countConstructed(state, 'watchtower') > 0;
+    if (canBuildFences) {
+      // Build max 3 fences per day to avoid wood starvation
+      let fencesBuilt = 0;
+      for (const spot of perimeterSpots) {
+        if (fencesBuilt >= 3) break;
+        if (gatePositions.has(`${spot.x},${spot.y}`)) continue;
+        if (spot.y >= state.height || spot.x >= state.width) continue;
+        const tile = state.grid[spot.y][spot.x];
+        if (tile.terrain !== 'grass' || tile.building || !state.territory[spot.y][spot.x]) continue;
+        if (!canAfford(state, 'fence')) continue;
+        state = placeBuilding(state, 'fence', spot.x, spot.y);
+        fencesBuilt++;
+      }
     }
 
     // Place gates at designated positions
@@ -280,10 +285,14 @@ function playerAI(state: GameState): GameState {
       }
     }
 
-    // Guards: always maintain 2 guards once pop >= 5 (need 2 for even level 1 raid with 2 bandits)
-    // At low pop (3-4), maintain 1 guard
+    // Guards: scale with population and raid level
+    // Base: 1 guard at pop 3-4, 2 at pop 5-7, 3 at pop 8+
+    // Add extra guards if raid level is high relative to guard count
     const currentGuards = state.villagers.filter(v => v.role === 'guard').length;
-    const needGuards = pop >= 5 ? 2 : (pop >= 3 ? 1 : 0);
+    let needGuards = pop >= 8 ? 3 : (pop >= 5 ? 2 : (pop >= 3 ? 1 : 0));
+    // Scale up if raid level demands more: level 3+ = at least 3 guards, level 4+ = at least 4
+    if (state.raidLevel >= 4 && pop >= 10) needGuards = Math.max(needGuards, 4);
+    else if (state.raidLevel >= 3 && pop >= 8) needGuards = Math.max(needGuards, 3);
     if (currentGuards < needGuards) {
       // First try idle villagers
       let idle = state.villagers.filter(v => v.role === 'idle' && v.homeBuildingId);
@@ -291,15 +300,13 @@ function playerAI(state: GameState): GameState {
         if (state.villagers.filter(v2 => v2.role === 'guard').length >= needGuards) break;
         state = setGuard(state, v.id);
       }
-      // If still not enough guards and pop >= 4, reassign a non-essential worker
+      // If still not enough guards, reassign non-essential workers
       if (state.villagers.filter(v => v.role === 'guard').length < needGuards && pop >= 4) {
-        const workers = state.villagers.filter(v =>
-          v.role !== 'guard' && v.role !== 'idle' && v.homeBuildingId
-        );
-        // Prefer reassigning from less critical jobs (quarrier, sawyer)
-        const reassignOrder: string[] = ['quarrier', 'woodcutter'];
+        const reassignOrder: string[] = ['quarrier', 'woodcutter', 'sawyer'];
         for (const role of reassignOrder) {
-          const w = workers.find(v => v.role === role);
+          const w = state.villagers.find(v =>
+            v.role === role && v.role !== 'guard' && v.homeBuildingId
+          );
           if (w && state.villagers.filter(v2 => v2.role === 'guard').length < needGuards) {
             state = setGuard(state, w.id);
           }
@@ -326,19 +333,19 @@ function playerAI(state: GameState): GameState {
     }
   }
 
-  // --- ASSAULT BANDIT CAMPS: send 2 guards together to attack weak camps ---
+  // --- ASSAULT BANDIT CAMPS: send guards to attack weak camps ---
   const allGuards = state.villagers.filter(v => v.role === 'guard' && v.hp > 0);
   if (allGuards.length >= 2 && state.enemies.length === 0 && state.banditCamps.length > 0) {
-    const freeGuards = allGuards.filter(v =>
-      v.hp >= v.maxHp && !v.assaultTargetId && !v.jobBuildingId
+    // Include watchtower guards as available for assault (they'll return after)
+    const availableGuards = allGuards.filter(v =>
+      v.hp >= v.maxHp && !v.assaultTargetId
     );
-    // Only assault when 2+ free guards at full HP and camp strength is manageable
     const weakestCamp = [...state.banditCamps].sort((a, b) => a.hp - b.hp)[0];
     const campDmgPerTick = Math.max(1, Math.floor(weakestCamp.strength * 1.5));
-    const guardSurvivalTicks = Math.floor(freeGuards[0]?.maxHp / campDmgPerTick) || 0;
-    if (freeGuards.length >= 2 && guardSurvivalTicks >= 5) {
-      state = assaultCamp(state, freeGuards[0].id, weakestCamp.id);
-      state = assaultCamp(state, freeGuards[1].id, weakestCamp.id);
+    const guardSurvivalTicks = Math.floor(availableGuards[0]?.maxHp / campDmgPerTick) || 0;
+    if (availableGuards.length >= 2 && guardSurvivalTicks >= 5) {
+      state = assaultCamp(state, availableGuards[0].id, weakestCamp.id);
+      state = assaultCamp(state, availableGuards[1].id, weakestCamp.id);
     }
   }
 

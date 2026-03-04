@@ -16,7 +16,12 @@ export function processAnimals(ts: TickState): void {
   const damagedByAnimals = new Set<string>();
   // Animal spawning — periodically add animals to the map
   if (ts.isNewDay && ts.newDay % 3 === 0 && ts.animals.length < 10) {
-    const animalTypes: AnimalType[] = ['deer', 'rabbit', 'wild_wolf', 'wild_boar'];
+    // Hostile animals only spawn after day 10 (gives player time to build defenses)
+    const hasGuards = ts.villagers.some(v => v.role === 'guard');
+    const earlyGame = ts.newDay < 10 && !hasGuards;
+    const animalTypes: AnimalType[] = earlyGame
+      ? ['deer', 'rabbit']
+      : ['deer', 'rabbit', 'wild_wolf', 'wild_boar'];
     const rngAnimal = ((ts.newDay * 48271 + 1) & 0x7fffffff) % animalTypes.length;
     const type = animalTypes[rngAnimal];
     const template = ANIMAL_TEMPLATES[type];
@@ -87,8 +92,8 @@ export function processAnimals(ts: TickState): void {
           // Attack — hostile animal damages villager
           target.hp -= Math.max(1, a.attack);
           damagedByAnimals.add(target.id);
-          // Villager fights back (self-defense) — guards deal more damage
-          const selfDefense = target.role === 'guard' ? 3 : 1;
+          // Villager fights back (self-defense) — guards deal more, workers still resist
+          const selfDefense = target.role === 'guard' ? 4 : target.role === 'hunter' ? 3 : 2;
           a.hp -= selfDefense;
         } else {
           // Move toward target (1 tile/tick)
@@ -109,6 +114,31 @@ export function processAnimals(ts: TickState): void {
         if (ts.grid[ny][nx].terrain !== 'water' && !ts.grid[ny][nx].building) {
           a.x = nx; a.y = ny;
         }
+      }
+    }
+  }
+
+  // Non-combat villagers flee from hostile animals (within 3 tiles)
+  for (const v of ts.villagers) {
+    if (v.role === 'guard' || v.role === 'hunter' || v.hp <= 0) continue;
+    if (v.state === 'sleeping') continue;
+    let nearestThreat: AnimalEntity | null = null;
+    let threatDist = Infinity;
+    for (const a of ts.animals) {
+      if (a.hp <= 0 || a.behavior !== 'hostile') continue;
+      const dist = Math.abs(a.x - v.x) + Math.abs(a.y - v.y);
+      if (dist <= 3 && dist < threatDist) { nearestThreat = a; threatDist = dist; }
+    }
+    if (nearestThreat) {
+      // Flee in opposite direction
+      const dx = v.x - nearestThreat.x;
+      const dy = v.y - nearestThreat.y;
+      const fleeX = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+      const fleeY = fleeX === 0 ? (dy > 0 ? 1 : dy < 0 ? -1 : 0) : 0;
+      const nx = Math.max(0, Math.min(ts.width - 1, v.x + fleeX));
+      const ny = Math.max(0, Math.min(ts.height - 1, v.y + fleeY));
+      if (ts.grid[ny][nx].terrain !== 'water') {
+        v.x = nx; v.y = ny;
       }
     }
   }

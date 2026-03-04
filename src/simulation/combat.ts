@@ -190,7 +190,7 @@ export function processRaidAndCombat(ts: TickState): void {
       let totalRes = 0;
       for (const key of ALL_RESOURCES) totalRes += ts.resources[key];
       const raidProsperity = totalRes / 50 + ts.buildings.length + ts.villagers.length;
-      ts.raidBar += raidProsperity * 0.15;
+      ts.raidBar += raidProsperity * 0.08;
     }
     // Raid level decay — weak colonies don't face escalating raids
     if (ts.isNewDay && ts.raidLevel > 0 && ts.villagers.length <= 3 && ts.enemies.length === 0) {

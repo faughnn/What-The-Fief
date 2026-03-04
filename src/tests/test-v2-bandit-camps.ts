@@ -32,13 +32,14 @@ function setupEstablishedColony(): GameState {
   state = placeBuilding(state, 'storehouse', 3, 10);
   const sh = state.buildings.find(b => b.type === 'storehouse')!;
   sh.constructed = true; sh.hp = sh.maxHp;
-  sh.localBuffer = { food: 100, wood: 50, stone: 50 };
-  state.resources = { ...state.resources, food: 100, wood: 50, stone: 50, gold: 0 };
+  sh.localBuffer = { food: 200, wood: 50, stone: 50 };
+  state.resources = { ...state.resources, food: 200, wood: 50, stone: 50, gold: 0 };
 
-  // Place enough buildings (need >= 8 constructed)
+  // Place enough buildings (need >= 8 constructed, 1 tent per villager)
   const buildingPositions: [string, number, number][] = [
     ['tent', 5, 10], ['tent', 6, 10], ['tent', 7, 10],
     ['tent', 8, 10], ['tent', 9, 10], ['tent', 10, 10],
+    ['tent', 5, 11], ['tent', 6, 11],
     ['farm', 5, 12], ['woodcutter', 8, 12],
   ];
   for (const [type, x, y] of buildingPositions) {
@@ -47,10 +48,14 @@ function setupEstablishedColony(): GameState {
     b.constructed = true; b.hp = b.maxHp;
   }
 
-  // Add villagers (need >= 6)
+  // Add villagers (need >= 6), distribute across tents, high morale to survive 25+ days
+  const tents = state.buildings.filter(b => b.type === 'tent');
   while (state.villagers.length < 8) {
+    const idx = state.villagers.length;
     const v = createVillager(state.nextVillagerId, 5, 11);
-    v.food = 8; v.homeBuildingId = state.buildings[1].id;
+    v.food = 8;
+    v.morale = 80;
+    v.homeBuildingId = tents[idx % tents.length].id;
     state.villagers.push(v);
     state.nextVillagerId++;
   }
@@ -97,9 +102,9 @@ console.log('\n=== Bandit Camp Data ===');
 console.log('\n=== Camp Spawning (established colony) ===');
 {
   let state = setupEstablishedColony();
-  // Advance past CAMP_SPAWN_DAY
-  state = advanceToDayStart(state, CAMP_SPAWN_DAY);
-  // Run one more tick to trigger daily check
+  // Set tick to just before CAMP_SPAWN_DAY so next tick triggers isNewDay
+  // (avoids simulating 25 days of complex hunger/morale mechanics that cause departures)
+  state.tick = CAMP_SPAWN_DAY * TICKS_PER_DAY - 1;
   state = tick(state);
 
   assert(state.banditCamps.length >= 1, `Camp spawned after day ${CAMP_SPAWN_DAY} (found ${state.banditCamps.length})`);
