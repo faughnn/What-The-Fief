@@ -12,7 +12,7 @@ import {
   TickState, getBuildingEntrance, addResource, addToBuffer, bufferTotal,
   hasBufferInputs, consumeBufferInputs, ticksPerUnit, productionMultiplier,
   autoEquipTool, degradeTool, gainSkillXp, hasTech, techProductionBonus,
-  findStorehouseAt, findNearestStorehouse, revealArea, isStorehouse, deductFromBuffer,
+  findStorehouseAt, findNearestStorehouse, findNearestBuilding, revealArea, isStorehouse, deductFromBuffer,
 } from './helpers.js';
 import { moveOneStep, atDestination, planPath, findPath } from './movement.js';
 
@@ -90,19 +90,10 @@ function startPickupInputs(v: Villager, job: Building, buildings: Building[], re
   // Find nearest storehouse that has at least one needed input in its buffer
   const template = BUILDING_TEMPLATES[job.type];
   const inputTypes = template.production?.inputs ? Object.keys(template.production.inputs) : [];
-  let bestSH: Building | null = null;
-  let bestDist = Infinity;
-  for (const b of buildings) {
-    if (!isStorehouse(b.type) || !b.constructed) continue;
-    let hasInput = false;
-    for (const res of inputTypes) {
-      if ((b.localBuffer[res as ResourceType] || 0) > 0) { hasInput = true; break; }
-    }
-    if (!hasInput) continue;
-    const entrance = getBuildingEntrance(b);
-    const dist = Math.abs(entrance.x - v.x) + Math.abs(entrance.y - v.y);
-    if (dist < bestDist) { bestDist = dist; bestSH = b; }
-  }
+  const bestSH = findNearestBuilding(buildings, v.x, v.y, b => {
+    if (!isStorehouse(b.type) || !b.constructed) return false;
+    return inputTypes.some(res => (b.localBuffer[res as ResourceType] || 0) > 0);
+  });
   if (bestSH) {
     planPathToBuilding(v, bestSH, grid, width, height);
     v.state = 'traveling_to_storage';
@@ -117,20 +108,10 @@ function startPickupInputs(v: Villager, job: Building, buildings: Building[], re
 // --- Helper: start traveling to eat (nearest storehouse with food in its buffer) ---
 function startEating(v: Villager, buildings: Building[], resources: Resources, grid: Tile[][], width: number, height: number): boolean {
   // Find nearest storehouse that has food in its local buffer
-  let bestSH: Building | null = null;
-  let bestDist = Infinity;
-  for (const b of buildings) {
-    if (!isStorehouse(b.type) || !b.constructed) continue;
-    // Check if this storehouse has food in its buffer
-    let hasFood = false;
-    for (const { resource } of FOOD_PRIORITY) {
-      if ((b.localBuffer[resource] || 0) > 0) { hasFood = true; break; }
-    }
-    if (!hasFood) continue;
-    const entrance = getBuildingEntrance(b);
-    const dist = Math.abs(entrance.x - v.x) + Math.abs(entrance.y - v.y);
-    if (dist < bestDist) { bestDist = dist; bestSH = b; }
-  }
+  const bestSH = findNearestBuilding(buildings, v.x, v.y, b => {
+    if (!isStorehouse(b.type) || !b.constructed) return false;
+    return FOOD_PRIORITY.some(({ resource }) => (b.localBuffer[resource] || 0) > 0);
+  });
   if (bestSH) {
     planPathToBuilding(v, bestSH, grid, width, height);
     // Already at storehouse or path found

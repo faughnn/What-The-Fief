@@ -298,14 +298,21 @@ export function findStorehouseAt(buildings: Building[], x: number, y: number): B
   return null;
 }
 
-export function findNearestStorehouse(buildings: Building[], grid: Tile[][], width: number, height: number, x: number, y: number): Building | null {
+export function findNearestBuilding(
+  buildings: Building[], x: number, y: number,
+  predicate: (b: Building) => boolean,
+): Building | null {
   let best: Building | null = null;
   let bestDist = Infinity;
   for (const b of buildings) {
-    if (!isStorehouse(b.type)) continue;
+    if (!predicate(b)) continue;
     const entrance = getBuildingEntrance(b);
     const dist = Math.abs(entrance.x - x) + Math.abs(entrance.y - y);
     if (dist < bestDist) { bestDist = dist; best = b; }
   }
   return best;
+}
+
+export function findNearestStorehouse(buildings: Building[], grid: Tile[][], width: number, height: number, x: number, y: number): Building | null {
+  return findNearestBuilding(buildings, x, y, b => isStorehouse(b.type));
 }
