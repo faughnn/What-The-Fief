@@ -1,8 +1,8 @@
 // daily.ts — Day-start checks, season/weather, merchant, prosperity, events/quests
 
 import {
-  Villager, Building, Resources, ResourceType,
-  createVillager, SPOILAGE, FOOD_PRIORITY,
+  Villager, Building, Resources, ResourceType, BuildingType,
+  createVillager, SPOILAGE, FOOD_PRIORITY, BUILDING_TEMPLATES,
   Season, WeatherType, SEASON_NAMES,
   SEASON_MORALE, WEATHER_MORALE, HOUSING_INFO,
   FoodEaten, TICKS_PER_DAY, ALL_RESOURCES,
@@ -12,6 +12,7 @@ import {
 import {
   TickState, findHome, autoEquipTool, autoEquipWeapon, getBuildingEntrance,
   addResource, addToBuffer, findNearestStorehouse, revealArea, hasTech, isStorehouse,
+  roleForBuilding,
 } from './helpers.js';
 import { findPath, planPath } from './movement.js';
 
@@ -196,6 +197,30 @@ export function processDailyChecks(ts: TickState): void {
     }
   }
   ts.villagers = ts.villagers.filter(v => v.food > 0 && v.homeless < 5 && v.morale > 10);
+
+  // Auto-assign idle villagers to understaffed buildings (Bellwright-style auto-fill)
+  // Priority: food chain first, then resources, then other production
+  const autoAssignOrder: BuildingType[] = [
+    'farm', 'large_farm', 'mill', 'windmill', 'bakery', 'kitchen',
+    'woodcutter', 'lumber_mill', 'quarry', 'deep_quarry',
+    'tanner', 'sawmill', 'smelter', 'advanced_smelter',
+    'research_desk', 'hemp_field', 'ropemaker', 'fletcher', 'weaponsmith',
+    'foraging_hut', 'chicken_coop', 'livestock_barn', 'apiary',
+  ];
+  for (const type of autoAssignOrder) {
+    for (const b of ts.buildings) {
+      if (b.type !== type || !b.constructed || b.type === 'rubble') continue;
+      const maxW = BUILDING_TEMPLATES[type].maxWorkers;
+      if (maxW === 0 || b.assignedWorkers.length > 0) continue; // Only fill completely empty buildings
+      // Find an idle villager to assign
+      const idle = ts.villagers.find(v => v.role === 'idle' && v.hp > 0);
+      if (!idle) break; // No idle villagers left
+      idle.role = roleForBuilding(type);
+      idle.jobBuildingId = b.id;
+      idle.state = 'idle'; // Will transition to traveling_to_work next tick
+      b.assignedWorkers.push(idle.id);
+    }
+  }
 
   // Hunger decay — AFTER departure check so villagers get one more dawn to eat.
   // Departure uses yesterday's food level. Decay applies for today. Eating at dawn (tick 30) restores food.
