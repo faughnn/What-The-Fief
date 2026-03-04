@@ -199,26 +199,50 @@ export function processDailyChecks(ts: TickState): void {
   ts.villagers = ts.villagers.filter(v => v.food > 0 && v.homeless < 5 && v.morale > 10);
 
   // Auto-assign idle villagers to understaffed buildings (Bellwright-style auto-fill)
-  // Priority: food chain first, then resources, then other production
+  // Two-pass approach: breadth-first (1 worker per building), then depth (fill to max)
+  // This ensures diverse staffing before any building gets extra workers.
+  // Reserve at least 1 idle villager for construction if there are unconstructed buildings
+  const unconstructedSites = ts.buildings.filter(b => !b.constructed && b.type !== 'rubble').length;
+  const minIdleReserve = unconstructedSites > 0 ? 1 : 0;
   const autoAssignOrder: BuildingType[] = [
-    'farm', 'large_farm', 'mill', 'windmill', 'bakery', 'kitchen',
+    'farm', 'large_farm', 'bakery', 'kitchen', 'mill', 'windmill',
     'woodcutter', 'lumber_mill', 'quarry', 'deep_quarry',
     'tanner', 'sawmill', 'smelter', 'advanced_smelter',
     'research_desk', 'hemp_field', 'ropemaker', 'fletcher', 'weaponsmith',
     'foraging_hut', 'chicken_coop', 'livestock_barn', 'apiary',
   ];
+
+  const assignOneIdle = (b: Building, type: BuildingType): boolean => {
+    const idleCount = ts.villagers.filter(v => v.role === 'idle' && v.hp > 0).length;
+    if (idleCount <= minIdleReserve) return false;
+    const idle = ts.villagers.find(v => v.role === 'idle' && v.hp > 0);
+    if (!idle) return false;
+    idle.role = roleForBuilding(type);
+    idle.jobBuildingId = b.id;
+    idle.state = 'idle';
+    b.assignedWorkers.push(idle.id);
+    return true;
+  };
+
+  // Pass 1: Ensure every building has at least 1 worker (breadth-first)
   for (const type of autoAssignOrder) {
     for (const b of ts.buildings) {
       if (b.type !== type || !b.constructed || b.type === 'rubble') continue;
       const maxW = BUILDING_TEMPLATES[type].maxWorkers;
-      if (maxW === 0 || b.assignedWorkers.length > 0) continue; // Only fill completely empty buildings
-      // Find an idle villager to assign
-      const idle = ts.villagers.find(v => v.role === 'idle' && v.hp > 0);
-      if (!idle) break; // No idle villagers left
-      idle.role = roleForBuilding(type);
-      idle.jobBuildingId = b.id;
-      idle.state = 'idle'; // Will transition to traveling_to_work next tick
-      b.assignedWorkers.push(idle.id);
+      if (maxW === 0 || b.assignedWorkers.length > 0) continue;
+      if (!assignOneIdle(b, type)) break;
+    }
+  }
+
+  // Pass 2: Fill buildings to max capacity (depth)
+  for (const type of autoAssignOrder) {
+    for (const b of ts.buildings) {
+      if (b.type !== type || !b.constructed || b.type === 'rubble') continue;
+      const maxW = BUILDING_TEMPLATES[type].maxWorkers;
+      if (maxW === 0 || b.assignedWorkers.length >= maxW) continue;
+      while (b.assignedWorkers.length < maxW) {
+        if (!assignOneIdle(b, type)) break;
+      }
     }
   }
 
@@ -265,6 +289,7 @@ export function processDailyChecks(ts: TickState): void {
       planPath(newV, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
       newV.state = 'traveling_home';
       ts.villagers.push(newV);
+      ts.nextVillagerId++;
       ts.renown -= renownCost;
       ts.events.push(`A new settler, ${newV.name}, arrives!`);
     }

@@ -109,8 +109,9 @@ function startPickupInputs(v: Villager, job: Building, buildings: Building[], re
     v.state = 'traveling_to_storage';
     v.haulingToWork = true;
   } else {
-    // No storehouse with inputs — stay idle
-    v.state = 'idle';
+    // No storehouse with inputs — reset progress and keep working
+    // Don't go idle: that would let tryIdleTask hijack this worker's jobBuildingId
+    v.workProgress = 0;
   }
 }
 
@@ -199,13 +200,14 @@ function startGoingHome(v: Villager, buildings: Building[], grid: Tile[][], widt
 // 4. Repair damaged buildings
 // Returns true if a task was found.
 function tryIdleTask(v: Villager, ts: TickState): boolean {
-  // Priority 1: Haul from any building with resources in its buffer
+  // Priority 1: Haul from buildings with full buffers (>= CARRY_CAPACITY)
+  // Only haul meaningful amounts — don't constantly distract from construction
   let bestHaul: Building | null = null;
   let bestHaulAmt = 0;
   for (const b of ts.buildings) {
     if (!b.constructed || isStorehouse(b.type) || b.type === 'rubble') continue;
     const total = bufferTotal(b.localBuffer);
-    if (total > 0 && total > bestHaulAmt) {
+    if (total >= CARRY_CAPACITY && total > bestHaulAmt) {
       bestHaul = b;
       bestHaulAmt = total;
     }

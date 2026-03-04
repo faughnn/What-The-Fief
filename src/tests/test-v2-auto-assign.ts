@@ -118,7 +118,9 @@ console.log('\n=== Auto-Assign: Priority Order — Farm Before Woodcutter ===');
 
 console.log('\n=== Auto-Assign: Does Not Reassign Non-Idle Villagers ===');
 {
-  let state = setupColony(2);
+  // With 3 villagers: v1 manually assigned to farm, auto-assign fills farm to capacity (2),
+  // then v3 goes to woodcutter
+  let state = setupColony(3);
   state = placeBuilding(state, 'farm', 8, 8);
   state = placeBuilding(state, 'woodcutter', 12, 8);
   const farmId = state.buildings.find(b => b.type === 'farm')!.id;
@@ -133,9 +135,11 @@ console.log('\n=== Auto-Assign: Does Not Reassign Non-Idle Villagers ===');
   for (let i = 0; i < TICKS_PER_DAY; i++) state = tick(state);
 
   const v1 = state.villagers.find(v => v.id === 'v1')!;
+  const farm = state.buildings.find(b => b.id === farmId)!;
   const wc = state.buildings.find(b => b.id === wcId)!;
   assert(v1.role === 'farmer', `v1 stays farmer (role: ${v1.role})`);
-  assert(wc.assignedWorkers.length >= 1, `Woodcutter filled by idle v2 (${wc.assignedWorkers.length})`);
+  assert(farm.assignedWorkers.length === 2, `Farm filled to capacity (${farm.assignedWorkers.length})`);
+  assert(wc.assignedWorkers.length >= 1, `Woodcutter filled by remaining idle (${wc.assignedWorkers.length})`);
 }
 
 console.log('\n=== Auto-Assign: Respects Max Workers ===');
@@ -206,6 +210,74 @@ console.log('\n=== Auto-Assign: Refills After Worker Death ===');
   const farm = state.buildings.find(b => b.id === farmId)!;
   const liveWorkers = farm.assignedWorkers.filter(id => state.villagers.some(v => v.id === id));
   assert(liveWorkers.length >= 1, `Farm refilled after death (${liveWorkers.length} workers)`);
+}
+
+console.log('\n=== Auto-Assign: Reserves Idle Worker For Construction ===');
+{
+  let state = setupColony(2);
+  state = placeBuilding(state, 'farm', 8, 8);
+  const farmId = state.buildings.find(b => b.type === 'farm')!.id;
+  state.buildings.find(b => b.id === farmId)!.constructed = true;
+  state.buildings.find(b => b.id === farmId)!.hp = state.buildings.find(b => b.id === farmId)!.maxHp;
+
+  // Also place an unconstructed woodcutter (construction site)
+  state = placeBuilding(state, 'woodcutter', 12, 8);
+  const wcId = state.buildings.find(b => b.type === 'woodcutter')!.id;
+  // Don't set constructed — this is a construction site
+
+  // Skip to day start to trigger auto-assign
+  state.tick = TICKS_PER_DAY - 1;
+  state = tick(state);
+
+  const farm = state.buildings.find(b => b.id === farmId)!;
+  const idleAfter = state.villagers.filter(v => v.role === 'idle').length;
+  assert(farm.assignedWorkers.length === 1, `Farm got 1 worker (${farm.assignedWorkers.length})`);
+  assert(idleAfter >= 1, `At least 1 idle reserved for construction (${idleAfter})`);
+}
+
+console.log('\n=== Auto-Assign: Breadth-First — 1 Worker Per Building Before Filling ===');
+{
+  // With 3 villagers, 1 farm (max 2 workers) + 1 woodcutter (max 1):
+  // Pass 1: farm gets 1, woodcutter gets 1
+  // Pass 2: farm gets 2nd worker
+  let state = setupColony(3);
+  state = placeBuilding(state, 'farm', 8, 8);
+  state = placeBuilding(state, 'woodcutter', 12, 8);
+  const farmId = state.buildings.find(b => b.type === 'farm')!.id;
+  const wcId = state.buildings.find(b => b.type === 'woodcutter')!.id;
+  state.buildings.find(b => b.id === farmId)!.constructed = true;
+  state.buildings.find(b => b.id === farmId)!.hp = state.buildings.find(b => b.id === farmId)!.maxHp;
+  state.buildings.find(b => b.id === wcId)!.constructed = true;
+  state.buildings.find(b => b.id === wcId)!.hp = state.buildings.find(b => b.id === wcId)!.maxHp;
+
+  for (let i = 0; i < TICKS_PER_DAY; i++) state = tick(state);
+
+  const farm = state.buildings.find(b => b.id === farmId)!;
+  const wc = state.buildings.find(b => b.id === wcId)!;
+  assert(farm.assignedWorkers.length === 2, `Farm filled to max (${farm.assignedWorkers.length})`);
+  assert(wc.assignedWorkers.length === 1, `Woodcutter got 1 worker via breadth-first (${wc.assignedWorkers.length})`);
+}
+
+console.log('\n=== Auto-Assign: Breadth-First — Tanner Gets Worker Before 2nd Farm Slot ===');
+{
+  // 3 villagers, 1 farm (max 2) + 1 tanner (max 1):
+  // Pass 1: farm(1), tanner(1). Pass 2: farm(2). All 3 assigned.
+  let state = setupColony(3);
+  state = placeBuilding(state, 'farm', 8, 8);
+  state = placeBuilding(state, 'tanner', 12, 8);
+  const farmId = state.buildings.find(b => b.type === 'farm')!.id;
+  const tannerId = state.buildings.find(b => b.type === 'tanner')!.id;
+  state.buildings.find(b => b.id === farmId)!.constructed = true;
+  state.buildings.find(b => b.id === farmId)!.hp = state.buildings.find(b => b.id === farmId)!.maxHp;
+  state.buildings.find(b => b.id === tannerId)!.constructed = true;
+  state.buildings.find(b => b.id === tannerId)!.hp = state.buildings.find(b => b.id === tannerId)!.maxHp;
+
+  for (let i = 0; i < TICKS_PER_DAY; i++) state = tick(state);
+
+  const farm = state.buildings.find(b => b.id === farmId)!;
+  const tanner = state.buildings.find(b => b.id === tannerId)!;
+  assert(farm.assignedWorkers.length === 2, `Farm filled to max (${farm.assignedWorkers.length})`);
+  assert(tanner.assignedWorkers.length === 1, `Tanner got worker via breadth-first (${tanner.assignedWorkers.length})`);
 }
 
 // ========================

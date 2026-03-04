@@ -41,9 +41,9 @@ function totalFood(state: GameState): number {
 
 // Reserved tiles — keep clear for roads and perimeter defense
 function isReservedTile(state: GameState, cx: number, cy: number): boolean {
-  // Perimeter zone: (12,12)-(18,18) edges reserved for walls/fences
-  if (cy === 12 || cy === 18) { if (cx >= 12 && cx <= 18) return true; }
-  if (cx === 12 || cx === 18) { if (cy >= 12 && cy <= 18) return true; }
+  // Compact perimeter zone: (13,13)-(17,17) edges reserved for walls/fences
+  if (cy === 13 || cy === 17) { if (cx >= 13 && cx <= 17) return true; }
+  if (cx === 13 || cx === 17) { if (cy >= 13 && cy <= 17) return true; }
   // Road corridors to storehouse
   for (const b of state.buildings) {
     if (b.type !== 'storehouse' && b.type !== 'large_storehouse') continue;
@@ -138,7 +138,7 @@ function playerAI(state: GameState): GameState {
   if (farmCount < 2 && pop >= 3 && day >= 3) {
     state = tryBuild(state, 'farm', 13, 14);
   }
-  if (farmCount < 3 && pop >= 6) {
+  if (farmCount < 3 && pop >= 8) {
     state = tryBuild(state, 'farm', 13, 16);
   }
   // Resources (placed inside perimeter)
@@ -164,102 +164,62 @@ function playerAI(state: GameState): GameState {
   if (day >= 9 && countBuildings(state, 'research_desk') === 0 && canAfford(state, 'research_desk')) {
     state = tryBuild(state, 'research_desk', 14, 14);
   }
-  // Mill (wheat→flour) — build before fencing
+  // Mill (wheat→flour) — start food quality chain early
   if (day >= 10 && countBuildings(state, 'mill') === 0 && state.resources.wheat > 15) {
     state = tryBuild(state, 'mill', 16, 14);
-  }
-  // Tavern for morale — lower priority than economy buildings
-  if (day >= 15 && countBuildings(state, 'tavern') === 0) {
-    state = tryBuild(state, 'tavern', 14, 13);
-  }
-  // Bakery (flour→bread) once mill is constructed
-  if (day >= 15 && countBuildings(state, 'bakery') === 0 && countConstructed(state, 'mill') > 0) {
-    state = tryBuild(state, 'bakery', 16, 16);
   }
   // Well
   if (day >= 10 && countBuildings(state, 'well') === 0) {
     state = tryBuild(state, 'well', centerX, centerY + 2);
   }
-  // Watchtower — high priority once we have guards
-  if (day >= 12 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower')) {
+  // Tavern for morale — build early to prevent departures
+  if (day >= 10 && countBuildings(state, 'tavern') === 0) {
+    state = tryBuild(state, 'tavern', 14, 13);
+  }
+  // Bakery (flour→bread) — bread gives +10 morale. HIGH PRIORITY after mill.
+  if (day >= 12 && countBuildings(state, 'bakery') === 0 && countBuildings(state, 'mill') > 0) {
+    state = tryBuild(state, 'bakery', 17, 15);
+  }
+  // Watchtower — build once we can afford it (wood:15 stone:10)
+  if (day >= 15 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower')) {
     state = tryBuild(state, 'watchtower', 13, 13);
   }
   // Weapon production chain: hemp_field → ropemaker → fletcher (bows for guards)
-  if (day >= 15 && pop >= 8 && countBuildings(state, 'hemp_field') === 0) {
+  if (day >= 18 && countBuildings(state, 'hemp_field') === 0) {
     state = tryBuild(state, 'hemp_field', 14, 16);
   }
-  if (day >= 17 && pop >= 8 && countBuildings(state, 'ropemaker') === 0 && countConstructed(state, 'hemp_field') > 0) {
-    state = tryBuild(state, 'ropemaker', 16, 13);
+  if (day >= 22 && countBuildings(state, 'ropemaker') === 0 && countBuildings(state, 'hemp_field') > 0) {
+    state = tryBuild(state, 'ropemaker', 13, 17);
   }
-  if (day >= 20 && pop >= 8 && countBuildings(state, 'fletcher') === 0 && countConstructed(state, 'ropemaker') > 0) {
-    state = tryBuild(state, 'fletcher', 17, 16);
+  if (day >= 25 && countBuildings(state, 'fletcher') === 0 && countBuildings(state, 'ropemaker') > 0) {
+    state = tryBuild(state, 'fletcher', 13, 14);
   }
-
-  // --- WORKER ASSIGNMENT: spread workers across buildings ---
-  // Idle villagers auto-construct via tryIdleTask, so no need to reserve one.
-  // Priority: food chain first, then economy, then research
-  const assignmentOrder: BuildingType[] = ['farm', 'mill', 'bakery', 'woodcutter', 'quarry', 'tanner', 'sawmill', 'research_desk', 'hemp_field', 'ropemaker', 'fletcher', 'large_farm', 'lumber_mill', 'windmill', 'kitchen'];
-  for (const type of assignmentOrder) {
-    for (const b of state.buildings.filter(b => b.type === type && b.constructed && b.assignedWorkers.length === 0)) {
-      const idle = idleVillagers(state);
-      if (idle.length === 0) break;
-      state = assignVillager(state, idle[0], b.id);
-    }
-  }
-  // Second pass: fill farms to 2 workers only when pop is very high (>= 14)
-  if (pop >= 14) {
-    for (const farm of state.buildings.filter(b => (b.type === 'farm' || b.type === 'large_farm') && b.constructed && b.assignedWorkers.length < BUILDING_TEMPLATES[b.type].maxWorkers)) {
-      const idle = idleVillagers(state);
-      if (idle.length <= 2) break;
-      state = assignVillager(state, idle[0], farm.id);
-    }
+  // Church for morale (+10 to nearby villagers)
+  if (day >= 30 && countBuildings(state, 'church') === 0 && canAfford(state, 'church')) {
+    state = tryBuild(state, 'church', 14, 15);
   }
 
-  // Emergency food response: if storehouse food+wheat is low, reassign non-essential workers to farms
-  const storehouseFoodCheck = state.buildings.find(b => (b.type === 'storehouse' || b.type === 'large_storehouse') && b.constructed);
-  const shFood = storehouseFoodCheck ? (storehouseFoodCheck.localBuffer.food || 0) + (storehouseFoodCheck.localBuffer.wheat || 0) + (storehouseFoodCheck.localBuffer.bread || 0) : 0;
-  if (shFood < pop * 5) {
-    // Reassign quarry/woodcutter workers to unstaffed farms
-    const unstaffedFarms = state.buildings.filter(b => b.type === 'farm' && b.constructed && b.assignedWorkers.length === 0);
-    const nonEssentialTypes = ['quarry', 'woodcutter'];
-    for (const farm of unstaffedFarms) {
-      for (const nt of nonEssentialTypes) {
-        const building = state.buildings.find(b => b.type === nt && b.constructed && b.assignedWorkers.length > 0);
-        if (building) {
-          const workerId = building.assignedWorkers[0];
-          // Unassign from current job
-          const worker = state.villagers.find(v => v.id === workerId);
-          if (worker) {
-            worker.jobBuildingId = null;
-            worker.role = 'idle' as any;
-            worker.state = 'idle';
-            building.assignedWorkers = building.assignedWorkers.filter(w => w !== workerId);
-            state = assignVillager(state, workerId, farm.id);
-            break;
-          }
-        }
-      }
-    }
-  }
+  // Worker assignment handled by daily auto-assign in processDailyChecks (has construction reserve).
+  // Player AI only does guard assignment and building placement — not worker assignment.
 
   // --- DEFENSE: fence perimeter once economy is established ---
-  if (day >= 15 && pop >= 5) {
-    const gatePositions = new Set(['12,15', '18,15', '15,12', '15,18']);
+  // Only build defenses when raids are imminent (raidBar > 60) or have already started
+  const raidThreatening = state.raidBar > 60 || state.raidLevel > 0;
+  if (raidThreatening && pop >= 5) {
+    // Compact perimeter: 5x5 instead of 7x7 (less wood, faster construction)
+    const gatePositions = new Set(['13,15', '17,15', '15,13', '15,17']);
     const perimeterSpots: { x: number; y: number }[] = [];
-    // Build perimeter evenly: alternate sides for balanced coverage
-    // North wall: y=12, x=12-18
-    for (let x = 12; x <= 18; x++) perimeterSpots.push({ x, y: 12 });
-    // South wall: y=18, x=12-18
-    for (let x = 12; x <= 18; x++) perimeterSpots.push({ x, y: 18 });
-    // West wall: x=12, y=13-17
-    for (let y = 13; y <= 17; y++) if (!gatePositions.has(`12,${y}`)) perimeterSpots.push({ x: 12, y });
-    // East wall: x=18, y=13-17
-    for (let y = 13; y <= 17; y++) if (!gatePositions.has(`18,${y}`)) perimeterSpots.push({ x: 18, y });
+    // North wall: y=13, x=13-17
+    for (let x = 13; x <= 17; x++) perimeterSpots.push({ x, y: 13 });
+    // South wall: y=17, x=13-17
+    for (let x = 13; x <= 17; x++) perimeterSpots.push({ x, y: 17 });
+    // West wall: x=13, y=14-16
+    for (let y = 14; y <= 16; y++) if (!gatePositions.has(`13,${y}`)) perimeterSpots.push({ x: 13, y });
+    // East wall: x=17, y=14-16
+    for (let y = 14; y <= 16; y++) if (!gatePositions.has(`17,${y}`)) perimeterSpots.push({ x: 17, y });
 
-    // Only build fences when we have wood to spare (reserve 15 for watchtower + other needs)
-    const canBuildFences = state.resources.wood >= 15 || countConstructed(state, 'watchtower') > 0;
-    if (canBuildFences) {
-      // Build max 3 fences per day to avoid wood starvation
+    // Only build fences when we have wood to spare
+    if (state.resources.wood >= 20) {
       let fencesBuilt = 0;
       for (const spot of perimeterSpots) {
         if (fencesBuilt >= 3) break;
@@ -284,25 +244,25 @@ function playerAI(state: GameState): GameState {
         }
       }
     }
+  }
 
-    // Guards: scale with population and raid level
-    // Base: 1 guard at pop 3-4, 2 at pop 5-7, 3 at pop 8+
-    // Add extra guards if raid level is high relative to guard count
+  // Guards: only assign when raids are active or imminent
+  // Delay guard assignment to maximize workers for economy
+  if (raidThreatening && pop >= 5) {
     const currentGuards = state.villagers.filter(v => v.role === 'guard').length;
-    let needGuards = pop >= 8 ? 3 : (pop >= 5 ? 2 : (pop >= 3 ? 1 : 0));
-    // Scale up if raid level demands more: level 3+ = at least 3 guards, level 4+ = at least 4
-    if (state.raidLevel >= 4 && pop >= 10) needGuards = Math.max(needGuards, 4);
-    else if (state.raidLevel >= 3 && pop >= 8) needGuards = Math.max(needGuards, 3);
+    let needGuards = pop >= 14 ? 3 : (pop >= 8 ? 2 : 1);
+    // Scale up if raid level demands more
+    if (state.raidLevel >= 4 && pop >= 14) needGuards = Math.max(needGuards, 4);
+    else if (state.raidLevel >= 3 && pop >= 12) needGuards = Math.max(needGuards, 3);
     if (currentGuards < needGuards) {
-      // First try idle villagers
-      let idle = state.villagers.filter(v => v.role === 'idle' && v.homeBuildingId);
+      const idle = state.villagers.filter(v => v.role === 'idle' && v.homeBuildingId);
       for (const v of idle) {
         if (state.villagers.filter(v2 => v2.role === 'guard').length >= needGuards) break;
         state = setGuard(state, v.id);
       }
-      // If still not enough guards, reassign non-essential workers
-      if (state.villagers.filter(v => v.role === 'guard').length < needGuards && pop >= 4) {
-        const reassignOrder: string[] = ['quarrier', 'woodcutter', 'sawyer'];
+      // If still not enough, reassign non-essential workers (not farmers/bakers/millers)
+      if (state.villagers.filter(v => v.role === 'guard').length < needGuards && pop >= 6) {
+        const reassignOrder: string[] = ['quarrier', 'sawyer'];
         for (const role of reassignOrder) {
           const w = state.villagers.find(v =>
             v.role === role && v.role !== 'guard' && v.homeBuildingId
@@ -353,7 +313,7 @@ function playerAI(state: GameState): GameState {
 
   // Research — always queue tech if not researching (even before desk is built)
   if (!state.research.current) {
-    const techOrder = ['crop_rotation', 'improved_tools', 'fortification', 'basic_cooking', 'masonry', 'advanced_farming', 'civil_engineering', 'military_tactics', 'archery'] as const;
+    const techOrder = ['crop_rotation', 'improved_tools', 'fortification', 'basic_cooking', 'masonry', 'advanced_farming', 'civil_engineering', 'trade_routes', 'military_tactics', 'steel_forging', 'archery'] as const;
     for (const tech of techOrder) {
       if (!state.research.completed.includes(tech as any) && state.research.current !== tech) {
         state = setResearch(state, tech as any);
@@ -363,6 +323,11 @@ function playerAI(state: GameState): GameState {
   }
 
   // Building upgrades — upgrade key buildings when resources permit
+  // Tent → house upgrades for morale (+10 each) — do when wood is plentiful
+  if (day >= 20 && state.resources.wood >= 20) {
+    const tent = state.buildings.find(b => b.type === 'tent' && b.constructed);
+    if (tent) state = upgradeBuilding(state, tent.id);
+  }
   if (day >= 30 && state.resources.planks >= 10) {
     const smallFarm = state.buildings.find(b => b.type === 'farm' && b.constructed);
     if (smallFarm && state.resources.wood >= 10 && state.resources.planks >= 5) {
@@ -664,6 +629,32 @@ for (const v of state.villagers) {
   const weaponStr = v.weapon !== 'none' ? ` | weapon: ${v.weapon}(${v.weaponDurability})` : '';
   const toolStr = v.tool !== 'none' ? ` | tool: ${v.tool}` : '';
   console.log(`    ${v.name} | HP: ${v.hp}/${v.maxHp} | Role: ${v.role} | Morale: ${v.morale} | Food: ${v.food.toFixed(1)} | ${clothed}${toolStr}${weaponStr}`);
+}
+console.log();
+
+// Unconstructed buildings
+const unconstructed = state.buildings.filter(b => !b.constructed && b.type !== 'rubble');
+if (unconstructed.length > 0) {
+  console.log(`  Unconstructed buildings (${unconstructed.length}):`);
+  for (const b of unconstructed) {
+    console.log(`    ${b.type} at (${b.x},${b.y}) — progress: ${b.constructionProgress}/${b.constructionRequired}`);
+  }
+} else {
+  console.log('  All buildings constructed.');
+}
+console.log();
+
+// Empty production buildings
+const emptyProduction = state.buildings.filter(b => {
+  if (!b.constructed || b.type === 'rubble') return false;
+  const maxW = BUILDING_TEMPLATES[b.type as BuildingType]?.maxWorkers || 0;
+  return maxW > 0 && b.assignedWorkers.length === 0;
+});
+if (emptyProduction.length > 0) {
+  console.log(`  Empty production buildings (${emptyProduction.length}):`);
+  for (const b of emptyProduction) {
+    console.log(`    ${b.type} at (${b.x},${b.y}) — max workers: ${BUILDING_TEMPLATES[b.type as BuildingType].maxWorkers}`);
+  }
 }
 console.log();
 
