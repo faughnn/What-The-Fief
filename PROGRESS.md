@@ -1,17 +1,17 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 383 tests passing (30 test files). 100-day stress test: 9 pop, 5 deaths, 0 errors, 9 techs researched, 3 bandit camps active, camp-based raids working.
-- **What exists**: 120 ticks/day. 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites. Building upgrades (tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse). Spatial combat (enemies march from edges, walls/fences block, guards intercept/patrol, melee, watchtower ranged 5-tile). Weapon variety: sword (atk 6, def 2, melee) and bow (atk 2, range 4, ranged). Guards auto-equip from storehouse. Weaponsmith (ingots+planks→sword), fletcher (wood+rope→bow). Bow guards shoot at 4-tile range without watchtower. Watchtower+bow = bonus damage. Weapon durability degrades per combat tick. **Bandit camps: persistent camps spawn at map edges, raids originate FROM camps, guards can assault/clear camps for gold+renown rewards. Camps scale with raid level, max 3 active. Fallback edge-spawn when no camps.** Siege equipment (battering rams, siege towers). Wildlife + hunting + self-defense. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth. Food variety morale. Tavern/recreation. Fire/disaster (spread, extinguish, wells). Disease (physical spread, herb healing). Lightning. Bandit ultimatums. Family bonds/grief. Church morale. Graveyard. NPC settlements + trade caravans (auto-spawn with trade_routes tech). Scout fog reveal. Multi-tile footprints. Immigration at map edge. Marketplace trading. Tool tiers with durability (steel_forging bonus). Skill leveling. 3-tier research tree (20 techs). 7 production building upgrade tiers. isStorehouse abstraction.
+- **Status**: V2 spatial simulation. 400 tests passing (32 test files). 100-day stress test: 9 pop, 7 deaths, 0 errors, 9 techs researched, 2 bandit camps active, formations in use.
+- **What exists**: 120 ticks/day. 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites. Building upgrades (tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse). Spatial combat (enemies march from camps/edges, walls/fences block, guards intercept/patrol, melee, watchtower ranged 5-tile). Weapon variety: sword (atk 6, def 2, melee) and bow (atk 2, range 4, ranged). Guards auto-equip from storehouse. Weaponsmith (ingots+planks→sword), fletcher (wood+rope→bow). Bow guards shoot at 4-tile range without watchtower. Watchtower+bow = bonus damage. Weapon durability degrades per combat tick. **Guard formations: charge (infinite detect range), hold (3-tile, stays put), patrol (10-tile default). Front line (closes to melee), back line (stays at range with bow).** **Bandit camps: persistent camps spawn at map edges every 25 days, raids originate FROM camps, guards can assault/clear camps for gold+renown rewards. Camps scale with raid level, max 3 active. lastCampSpawnDay prevents instant respawn.** Siege equipment (battering rams, siege towers). Wildlife + hunting + self-defense. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth. Food variety morale. Tavern/recreation. Fire/disaster (spread, extinguish, wells). Disease (physical spread, herb healing). Lightning. Bandit ultimatums. Family bonds/grief. Church morale. Graveyard. NPC settlements + trade caravans (auto-spawn with trade_routes tech). Scout fog reveal. Multi-tile footprints. Immigration at map edge. Marketplace trading. Tool tiers with durability (steel_forging bonus). Skill leveling. 3-tier research tree (20 techs). 7 production building upgrade tiers. isStorehouse abstraction.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
 
 **Is this a complete 2D Bellwright? Be extremely strict and pedantic.**
 
-**No.** The physical foundation, economy depth, combat systems, and persistent threats are strong — spatial movement, production chains, weapon variety, bandit camps, resource pipelines, research progression, and building upgrades all work. But several core Bellwright systems are still missing.
+**No.** The physical foundation, economy depth, combat systems, and persistent threats are strong — spatial movement, production chains, weapon variety, guard formations, bandit camps, resource pipelines, research progression, and building upgrades all work. But several core Bellwright systems are still missing.
 
-### What IS working (proven by 383 tests + 100-day stress test):
+### What IS working (proven by 400 tests + 100-day stress test):
 - ✅ 120 ticks/day, 1 tile/tick max, BFS pathfinding
 - ✅ Physical production: presence required, local buffers, hauling to storehouse
 - ✅ Processing buildings: miller fetches wheat from storehouse, produces flour at mill
@@ -23,7 +23,12 @@
 - ✅ Guards auto-equip weapons (sword preferred). Bow guards shoot at range without retaliation
 - ✅ Watchtower + bow = 4 damage/tick (2 base + 2 bow bonus)
 - ✅ Weapon durability degrades per combat tick, auto-re-equip when broken
-- ✅ **Bandit camps: spawn at map edges, HP scales with raid level, max 3 active**
+- ✅ **Guard formations: charge/hold/patrol modes, front/back line positioning**
+- ✅ **Charge mode: infinite detect range, aggressively pursues all enemies**
+- ✅ **Hold mode: 3-tile detect, stays at position, only fights adjacent enemies**
+- ✅ **Back line: bow guards stay at range, don't close to melee. Fight when cornered**
+- ✅ **Front line: melee guards close to engage enemies directly**
+- ✅ **Bandit camps: spawn at map edges every 25 days, HP scales with raid level, max 3 active**
 - ✅ **Raids originate FROM camp positions (not random edges)**
 - ✅ **Guards can assault camps: pathfind to camp, attack HP, camp fights back**
 - ✅ **Clearing a camp: +30 gold, +10 renown, assault orders auto-cleared**
@@ -43,43 +48,39 @@
 - ✅ 7 production building tiers (farm→large_farm, sawmill→lumber_mill, etc.)
 - ✅ Research desk produces knowledge points (30 ticks/point)
 - ✅ Proper death recording (combat, animals, cold → graveyard)
-- ✅ 100-day stress test: player AI researches 9 techs, assaults camps, 0 errors
+- ✅ 100-day stress test: player AI uses formations, assaults camps smartly, 0 errors
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
-**Priority 1 — Combat depth (remaining):**
-1. **No formations / squad system.** Bellwright has charge/hold modes, front/back positioning. ColonySim has patrol routes but no tactical control.
+**Priority 1 — Core progression loop:**
+1. **No multi-settlement / village liberation.** Bellwright's core loop is: discover village → build trust → liberate → defend → connect via trade routes. ColonySim has one settlement.
+2. **No Trust/Renown recruitment.** Bellwright recruits via earned Renown, gated by Trust with villages. ColonySim has automatic immigration based on food.
+3. **No outposts.** Bellwright has player-built resource extraction outposts connected via caravan supply chains.
 
-**Priority 2 — Core progression loop:**
-2. **No multi-settlement / village liberation.** Bellwright's core loop is: discover village → build trust → liberate → defend → connect via trade routes. ColonySim has one settlement.
-3. **No Trust/Renown recruitment.** Bellwright recruits via earned Renown, gated by Trust with villages. ColonySim has automatic immigration based on food.
-4. **No outposts.** Bellwright has player-built resource extraction outposts connected via caravan supply chains.
+**Priority 2 — Economy polish:**
+4. **No profession system.** Bellwright has profession-gated research and production. ColonySim assigns roles by building type with no profession prerequisites.
+5. **Animal husbandry defined but unverified.** chicken_coop, livestock_barn, apiary exist but simulation behavior unverified by tests.
+6. **No foraging system.** Bellwright has foraging camps that auto-harvest berries/mushrooms/stone in radius.
 
-**Priority 3 — Economy polish:**
-5. **No profession system.** Bellwright has profession-gated research and production. ColonySim assigns roles by building type with no profession prerequisites.
-6. **Animal husbandry defined but unverified.** chicken_coop, livestock_barn, apiary exist but simulation behavior unverified by tests.
-7. **No foraging system.** Bellwright has foraging camps that auto-harvest berries/mushrooms/stone in radius.
-
-**Priority 4 — Quality of life:**
-8. **No per-villager job priorities.** Bellwright has granular 1-9 priority system per villager.
-9. **No construction points.** Bellwright gates building count via prosperity-earned construction points.
-10. **No decoration/morale buildings beyond tavern+church.**
-11. **No player-directed caravan routes.**
+**Priority 3 — Quality of life:**
+7. **No per-villager job priorities.** Bellwright has granular 1-9 priority system per villager.
+8. **No construction points.** Bellwright gates building count via prosperity-earned construction points.
+9. **No decoration/morale buildings beyond tavern+church.**
+10. **No player-directed caravan routes.**
 
 ### Honest priority order for closing gaps:
-1. Formations / squad system (charge, hold, front/back)
-2. Profession system (gate research/production)
-3. Animal husbandry verification
+1. Profession system (gate research/production by villager profession)
+2. Animal husbandry verification (test chicken_coop, livestock_barn, apiary)
+3. Foraging system (foraging camps auto-harvest in radius)
 4. Multi-settlement basics (outposts, supply routes)
 5. Recruitment via renown/trust
 6. Per-villager job priorities
-7. Foraging system
-8. Village liberation loop
+7. Village liberation loop
 
 ## Active Files
 - `src/world.ts` — data types (~1050 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
-- `src/tests/test-v2-*.ts` — 30 test files, 383 tests total
+- `src/tests/test-v2-*.ts` — 32 test files, 400 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
@@ -109,4 +110,5 @@
 - Research: 30 ticks per knowledge point. 3-tier tech tree with prerequisites.
 - Tool durability bonuses: improved_tools +20%, steel_forging +50%.
 - Weapons: sword (atk 6, def 2, dur 40) and bow (atk 2, range 4, dur 30). Separate from tools. Guards auto-equip best available. Weaponsmith: ingots+planks→sword. Fletcher: wood+rope→bow.
-- Bandit camps: spawn at map edges after day 15 (pop >= 6, buildings >= 8). HP = 30 + raidLevel*10. Max 3 camps. Raids every 15 days from camps. Guards can assault (pathfind + attack HP). Camp fights back (strength*1.5 dmg). Clearing: +30 gold, +10 renown.
+- Bandit camps: spawn at map edges after day 15, every 25 days (lastCampSpawnDay tracked). HP = 30 + raidLevel*10. Max 3 camps. Raids every 15 days from camps. Guards can assault (pathfind + attack HP). Camp fights back (strength*1.5 dmg). Clearing: +30 gold, +10 renown.
+- Guard formations: GuardMode (charge/hold/patrol) controls detect range and pursuit behavior. GuardLine (front/back) controls engagement distance. Back-line bow guards shoot at range, don't close. Hold guards stay put, only fight adjacent. Charge guards pursue at any distance.
