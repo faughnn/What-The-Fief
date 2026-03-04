@@ -3,6 +3,7 @@
 import {
   Villager, Building, Resources, ResourceType, BuildingType,
   createVillager, SPOILAGE, FOOD_PRIORITY, BUILDING_TEMPLATES,
+  BUILDING_SKILL_MAP,
   Season, WeatherType, SEASON_NAMES,
   SEASON_MORALE, WEATHER_MORALE, HOUSING_INFO,
   FoodEaten, TICKS_PER_DAY, ALL_RESOURCES,
@@ -213,14 +214,20 @@ export function processDailyChecks(ts: TickState): void {
   ];
 
   const assignOneIdle = (b: Building, type: BuildingType): boolean => {
-    const idleCount = ts.villagers.filter(v => v.role === 'idle' && v.hp > 0).length;
-    if (idleCount <= minIdleReserve) return false;
-    const idle = ts.villagers.find(v => v.role === 'idle' && v.hp > 0);
-    if (!idle) return false;
-    idle.role = roleForBuilding(type);
-    idle.jobBuildingId = b.id;
-    idle.state = 'idle';
-    b.assignedWorkers.push(idle.id);
+    const idleVillagers = ts.villagers.filter(v => v.role === 'idle' && v.hp > 0);
+    if (idleVillagers.length <= minIdleReserve) return false;
+    // Pick the idle villager with the highest relevant skill for this building
+    const skill = BUILDING_SKILL_MAP[type];
+    let best = idleVillagers[0];
+    if (skill) {
+      for (const v of idleVillagers) {
+        if (v.skills[skill] > best.skills[skill]) best = v;
+      }
+    }
+    best.role = roleForBuilding(type);
+    best.jobBuildingId = b.id;
+    best.state = 'idle';
+    b.assignedWorkers.push(best.id);
     return true;
   };
 

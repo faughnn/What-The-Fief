@@ -916,6 +916,21 @@ function emptySkills(): Record<SkillType, number> {
   return { farming: 0, mining: 0, crafting: 0, woodcutting: 0, cooking: 0, herbalism: 0 };
 }
 
+function rollStartingSkills(id: number): Record<SkillType, number> {
+  const skills = emptySkills();
+  const rng = seededRng(id * 3571);
+  // Each villager gets 1-2 aptitudes with starting points (10-30)
+  const numAptitudes = rng() < 0.4 ? 1 : 2;
+  const pool = [...ALL_SKILLS];
+  for (let i = 0; i < numAptitudes && pool.length > 0; i++) {
+    const idx = Math.floor(rng() * pool.length);
+    const skill = pool[idx];
+    skills[skill] = 10 + Math.floor(rng() * 21); // 10-30
+    pool.splice(idx, 1);
+  }
+  return skills;
+}
+
 function rollTraits(id: number): Trait[] {
   // Deterministic trait assignment based on villager ID
   const rng = seededRng(id * 7919);
@@ -936,7 +951,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     name: VILLAGER_NAMES[(id - 1) % VILLAGER_NAMES.length],
     x, y, role: 'idle', jobBuildingId: null, homeBuildingId: null,
     state: 'idle', food: 8, homeless: 0,
-    skills: emptySkills(), traits: rollTraits(id), morale: 50, lastAte: 'nothing',
+    skills: rollStartingSkills(id), traits: rollTraits(id), morale: 50, lastAte: 'nothing',
     tool: 'none', toolDurability: 0,
     weapon: 'none', weaponDurability: 0,
     scoutDirection: null, scoutTicksLeft: 0,
