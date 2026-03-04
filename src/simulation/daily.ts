@@ -13,7 +13,7 @@ import {
 } from '../world.js';
 import {
   TickState, findHome, autoEquipTool, autoEquipWeapon, getBuildingEntrance,
-  addResource, addToBuffer, findNearestStorehouse, revealArea, hasTech, isStorehouse,
+  addResource, addToBuffer, findNearestStorehouse, findStorehouseWithResource, revealArea, hasTech, isStorehouse,
   roleForBuilding, deductFromBuffer,
 } from './helpers.js';
 import { findPath, planPath } from './movement.js';
@@ -97,19 +97,15 @@ export function processDailyChecks(ts: TickState): void {
   // Clothing equip — try to clothe unclothed villagers from storehouse linen/leather
   for (const v of ts.villagers) {
     if (!v.clothed) {
-      for (const b of ts.buildings) {
-        if (!isStorehouse(b.type) || !b.constructed) continue;
-        // Prefer linen, fall back to leather
-        for (const mat of ['linen', 'leather'] as const) {
-          if ((b.localBuffer[mat] || 0) > 0 && ts.resources[mat] > 0) {
-            deductFromBuffer(b.localBuffer, mat, 1);
-            ts.resources[mat] -= 1;
-            v.clothed = true;
-            v.clothingDurability = 10;
-            break;
-          }
+      for (const mat of ['linen', 'leather'] as const) {
+        const sh = findStorehouseWithResource(ts.buildings, mat);
+        if (sh && ts.resources[mat] > 0) {
+          deductFromBuffer(sh.localBuffer, mat, 1);
+          ts.resources[mat] -= 1;
+          v.clothed = true;
+          v.clothingDurability = 10;
+          break;
         }
-        if (v.clothed) break;
       }
     }
   }
@@ -175,8 +171,7 @@ export function processDailyChecks(ts: TickState): void {
         const bufAmt = b.localBuffer[key] || 0;
         if (bufAmt > 0) {
           const bufLoss = Math.floor(bufAmt * (rate as number));
-          b.localBuffer[key] = Math.max(0, bufAmt - bufLoss);
-          if ((b.localBuffer[key] || 0) <= 0) delete b.localBuffer[key];
+          deductFromBuffer(b.localBuffer, key, bufLoss);
         }
       }
     }

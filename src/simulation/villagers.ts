@@ -12,7 +12,7 @@ import {
   TickState, getBuildingEntrance, addResource, addToBuffer, bufferTotal,
   hasBufferInputs, consumeBufferInputs, ticksPerUnit, productionMultiplier,
   autoEquipTool, degradeTool, gainSkillXp, hasTech, techProductionBonus,
-  findStorehouseAt, findNearestStorehouse, findNearestBuilding, revealArea, isStorehouse, deductFromBuffer,
+  findStorehouseAt, findNearestStorehouse, findNearestBuilding, findStorehouseWithResource, revealArea, isStorehouse, deductFromBuffer,
 } from './helpers.js';
 import { moveOneStep, atDestination, planPath, findPath } from './movement.js';
 
@@ -142,15 +142,12 @@ function tryVisitTavern(v: Villager, buildings: Building[], grid: Tile[][], widt
 
 function trySeekHealing(v: Villager, buildings: Building[], resources: Resources, grid: Tile[][], width: number, height: number): boolean {
   if (!v.sick) return false;
-  // Find storehouse with herbs
-  for (const b of buildings) {
-    if (!isStorehouse(b.type) || !b.constructed) continue;
-    if ((b.localBuffer.herbs || 0) > 0 && resources.herbs > 0) {
-      const entrance = getBuildingEntrance(b);
-      planPath(v, grid, width, height, entrance.x, entrance.y);
-      v.state = 'traveling_to_heal';
-      return true;
-    }
+  const sh = findStorehouseWithResource(buildings, 'herbs');
+  if (sh && resources.herbs > 0) {
+    const entrance = getBuildingEntrance(sh);
+    planPath(v, grid, width, height, entrance.x, entrance.y);
+    v.state = 'traveling_to_heal';
+    return true;
   }
   return false;
 }

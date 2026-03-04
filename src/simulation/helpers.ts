@@ -198,12 +198,8 @@ export function autoEquipTool(v: Villager, resources: Resources, durabilityBonus
       resources[res] -= 1;
       // Also deduct from nearest storehouse buffer (physical)
       if (buildings) {
-        for (const b of buildings) {
-          if (isStorehouse(b.type) && b.constructed && (b.localBuffer[res] || 0) > 0) {
-            deductFromBuffer(b.localBuffer, res, 1);
-            break;
-          }
-        }
+        const sh = findStorehouseWithResource(buildings, res);
+        if (sh) deductFromBuffer(sh.localBuffer, res, 1);
       }
       v.tool = tier;
       v.toolDurability = Math.floor(TOOL_DURABILITY[tier] * (1 + durabilityBonus));
@@ -228,12 +224,8 @@ export function autoEquipWeapon(v: Villager, resources: Resources, buildings?: B
     if (resources[res] > 0) {
       resources[res] -= 1;
       if (buildings) {
-        for (const b of buildings) {
-          if (isStorehouse(b.type) && b.constructed && (b.localBuffer[res] || 0) > 0) {
-            deductFromBuffer(b.localBuffer, res, 1);
-            break;
-          }
-        }
+        const sh = findStorehouseWithResource(buildings, res);
+        if (sh) deductFromBuffer(sh.localBuffer, res, 1);
       }
       v.weapon = wtype;
       v.weaponDurability = WEAPON_DURABILITY[wtype];
@@ -311,6 +303,13 @@ export function findNearestBuilding(
     if (dist < bestDist) { bestDist = dist; best = b; }
   }
   return best;
+}
+
+export function findStorehouseWithResource(buildings: Building[], res: ResourceType): Building | null {
+  for (const b of buildings) {
+    if (isStorehouse(b.type) && b.constructed && (b.localBuffer[res] || 0) > 0) return b;
+  }
+  return null;
 }
 
 export function findNearestStorehouse(buildings: Building[], grid: Tile[][], width: number, height: number, x: number, y: number): Building | null {
