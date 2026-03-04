@@ -3,7 +3,7 @@
 import {
   Villager, Building, Resources, ResourceType, BuildingType,
   createVillager, SPOILAGE, FOOD_PRIORITY, BUILDING_TEMPLATES,
-  BUILDING_SKILL_MAP,
+  BUILDING_SKILL_MAP, DECORATION_MORALE,
   Season, WeatherType, SEASON_NAMES,
   SEASON_MORALE, WEATHER_MORALE, HOUSING_INFO,
   FoodEaten, TICKS_PER_DAY, ALL_RESOURCES,
@@ -21,7 +21,7 @@ import { findPath, planPath } from './movement.js';
 const NEW_SETTLEMENT_OPTIMISM_DAYS = 40;
 const NEW_SETTLEMENT_OPTIMISM_MAX = 20;
 
-function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean, churchNearby: boolean, day: number): number {
+function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean, churchNearby: boolean, decorationBonus: number, day: number): number {
   let morale = 50;
   morale += housingMorale;
   switch (v.lastAte) {
@@ -44,6 +44,8 @@ function calculateMorale(v: Villager, housingMorale: number, season: Season, wea
   if (familyNearby) morale += 10;
   // Church bonus (passed in)
   if (churchNearby) morale += 10;
+  // Decoration bonus (garden, fountain, statue near home)
+  morale += decorationBonus;
   // Food variety bonus — unique food types in recent meals
   const uniqueFoods = new Set(v.recentMeals.filter(m => m !== 'nothing'));
   if (uniqueFoods.size >= 3) morale += 10;
@@ -133,7 +135,23 @@ export function processDailyChecks(ts: TickState): void {
         );
       }
     }
-    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather, familyNearby, churchNearby, ts.newDay);
+    // Decoration bonus — sum of unique decoration types within 5 tiles of home
+    let decorationBonus = 0;
+    if (v.homeBuildingId) {
+      const home = ts.buildings.find(b => b.id === v.homeBuildingId);
+      if (home) {
+        const seen = new Set<BuildingType>();
+        for (const b of ts.buildings) {
+          const bonus = DECORATION_MORALE[b.type];
+          if (!bonus || !b.constructed || seen.has(b.type)) continue;
+          if (Math.abs(b.x - home.x) + Math.abs(b.y - home.y) <= 5) {
+            decorationBonus += bonus;
+            seen.add(b.type);
+          }
+        }
+      }
+    }
+    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather, familyNearby, churchNearby, decorationBonus, ts.newDay);
   }
 
   // Reset lastAte AFTER morale calculation — so yesterday's meals influence today's morale
@@ -420,7 +438,7 @@ export function processDisease(ts: TickState): void {
 export function processLightning(ts: TickState): void {
   // Per-tick: during storms, small chance (0.5%) to strike a random constructed building
   if (ts.weather !== 'storm') return;
-  const constructed = ts.buildings.filter(b => b.constructed && !b.onFire && b.type !== 'well' && b.type !== 'rubble');
+  const constructed = ts.buildings.filter(b => b.constructed && !b.onFire && b.type !== 'well' && b.type !== 'fountain' && b.type !== 'rubble');
   if (constructed.length === 0) return;
 
   const lightningRng = ((ts.newTick * 48271 + 3) & 0x7fffffff) / 0x7fffffff;

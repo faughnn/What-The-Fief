@@ -185,7 +185,7 @@ export function processFire(ts: TickState): void {
       if (spreadRng < 0.05) { // 5% per tick
         for (const other of ts.buildings) {
           if (other.id === b.id || other.onFire || !other.constructed) continue;
-          if (other.type === 'well' || other.type === 'rubble') continue;
+          if (other.type === 'well' || other.type === 'fountain' || other.type === 'rubble') continue;
           // Check adjacency
           const adj = (
             Math.abs(other.x - b.x) <= 1 && Math.abs(other.y - b.y) <= 1 &&
@@ -194,7 +194,7 @@ export function processFire(ts: TickState): void {
           if (adj) {
             // Well nearby reduces spread chance
             const hasWell = ts.buildings.some(w =>
-              w.type === 'well' && w.constructed &&
+              (w.type === 'well' || w.type === 'fountain') && w.constructed &&
               Math.abs(w.x - other.x) <= 3 && Math.abs(w.y - other.y) <= 3
             );
             if (!hasWell) {

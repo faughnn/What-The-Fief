@@ -198,6 +198,9 @@ function playerAI(state: GameState): GameState {
   if (day >= 30 && countBuildings(state, 'church') === 0 && canAfford(state, 'church')) {
     state = tryBuild(state, 'church', 14, 15);
   }
+  // Decoration buildings (garden, fountain, statue) are available but the player AI
+  // doesn't build them — they compete with defense for space/resources.
+  // Decorations are tested independently in test-v2-decorations.ts.
 
   // Worker assignment handled by daily auto-assign in processDailyChecks (has construction reserve).
   // Player AI only does guard assignment and building placement — not worker assignment.

@@ -35,6 +35,13 @@ export const HOUSING_INFO: Partial<Record<BuildingType, { capacity: number; mora
   manor: { capacity: 4, morale: 20 },
 };
 
+// --- Decoration morale bonuses (range 5 tiles from home) ---
+export const DECORATION_MORALE: Partial<Record<BuildingType, number>> = {
+  garden: 5,
+  fountain: 5,
+  statue: 10,
+};
+
 // --- Terrain ---
 export type Terrain = 'grass' | 'forest' | 'water' | 'stone';
 
@@ -68,7 +75,9 @@ export type BuildingType =
   | 'advanced_smelter' | 'windmill' | 'kitchen'
   | 'large_storehouse'
   // Weapon/armor production
-  | 'weaponsmith' | 'fletcher';
+  | 'weaponsmith' | 'fletcher'
+  // Decoration / morale buildings
+  | 'garden' | 'fountain' | 'statue';
 
 export interface Building {
   id: string;
@@ -462,6 +471,22 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     type: 'fletcher', width: 1, height: 1, allowedTerrain: ['grass'],
     cost: { wood: 10, stone: 5 }, description: 'Crafts bows from wood and rope',
     maxWorkers: 1, production: { output: 'bow', amountPerWorker: 1, inputs: { wood: 2, rope: 1 } }, mapChar: 'f',
+  },
+  // --- Decoration / morale buildings ---
+  garden: {
+    type: 'garden', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 5 }, description: 'Flower garden — boosts morale of nearby homes',
+    maxWorkers: 0, production: null, mapChar: 'g',
+  },
+  fountain: {
+    type: 'fountain', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { stone: 10 }, description: 'Fountain — boosts morale + reduces fire risk',
+    maxWorkers: 0, production: null, mapChar: 'o',
+  },
+  statue: {
+    type: 'statue', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { stone: 15, gold: 5 }, description: 'Statue — strong morale boost to nearby homes',
+    maxWorkers: 0, production: null, mapChar: '!',
   },
 };
 
