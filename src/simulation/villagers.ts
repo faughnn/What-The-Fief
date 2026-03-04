@@ -300,7 +300,12 @@ export function processVillagerStateMachine(ts: TickState): void {
         v.state = 'idle'; // Return to patrol (combat system takes over)
         continue;
       }
-      // If hungry, go eat before patrolling
+      // Dawn: guards eat at dawn just like regular villagers (food < 8)
+      if (ts.isDawn && v.food < 8) {
+        startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
+        continue;
+      }
+      // Mid-day: if hungry, go eat before patrolling
       if (v.food <= 3) {
         startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);
         continue;
@@ -446,6 +451,11 @@ export function processVillagerStateMachine(ts: TickState): void {
         if (!v.jobBuildingId) { v.state = 'idle'; break; }
         const job = ts.buildings.find(b => b.id === v.jobBuildingId);
         if (!job) { v.state = 'idle'; break; }
+
+        // Mid-day hunger check: interrupt work to eat if dangerously hungry
+        if (v.food <= 3) {
+          if (startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) break;
+        }
 
         // Repair: if building is damaged, repair 1 HP/tick before producing
         if (job.hp < job.maxHp) {

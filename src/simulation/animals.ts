@@ -12,6 +12,8 @@ import {
 import { moveOneStep, atDestination, planPath } from './movement.js';
 
 export function processAnimals(ts: TickState): void {
+  // Track villagers damaged by animal attacks this tick
+  const damagedByAnimals = new Set<string>();
   // Animal spawning — periodically add animals to the map
   if (ts.isNewDay && ts.newDay % 3 === 0 && ts.animals.length < 10) {
     const animalTypes: AnimalType[] = ['deer', 'rabbit', 'wild_wolf', 'wild_boar'];
@@ -82,8 +84,12 @@ export function processAnimals(ts: TickState): void {
       }
       if (target) {
         if (isAdjacent(a.x, a.y, target.x, target.y)) {
-          // Attack
+          // Attack — hostile animal damages villager
           target.hp -= Math.max(1, a.attack);
+          damagedByAnimals.add(target.id);
+          // Villager fights back (self-defense) — guards deal more damage
+          const selfDefense = target.role === 'guard' ? 3 : 1;
+          a.hp -= selfDefense;
         } else {
           // Move toward target (1 tile/tick)
           const dx = target.x > a.x ? 1 : target.x < a.x ? -1 : 0;
@@ -104,6 +110,24 @@ export function processAnimals(ts: TickState): void {
           a.x = nx; a.y = ny;
         }
       }
+    }
+  }
+
+  // Guard response: guards fight hostile animals within 5 tiles
+  for (const v of ts.villagers) {
+    if (v.role !== 'guard' || v.hp <= 0) continue;
+    // Find nearest hostile animal within 5 tiles
+    let nearestHostile: AnimalEntity | null = null;
+    let nearestDist = Infinity;
+    for (const a of ts.animals) {
+      if (a.hp <= 0 || a.behavior !== 'hostile') continue;
+      const dist = Math.abs(a.x - v.x) + Math.abs(a.y - v.y);
+      if (dist <= 5 && dist < nearestDist) { nearestHostile = a; nearestDist = dist; }
+    }
+    if (!nearestHostile) continue;
+    if (isAdjacent(v.x, v.y, nearestHostile.x, nearestHostile.y)) {
+      // Guard attacks hostile animal
+      nearestHostile.hp -= 3;
     }
   }
 
@@ -129,6 +153,7 @@ export function processAnimals(ts: TickState): void {
         nearestAnimal.hp -= 3; // hunter attack
         if (nearestAnimal.attack > 0) {
           v.hp -= Math.max(1, nearestAnimal.attack - 1); // animal fights back
+          damagedByAnimals.add(v.id);
         }
       } else {
         // Move toward animal
@@ -234,10 +259,21 @@ export function processAnimals(ts: TickState): void {
     }
   }
 
-  // Remove dead villagers (from animal attacks)
-  const deadFromAnimals = new Set(ts.villagers.filter(v => v.hp <= 0).map(v => v.id));
-  if (deadFromAnimals.size > 0) {
-    for (const b of ts.buildings) b.assignedWorkers = b.assignedWorkers.filter(id => !deadFromAnimals.has(id));
-    ts.villagers = ts.villagers.filter(v => !deadFromAnimals.has(v.id));
+  // Remove villagers killed by animal attacks (only those damaged by animals this tick)
+  const deadFromAnimals = ts.villagers.filter(v => v.hp <= 0 && damagedByAnimals.has(v.id));
+  if (deadFromAnimals.length > 0) {
+    const deadIds = new Set(deadFromAnimals.map(v => v.id));
+    for (const b of ts.buildings) b.assignedWorkers = b.assignedWorkers.filter(id => !deadIds.has(id));
+    // Record deaths and apply grief (matching combat.ts pattern)
+    for (const dead of deadFromAnimals) {
+      for (const v of ts.villagers) {
+        if (v.hp > 0 && v.family.includes(dead.id)) {
+          v.grief = 5;
+          v.family = v.family.filter(id => id !== dead.id);
+        }
+      }
+      ts.graveyard.push({ name: dead.name, day: ts.newDay });
+    }
+    ts.villagers = ts.villagers.filter(v => !deadIds.has(v.id));
   }
 }

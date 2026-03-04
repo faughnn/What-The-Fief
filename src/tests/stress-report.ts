@@ -387,10 +387,12 @@ interface DaySnapshot {
   playerActions: string[];
   storehouseBuf: Record<string, number>;
   villagersHungry: string[];
+  disappeared: string[];
 }
 
 const snapshots: DaySnapshot[] = [];
 let prevVillagerIds = new Set(state.villagers.map(v => v.id));
+let prevVillagerNames = new Map(state.villagers.map(v => [v.id, v.name]));
 let prevGraveyardLen = 0;
 let prevBuildingCount = state.buildings.filter(b => b.type !== 'rubble').length;
 
@@ -433,6 +435,14 @@ for (let day = 0; day < 100; day++) {
     .filter(v => !prevVillagerIds.has(v.id))
     .map(v => `${v.name} (${v.role})`);
   const newDeaths = state.graveyard.slice(prevGraveyardLen).map(g => g.name);
+  const newDeathIds = new Set(state.graveyard.slice(prevGraveyardLen).map(g => g.name));
+  // Detect silent departures: in prev but not current and not newly dead
+  const disappeared: string[] = [];
+  for (const [id, name] of prevVillagerNames) {
+    if (!currentIds.has(id) && !newDeathIds.has(name)) {
+      disappeared.push(name);
+    }
+  }
   const buildingDelta = state.buildings.filter(b => b.type !== 'rubble').length - prevBuildingCount;
 
   snapshots.push({
@@ -470,9 +480,11 @@ for (let day = 0; day < 100; day++) {
       return buf;
     })(),
     villagersHungry: state.villagers.filter(v => v.food <= 2).map(v => `${v.name}(f=${v.food.toFixed(1)},s=${v.state})`),
+    disappeared,
   });
 
   prevVillagerIds = currentIds;
+  prevVillagerNames = new Map(state.villagers.map(v => [v.id, v.name]));
   prevGraveyardLen = state.graveyard.length;
   prevBuildingCount = state.buildings.filter(b => b.type !== 'rubble').length;
 }
@@ -492,6 +504,7 @@ for (const s of snapshots) {
   const notable = s.deaths.length > 0 || s.newVillagers.length > 0 || s.events.length > 0
     || s.activeRaid || s.sick > 0 || s.onFire > 0 || s.enemies > 0
     || s.caravans > 0 || s.playerActions.length > 0
+    || s.disappeared.length > 0 || s.villagersHungry.length > 0
     || s.day % 10 === 0 || s.day === 99;
 
   if (!notable) continue;
@@ -511,6 +524,7 @@ for (const s of snapshots) {
   if (s.onFire > 0) console.log(`  On fire: ${s.onFire} building(s)`);
   if (s.caravans > 0) console.log(`  Trade caravans: ${s.caravans}`);
   if (s.deaths.length > 0) console.log(`  Deaths: ${s.deaths.join(', ')}`);
+  if (s.disappeared.length > 0) console.log(`  DISAPPEARED (no death/departure event): ${s.disappeared.join(', ')}`);
   if (s.newVillagers.length > 0) console.log(`  Arrivals: ${s.newVillagers.join(', ')}`);
   for (const e of s.events) console.log(`  Event: ${e}`);
 

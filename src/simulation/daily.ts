@@ -289,6 +289,23 @@ export function processDailyChecks(ts: TickState): void {
       if (!v.clothed) v.hp = Math.max(0, v.hp - 1);
     }
   }
+
+  // Late death cleanup — catch villagers killed by cold damage (above)
+  // Cold can reduce HP to 0 after the main death check ran earlier.
+  const lateDead = ts.villagers.filter(v => v.hp <= 0);
+  if (lateDead.length > 0) {
+    for (const d of lateDead) {
+      for (const b of ts.buildings) b.assignedWorkers = b.assignedWorkers.filter(id => id !== d.id);
+      for (const other of ts.villagers) {
+        if (other.family.includes(d.id)) {
+          other.grief = 5;
+          other.family = other.family.filter(id => id !== d.id);
+        }
+      }
+      ts.graveyard.push({ name: d.name, day: ts.newDay });
+    }
+    ts.villagers = ts.villagers.filter(v => v.hp > 0);
+  }
 }
 
 export function processDisease(ts: TickState): void {

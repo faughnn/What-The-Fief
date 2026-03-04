@@ -23,10 +23,11 @@ export function findPath(
       if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
       if (visited.has(key)) continue;
       if (grid[ny][nx].terrain === 'water') continue;
-      // Buildings block movement — except destination tile, gates, and rubble (passable)
+      // Buildings block movement — except destination tile, gates, fences, and rubble (passable)
+      // Fences are low barriers: allies step over them, only walls fully block movement
       if (nx !== toX || ny !== toY) {
         const tile = grid[ny][nx];
-        if (tile.building && tile.building.type !== 'gate' && tile.building.type !== 'rubble') continue;
+        if (tile.building && tile.building.type !== 'gate' && tile.building.type !== 'rubble' && tile.building.type !== 'fence') continue;
       }
       const newPath = [...current.path, { x: nx, y: ny }];
       if (nx === toX && ny === toY) return newPath;

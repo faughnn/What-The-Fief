@@ -1,9 +1,9 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation — complete Bellwright colony sim. 317 tests passing. 100-day stress test with player AI: colony survives to day 100 with 11 pop, 0 deaths, 0 errors.
-- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates, guards intercept + patrol, melee, watchtower ranged 5-tile). Construction sites. Building upgrades (tent→house→manor). Local buffer production + physical hauling. Processing buildings (sawmill, mill, bakery, tanner, weaver, smelter, ropemaker). Physical eating from storehouse. Building repair. Villager death + graveyard. Rubble/clearing. Wildlife + hunting. Physical storehouse resources. Marketplace trading. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth (linen/leather, 10-day durability, winter cold penalty). Food variety morale bonus. Tavern/recreation (morale boost, cooldown). Fire/disaster (spread, extinguish, wells). Siege equipment (battering rams, siege towers). Disease system (physical spread, herb healing). Lightning strikes during storms. Bandit ultimatums (pay tribute or face raid). Villager relationships (family bonds, grief, co-location morale). Church (area morale boost). Graveyard (death records). NPC settlements + trade caravans. Scout fog reveal. Multi-tile building footprints. Immigration at map edge. Physical resource pipeline (storehouse buffer = source of truth for global resources). Balance proven by tests. 100-day stress test with player AI survives with 11 villagers.
-- **What's next**: Fix revolving-door settler issue (new settlers at map edge depart before eating). Text renderer.
+- **Status**: V2 spatial simulation — complete Bellwright colony sim. 317 tests passing. 100-day stress test with player AI: colony survives to day 100 with 10 pop, 8 deaths, 0 errors. Survives raids up to level 8.
+- **What exists**: 120 ticks/day. All movement 1 tile/tick. Buildings block pathfinding. Spatial combat (enemies march, walls block, gates, guards intercept + patrol, melee, watchtower ranged 5-tile). Construction sites. Building upgrades (tent→house→manor). Local buffer production + physical hauling. Processing buildings (sawmill, mill, bakery, tanner, weaver, smelter, ropemaker). Physical eating from storehouse. Building repair. Villager death + graveyard. Rubble/clearing. Wildlife + hunting + self-defense. Physical storehouse resources. Marketplace trading. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth (linen/leather, 10-day durability, winter cold penalty). Food variety morale bonus. Tavern/recreation (morale boost, cooldown). Fire/disaster (spread, extinguish, wells). Siege equipment (battering rams, siege towers). Disease system (physical spread, herb healing). Lightning strikes during storms. Bandit ultimatums (pay tribute or face raid). Villager relationships (family bonds, grief, co-location morale). Church (area morale boost). Graveyard (death records). NPC settlements + trade caravans. Scout fog reveal. Multi-tile building footprints. Immigration at map edge. Physical resource pipeline (storehouse buffer = source of truth for global resources). Fences passable by allies, block enemies. Guard dawn eating + mid-day hunger interrupt. Villager self-defense vs hostile wildlife. Guards intercept hostile animals. Balance proven by tests. 100-day stress test with player AI survives with 10 villagers, 0 errors.
+- **What's next**: Text renderer.
 
 ## The Bellwright Question
 
@@ -28,8 +28,8 @@
 - Disease that spreads physically between adjacent villagers
 - Bandit ultimatums with tribute payment
 - Death records in graveyard
-
-**Known issue:** New settlers spawning at map edge occasionally depart before reaching the storehouse to eat (revolving door). Colony still survives and thrives.
+- Wildlife self-defense (villagers fight back, guards intercept hostile animals)
+- Fences as Bellwright-style barriers (allies pass, enemies blocked)
 
 **Minor items NOT implemented (not core Bellwright):**
 - No moat/water defenses (Bellwright-adjacent, not core)
@@ -60,9 +60,12 @@
 - ✅ Multi-tile footprints: 3x3 town hall, 2x1 sawmill, overlap rejection
 - ✅ All combat (melee, patrol, enemy march, wall/gate mechanics)
 - ✅ Construction, repair, rubble, processing, eating, tools
-- ✅ Wildlife, hunting, marketplace, balance tests
+- ✅ Wildlife, hunting, self-defense, marketplace, balance tests
+- ✅ Fences passable by allies, block enemies (Bellwright fence behavior)
+- ✅ Guards eat at dawn + mid-day hunger interrupt for working villagers
 - ✅ Storehouse buffer sync: global resources = storehouse buffer contents
-- ✅ 100-day stress test: player AI builds colony, 11 villagers survive, 0 errors
+- ✅ Proper death recording: combat, animal attacks, cold damage all go to graveyard
+- ✅ 100-day stress test: player AI builds colony, 10 villagers survive, 8 deaths, 0 errors
 
 ## Active Files
 - `src/world.ts` — data types (~900 lines)
@@ -87,7 +90,9 @@
 - Disease: 10% spread per tick to adjacent. 3 HP/day damage. 5-day duration. Herbs cure instantly.
 - Family: co-location +10 morale. Death = 5 days grief (-15 morale). Immigration 20% family bond chance.
 - Church: constructed church within 5 tiles of home = +10 morale.
-- Graveyard: records name and day of death. Dead from combat and daily checks both recorded.
+- Graveyard: records name and day of death. Dead from combat, animal attacks, cold damage all recorded.
 - Caravans: NPC settlements send caravans that walk 1 tile/tick to marketplace, deposit goods, leave after timer.
 - Raids milestone-gated: require pop >= 6 and buildings >= 8 before triggering.
 - Immigration checks storehouse food (not global) to gate new settlers.
+- Fences: allies pass through (like gates), enemies blocked. Matches Bellwright fence behavior.
+- Wildlife self-defense: villagers deal 1 dmg back, guards deal 3. Guards also actively fight hostile animals within 5 tiles.

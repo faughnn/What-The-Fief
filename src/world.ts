@@ -763,7 +763,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     id: `v${id}`,
     name: VILLAGER_NAMES[(id - 1) % VILLAGER_NAMES.length],
     x, y, role: 'idle', jobBuildingId: null, homeBuildingId: null,
-    state: 'idle', food: 5, homeless: 0,
+    state: 'idle', food: 8, homeless: 0,
     skills: emptySkills(), traits: rollTraits(id), morale: 50, lastAte: 'nothing',
     tool: 'none', toolDurability: 0,
     scoutDirection: null, scoutTicksLeft: 0,
