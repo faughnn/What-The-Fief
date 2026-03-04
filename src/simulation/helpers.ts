@@ -65,6 +65,8 @@ export interface TickState {
   nextVillagerId: number;
   constructionPoints: number;
   constructionPointsMilestones: number[];
+  supplyRoutes: { id: string; fromBuildingId: string; toBuildingId: string; resourceType: string; active: boolean }[];
+  nextRouteId: number;
 }
 
 // --- Check if two positions are adjacent (Manhattan distance <= 1) ---
@@ -166,6 +168,11 @@ export function consumeBufferInputs(buffer: Partial<Record<ResourceType, number>
   }
 }
 
+export function deductFromBuffer(buffer: Partial<Record<ResourceType, number>>, res: ResourceType, amount: number): void {
+  buffer[res] = (buffer[res] || 0) - amount;
+  if ((buffer[res] || 0) <= 0) delete buffer[res];
+}
+
 export function ticksPerUnit(buildingType: BuildingType): number {
   const template = BUILDING_TEMPLATES[buildingType];
   if (!template.production) return Infinity;
@@ -193,8 +200,7 @@ export function autoEquipTool(v: Villager, resources: Resources, durabilityBonus
       if (buildings) {
         for (const b of buildings) {
           if (isStorehouse(b.type) && b.constructed && (b.localBuffer[res] || 0) > 0) {
-            b.localBuffer[res] = (b.localBuffer[res] || 0) - 1;
-            if ((b.localBuffer[res] || 0) <= 0) delete b.localBuffer[res];
+            deductFromBuffer(b.localBuffer, res, 1);
             break;
           }
         }
@@ -224,8 +230,7 @@ export function autoEquipWeapon(v: Villager, resources: Resources, buildings?: B
       if (buildings) {
         for (const b of buildings) {
           if (isStorehouse(b.type) && b.constructed && (b.localBuffer[res] || 0) > 0) {
-            b.localBuffer[res] = (b.localBuffer[res] || 0) - 1;
-            if ((b.localBuffer[res] || 0) <= 0) delete b.localBuffer[res];
+            deductFromBuffer(b.localBuffer, res, 1);
             break;
           }
         }

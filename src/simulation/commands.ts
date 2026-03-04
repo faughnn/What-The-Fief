@@ -2,13 +2,13 @@
 
 import {
   GameState, BuildingType, Building, Resources, ResourceType,
-  Villager, VillagerRole, Direction, Tile,
+  Villager, VillagerRole, Direction, Tile, SupplyRoute,
   BUILDING_TEMPLATES, TRADE_PRICES, UPGRADE_PATHS,
   BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   TechId, TECH_TREE, MerchantState,
   GuardMode, GuardLine,
 } from '../world.js';
-import { roleForBuilding, bufferTotal, findNearestStorehouse } from './helpers.js';
+import { roleForBuilding, bufferTotal, findNearestStorehouse, isStorehouse, deductFromBuffer } from './helpers.js';
 
 export function assignVillager(state: GameState, villagerId: string, buildingId: string): GameState {
   const villager = state.villagers.find(v => v.id === villagerId);
@@ -92,8 +92,7 @@ export function sellResource(state: GameState, resource: ResourceType, amount: n
   const newBuildings = state.buildings.map(b => {
     if (b.id === marketplace.id) {
       const newBuffer = { ...b.localBuffer };
-      newBuffer[resource] = (newBuffer[resource] || 0) - amount;
-      if ((newBuffer[resource] || 0) <= 0) delete newBuffer[resource];
+      deductFromBuffer(newBuffer, resource, amount);
       return { ...b, localBuffer: newBuffer };
     }
     return b;
@@ -289,9 +288,7 @@ export function upgradeBuilding(state: GameState, buildingId: string): GameState
     const cost = amount as number;
     newResources[key] -= cost;
     if (shForCost) {
-      const bufAmt = shForCost.localBuffer[key as ResourceType] || 0;
-      shForCost.localBuffer[key as ResourceType] = Math.max(0, bufAmt - cost);
-      if ((shForCost.localBuffer[key as ResourceType] || 0) <= 0) delete shForCost.localBuffer[key as ResourceType];
+      deductFromBuffer(shForCost.localBuffer, key as ResourceType, cost);
     }
   }
 
@@ -337,4 +334,87 @@ export function upgradeBuilding(state: GameState, buildingId: string): GameState
   }
 
   return { ...state, grid: newGrid, resources: newResources, buildings: newBuildings };
+}
+
+// --- Supply Route Commands ---
+
+export function createSupplyRoute(
+  state: GameState,
+  villagerId: string,
+  fromBuildingId: string,
+  toBuildingId: string,
+  resourceType: ResourceType | 'any' = 'any',
+): GameState {
+  const villager = state.villagers.find(v => v.id === villagerId);
+  if (!villager) { console.log(`ERROR: Villager ${villagerId} not found`); return state; }
+  if (villager.role !== 'idle') {
+    console.log(`ERROR: Villager ${villagerId} must be idle to assign as hauler (current role: ${villager.role})`);
+    return state;
+  }
+
+  const fromBuilding = state.buildings.find(b => b.id === fromBuildingId);
+  if (!fromBuilding) { console.log(`ERROR: Source building ${fromBuildingId} not found`); return state; }
+  if (!isStorehouse(fromBuilding.type)) {
+    console.log(`ERROR: Source must be a storehouse/outpost (got ${fromBuilding.type})`); return state;
+  }
+
+  const toBuilding = state.buildings.find(b => b.id === toBuildingId);
+  if (!toBuilding) { console.log(`ERROR: Destination building ${toBuildingId} not found`); return state; }
+  if (!isStorehouse(toBuilding.type)) {
+    console.log(`ERROR: Destination must be a storehouse/outpost (got ${toBuilding.type})`); return state;
+  }
+
+  if (fromBuildingId === toBuildingId) {
+    console.log(`ERROR: Source and destination must be different buildings`); return state;
+  }
+
+  const routeId = `route${state.nextRouteId}`;
+  const route: SupplyRoute = {
+    id: routeId,
+    fromBuildingId,
+    toBuildingId,
+    resourceType,
+    active: true,
+  };
+
+  const newVillagers = state.villagers.map(v =>
+    v.id === villagerId
+      ? { ...v, skills: { ...v.skills }, traits: [...v.traits], path: [...v.path],
+          carrying: { ...v.carrying }, patrolRoute: [...v.patrolRoute],
+          recentMeals: [...v.recentMeals], family: [...v.family],
+          role: 'hauler' as const, supplyRouteId: routeId, state: 'supply_traveling_to_source' as const,
+          jobBuildingId: null }
+      : v
+  );
+
+  return {
+    ...state,
+    villagers: newVillagers,
+    supplyRoutes: [...state.supplyRoutes, route],
+    nextRouteId: state.nextRouteId + 1,
+  };
+}
+
+export function cancelSupplyRoute(state: GameState, routeId: string): GameState {
+  const route = state.supplyRoutes.find(r => r.id === routeId);
+  if (!route) { console.log(`ERROR: Supply route ${routeId} not found`); return state; }
+
+  const newVillagers = state.villagers.map(v => {
+    if (v.supplyRouteId === routeId) {
+      return {
+        ...v, skills: { ...v.skills }, traits: [...v.traits], path: [...v.path],
+        carrying: { ...v.carrying }, patrolRoute: [...v.patrolRoute],
+        recentMeals: [...v.recentMeals], family: [...v.family],
+        role: 'idle' as const, supplyRouteId: null, state: 'idle' as const,
+        jobBuildingId: null,
+      };
+    }
+    return v;
+  });
+
+  return {
+    ...state,
+    villagers: newVillagers,
+    supplyRoutes: state.supplyRoutes.filter(r => r.id !== routeId),
+  };
 }

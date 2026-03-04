@@ -14,7 +14,7 @@ import {
 import {
   TickState, findHome, autoEquipTool, autoEquipWeapon, getBuildingEntrance,
   addResource, addToBuffer, findNearestStorehouse, revealArea, hasTech, isStorehouse,
-  roleForBuilding,
+  roleForBuilding, deductFromBuffer,
 } from './helpers.js';
 import { findPath, planPath } from './movement.js';
 
@@ -102,8 +102,7 @@ export function processDailyChecks(ts: TickState): void {
         // Prefer linen, fall back to leather
         for (const mat of ['linen', 'leather'] as const) {
           if ((b.localBuffer[mat] || 0) > 0 && ts.resources[mat] > 0) {
-            b.localBuffer[mat] = (b.localBuffer[mat] || 0) - 1;
-            if ((b.localBuffer[mat] || 0) <= 0) delete b.localBuffer[mat];
+            deductFromBuffer(b.localBuffer, mat, 1);
             ts.resources[mat] -= 1;
             v.clothed = true;
             v.clothingDurability = 10;

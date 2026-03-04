@@ -12,7 +12,7 @@ import {
   TickState, getBuildingEntrance, addResource, addToBuffer, bufferTotal,
   hasBufferInputs, consumeBufferInputs, ticksPerUnit, productionMultiplier,
   autoEquipTool, degradeTool, gainSkillXp, hasTech, techProductionBonus,
-  findStorehouseAt, findNearestStorehouse, revealArea, isStorehouse,
+  findStorehouseAt, findNearestStorehouse, revealArea, isStorehouse, deductFromBuffer,
 } from './helpers.js';
 import { moveOneStep, atDestination, planPath, findPath } from './movement.js';
 
@@ -68,8 +68,7 @@ function startHauling(v: Villager, job: Building, buildings: Building[], grid: T
     const toCarry = Math.min(amt, CARRY_CAPACITY - carried);
     if (toCarry <= 0) break;
     v.carrying[res as ResourceType] = toCarry;
-    job.localBuffer[res as ResourceType] = amt - toCarry;
-    if ((job.localBuffer[res as ResourceType] || 0) <= 0) delete job.localBuffer[res as ResourceType];
+    deductFromBuffer(job.localBuffer, res as ResourceType, toCarry);
     carried += toCarry;
   }
   v.carryTotal = carried;
@@ -279,8 +278,7 @@ export function processVillagerStateMachine(ts: TickState): void {
           for (const { resource, satisfaction } of FOOD_PRIORITY) {
             const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
             if (bufAmt > 0) {
-              eatSH!.localBuffer[resource] = bufAmt - 1;
-              if ((eatSH!.localBuffer[resource] || 0) <= 0) delete eatSH!.localBuffer[resource];
+              deductFromBuffer(eatSH!.localBuffer, resource, 1);
               ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
               v.food = Math.min(10, v.food + satisfaction);
               v.lastAte = resource as FoodEaten;
@@ -379,7 +377,17 @@ export function processVillagerStateMachine(ts: TickState): void {
         }
       }
 
-      if (v.jobBuildingId) {
+      if (v.role === 'hauler' && v.supplyRouteId) {
+        // Hauler: resume supply route
+        const route = ts.supplyRoutes.find(r => r.id === v.supplyRouteId);
+        const source = route ? ts.buildings.find(b => b.id === route.fromBuildingId) : null;
+        if (route && source) {
+          planPathToBuilding(v, source, ts.grid, ts.width, ts.height);
+          v.state = 'supply_traveling_to_source';
+        } else {
+          v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null;
+        }
+      } else if (v.jobBuildingId) {
         const job = ts.buildings.find(b => b.id === v.jobBuildingId);
         if (job) {
           const entrance = getBuildingEntrance(job);
@@ -599,8 +607,7 @@ export function processVillagerStateMachine(ts: TickState): void {
                     const canCarry = Math.min(available, CARRY_CAPACITY - v.carryTotal);
                     if (canCarry > 0) {
                       if (pickupSH) {
-                        pickupSH.localBuffer[res as ResourceType] = (pickupSH.localBuffer[res as ResourceType] || 0) - canCarry;
-                        if ((pickupSH.localBuffer[res as ResourceType] || 0) <= 0) delete pickupSH.localBuffer[res as ResourceType];
+                        deductFromBuffer(pickupSH.localBuffer, res as ResourceType, canCarry);
                       }
                       // Keep global in sync
                       ts.resources[res as ResourceType] = Math.max(0, ts.resources[res as ResourceType] - canCarry);
@@ -701,8 +708,7 @@ export function processVillagerStateMachine(ts: TickState): void {
           for (const { resource } of FOOD_PRIORITY) {
             const bufAmt = nearestSH.localBuffer[resource] || 0;
             if (bufAmt > 0 && ts.resources[resource] > 0) {
-              nearestSH.localBuffer[resource] = bufAmt - 1;
-              if ((nearestSH.localBuffer[resource] || 0) <= 0) delete nearestSH.localBuffer[resource];
+              deductFromBuffer(nearestSH.localBuffer, resource, 1);
               ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
               consumed = true;
               break;
@@ -731,8 +737,7 @@ export function processVillagerStateMachine(ts: TickState): void {
         // At storehouse — consume 1 herb to cure disease
         const sh = findStorehouseAt(ts.buildings, v.x, v.y);
         if (sh && (sh.localBuffer.herbs || 0) > 0 && ts.resources.herbs > 0) {
-          sh.localBuffer.herbs = (sh.localBuffer.herbs || 0) - 1;
-          if ((sh.localBuffer.herbs || 0) <= 0) delete sh.localBuffer.herbs;
+          deductFromBuffer(sh.localBuffer, 'herbs', 1);
           ts.resources.herbs = Math.max(0, ts.resources.herbs - 1);
           v.sick = false;
           v.sickDays = 0;
@@ -829,8 +834,7 @@ export function processVillagerStateMachine(ts: TickState): void {
           for (const { resource, satisfaction } of FOOD_PRIORITY) {
             const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
             if (bufAmt > 0) {
-              eatSH!.localBuffer[resource] = bufAmt - 1;
-              if ((eatSH!.localBuffer[resource] || 0) <= 0) delete eatSH!.localBuffer[resource];
+              deductFromBuffer(eatSH!.localBuffer, resource, 1);
               ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
               v.food = Math.min(10, v.food + satisfaction);
               v.lastAte = resource as FoodEaten;
@@ -864,6 +868,122 @@ export function processVillagerStateMachine(ts: TickState): void {
           }
         } else {
           v.state = 'idle';
+        }
+        break;
+      }
+
+      // --- Supply route hauler states ---
+      case 'supply_traveling_to_source': {
+        if (!moveOneStep(v, ts.grid, ts.width, ts.height)) {
+          // Find route and source building
+          const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
+          const source = route ? ts.buildings.find(b => b.id === route.fromBuildingId) : null;
+          if (!route || !source) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; break; }
+          planPathToBuilding(v, source, ts.grid, ts.width, ts.height);
+          if (v.path.length === 0) v.state = 'supply_loading'; // Already at source
+        } else if (atDestination(v)) {
+          v.state = 'supply_loading';
+        }
+        break;
+      }
+
+      case 'supply_loading': {
+        // Pick up resources from source building buffer
+        const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
+        const source = route ? ts.buildings.find(b => b.id === route.fromBuildingId) : null;
+        if (!route || !source) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; break; }
+
+        // Check we're at the source building
+        const atSource = v.x >= source.x && v.x < source.x + source.width &&
+                          v.y >= source.y && v.y < source.y + source.height;
+        if (!atSource) { v.state = 'supply_traveling_to_source'; break; }
+
+        // Load resources from source buffer
+        let carried = 0;
+        v.carrying = {};
+        if (route.resourceType === 'any') {
+          // Pick up any available resources
+          for (const [res, amt] of Object.entries(source.localBuffer)) {
+            if (!amt || amt <= 0) continue;
+            const toCarry = Math.min(amt, CARRY_CAPACITY - carried);
+            if (toCarry <= 0) break;
+            deductFromBuffer(source.localBuffer, res as ResourceType, toCarry);
+            ts.resources[res as ResourceType] -= toCarry;
+            v.carrying[res as ResourceType] = toCarry;
+            carried += toCarry;
+          }
+        } else {
+          // Pick up specific resource type
+          const res = route.resourceType as ResourceType;
+          const available = source.localBuffer[res] || 0;
+          if (available > 0) {
+            const toCarry = Math.min(available, CARRY_CAPACITY);
+            deductFromBuffer(source.localBuffer, res, toCarry);
+            ts.resources[res] -= toCarry;
+            v.carrying[res] = toCarry;
+            carried = toCarry;
+          }
+        }
+        v.carryTotal = carried;
+
+        if (carried > 0) {
+          // Head to destination
+          const dest = ts.buildings.find(b => b.id === route.toBuildingId);
+          if (dest) {
+            planPathToBuilding(v, dest, ts.grid, ts.width, ts.height);
+            v.state = 'supply_traveling_to_dest';
+          } else {
+            // Destination destroyed — drop carrying back into source
+            for (const [res, amt] of Object.entries(v.carrying)) {
+              if (amt && amt > 0) {
+                addToBuffer(source.localBuffer, res as ResourceType, amt, source.bufferCapacity);
+                addResource(ts.resources, res as ResourceType, amt, ts.storageCap);
+              }
+            }
+            v.carrying = {}; v.carryTotal = 0;
+            v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null;
+          }
+        } else {
+          // Nothing to pick up — wait a bit then try again (go back to traveling)
+          // Just stay at source and retry next tick
+        }
+        break;
+      }
+
+      case 'supply_traveling_to_dest': {
+        if (!moveOneStep(v, ts.grid, ts.width, ts.height)) {
+          const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
+          const dest = route ? ts.buildings.find(b => b.id === route.toBuildingId) : null;
+          if (!route || !dest) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; break; }
+          planPathToBuilding(v, dest, ts.grid, ts.width, ts.height);
+          if (v.path.length === 0) v.state = 'supply_unloading';
+        } else if (atDestination(v)) {
+          v.state = 'supply_unloading';
+        }
+        break;
+      }
+
+      case 'supply_unloading': {
+        // Deposit resources into destination building buffer
+        const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
+        const dest = route ? ts.buildings.find(b => b.id === route.toBuildingId) : null;
+        if (!route || !dest) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; break; }
+
+        for (const [res, amt] of Object.entries(v.carrying)) {
+          if (!amt || amt <= 0) continue;
+          const deposited = addToBuffer(dest.localBuffer, res as ResourceType, amt, dest.bufferCapacity);
+          if (deposited > 0) addResource(ts.resources, res as ResourceType, deposited, ts.storageCap);
+        }
+        v.carrying = {};
+        v.carryTotal = 0;
+
+        // Head back to source for next load
+        const source = ts.buildings.find(b => b.id === route.fromBuildingId);
+        if (source) {
+          planPathToBuilding(v, source, ts.grid, ts.width, ts.height);
+          v.state = 'supply_traveling_to_source';
+        } else {
+          v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null;
         }
         break;
       }

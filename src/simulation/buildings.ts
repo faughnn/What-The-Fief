@@ -6,7 +6,7 @@ import {
   DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP, OUTPOST_BUFFER_CAP,
   FREE_CONSTRUCTION,
 } from '../world.js';
-import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance, isStorehouse } from './helpers.js';
+import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance, isStorehouse, deductFromBuffer } from './helpers.js';
 import { findPath } from './movement.js';
 
 export function placeBuilding(state: GameState, type: BuildingType, x: number, y: number): GameState {
@@ -93,9 +93,7 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
     }
     newResources[key] -= cost;
     if (shForCost) {
-      const bufAmt = shForCost.localBuffer[key as ResourceType] || 0;
-      shForCost.localBuffer[key as ResourceType] = Math.max(0, bufAmt - cost);
-      if ((shForCost.localBuffer[key as ResourceType] || 0) <= 0) delete shForCost.localBuffer[key as ResourceType];
+      deductFromBuffer(shForCost.localBuffer, key as ResourceType, cost);
     }
   }
 
