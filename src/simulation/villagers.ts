@@ -12,7 +12,7 @@ import {
   TickState, getBuildingEntrance, addResource, addToBuffer, bufferTotal,
   hasBufferInputs, consumeBufferInputs, ticksPerUnit, productionMultiplier,
   autoEquipTool, degradeTool, gainSkillXp, hasTech, techProductionBonus,
-  findStorehouseAt, findNearestStorehouse, revealArea,
+  findStorehouseAt, findNearestStorehouse, revealArea, isStorehouse,
 } from './helpers.js';
 import { moveOneStep, atDestination, planPath, findPath } from './movement.js';
 
@@ -94,7 +94,7 @@ function startPickupInputs(v: Villager, job: Building, buildings: Building[], re
   let bestSH: Building | null = null;
   let bestDist = Infinity;
   for (const b of buildings) {
-    if (b.type !== 'storehouse' || !b.constructed) continue;
+    if (!isStorehouse(b.type) || !b.constructed) continue;
     let hasInput = false;
     for (const res of inputTypes) {
       if ((b.localBuffer[res as ResourceType] || 0) > 0) { hasInput = true; break; }
@@ -120,7 +120,7 @@ function startEating(v: Villager, buildings: Building[], resources: Resources, g
   let bestSH: Building | null = null;
   let bestDist = Infinity;
   for (const b of buildings) {
-    if (b.type !== 'storehouse' || !b.constructed) continue;
+    if (!isStorehouse(b.type) || !b.constructed) continue;
     // Check if this storehouse has food in its buffer
     let hasFood = false;
     for (const { resource } of FOOD_PRIORITY) {
@@ -163,7 +163,7 @@ function trySeekHealing(v: Villager, buildings: Building[], resources: Resources
   if (!v.sick) return false;
   // Find storehouse with herbs
   for (const b of buildings) {
-    if (b.type !== 'storehouse' || !b.constructed) continue;
+    if (!isStorehouse(b.type) || !b.constructed) continue;
     if ((b.localBuffer.herbs || 0) > 0 && resources.herbs > 0) {
       const entrance = getBuildingEntrance(b);
       planPath(v, grid, width, height, entrance.x, entrance.y);
@@ -203,7 +203,7 @@ function tryIdleTask(v: Villager, ts: TickState): boolean {
   let bestHaul: Building | null = null;
   let bestHaulAmt = 0;
   for (const b of ts.buildings) {
-    if (!b.constructed || b.type === 'storehouse' || b.type === 'rubble') continue;
+    if (!b.constructed || isStorehouse(b.type) || b.type === 'rubble') continue;
     const total = bufferTotal(b.localBuffer);
     if (total > 0 && total > bestHaulAmt) {
       bestHaul = b;
@@ -485,7 +485,8 @@ export function processVillagerStateMachine(ts: TickState): void {
           // Non-production building (research desk handled here)
           if (job.type === 'research_desk' && ts.research.current) {
             v.workProgress++;
-            const tpu = ticksPerUnit(job.type) || 80;
+            const RESEARCH_TICKS_PER_POINT = 30; // 30 ticks per knowledge point
+            const tpu = RESEARCH_TICKS_PER_POINT;
             if (v.workProgress >= tpu) {
               ts.research.progress += 1;
               const tech = TECH_TREE[ts.research.current];
@@ -539,7 +540,7 @@ export function processVillagerStateMachine(ts: TickState): void {
             let amount = 1 + bonus;
             // Season/weather multipliers for outdoor buildings
             if (OUTDOOR_BUILDINGS.includes(job.type)) {
-              const isFarm = ['farm', 'flax_field', 'hemp_field', 'chicken_coop'].includes(job.type);
+              const isFarm = ['farm', 'large_farm', 'flax_field', 'hemp_field', 'chicken_coop'].includes(job.type);
               if (isFarm) {
                 let farmMult = SEASON_FARM_MULT[ts.season];
                 // Irrigation tech: autumn gets full output

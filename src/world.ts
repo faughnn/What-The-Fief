@@ -25,6 +25,7 @@ export const WEATHER_OUTDOOR_MULT: Record<WeatherType, number> = {
 export const OUTDOOR_BUILDINGS: BuildingType[] = [
   'farm', 'woodcutter', 'quarry', 'herb_garden', 'flax_field', 'hemp_field',
   'chicken_coop', 'apiary', 'livestock_barn',
+  'large_farm', 'deep_quarry',
 ];
 
 // --- Housing Tiers ---
@@ -61,7 +62,11 @@ export type BuildingType =
   | 'well'
   | 'church'
   | 'graveyard'
-  | 'rubble';
+  | 'rubble'
+  // Tier 2 upgraded production buildings
+  | 'large_farm' | 'lumber_mill' | 'deep_quarry'
+  | 'advanced_smelter' | 'windmill' | 'kitchen'
+  | 'large_storehouse';
 
 export interface Building {
   id: string;
@@ -378,6 +383,42 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: {}, description: 'Clearable rubble from a destroyed building',
     maxWorkers: 1, production: null, mapChar: '%',
   },
+  // --- Tier 2 upgraded production buildings ---
+  large_farm: {
+    type: 'large_farm', width: 3, height: 3, allowedTerrain: ['grass'],
+    cost: { wood: 15, stone: 5, planks: 5 }, description: 'Large farm — 3 workers, 4 wheat each',
+    maxWorkers: 3, production: { output: 'wheat', amountPerWorker: 4, inputs: null }, mapChar: 'F',
+  },
+  lumber_mill: {
+    type: 'lumber_mill', width: 2, height: 1, allowedTerrain: ['grass', 'forest'],
+    cost: { wood: 15, stone: 10, planks: 5 }, description: 'Upgraded sawmill — 2 workers, 4 planks each',
+    maxWorkers: 2, production: { output: 'planks', amountPerWorker: 4, inputs: { wood: 2 } }, mapChar: 'M',
+  },
+  deep_quarry: {
+    type: 'deep_quarry', width: 2, height: 2, allowedTerrain: ['stone', 'grass'],
+    cost: { wood: 20, stone: 10, planks: 5 }, description: 'Deep quarry — 3 workers, 3 stone each',
+    maxWorkers: 3, production: { output: 'stone', amountPerWorker: 3, inputs: null }, mapChar: 'Q',
+  },
+  advanced_smelter: {
+    type: 'advanced_smelter', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { stone: 20, planks: 10, ingots: 5 }, description: 'Blast furnace — 2 workers, 2 ingots each',
+    maxWorkers: 2, production: { output: 'ingots', amountPerWorker: 2, inputs: { iron_ore: 2 } }, mapChar: 'E',
+  },
+  windmill: {
+    type: 'windmill', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { wood: 15, stone: 10, planks: 5, rope: 3 }, description: 'Windmill — 2 workers, 4 flour each',
+    maxWorkers: 2, production: { output: 'flour', amountPerWorker: 4, inputs: { wheat: 3 } }, mapChar: 'L',
+  },
+  kitchen: {
+    type: 'kitchen', width: 2, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 15, stone: 10, planks: 5 }, description: 'Kitchen — 2 workers, 4 bread each',
+    maxWorkers: 2, production: { output: 'bread', amountPerWorker: 4, inputs: { flour: 2 } }, mapChar: 'B',
+  },
+  large_storehouse: {
+    type: 'large_storehouse', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { wood: 25, stone: 15, planks: 10 }, description: 'Large storehouse — double storage bonus',
+    maxWorkers: 0, production: null, mapChar: 'S',
+  },
 };
 
 // --- Skills ---
@@ -396,6 +437,10 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   chicken_coop: 'farming',
   livestock_barn: 'farming',
   apiary: 'herbalism',
+  // T2 upgraded buildings inherit parent skills
+  large_farm: 'farming', deep_quarry: 'mining',
+  lumber_mill: 'crafting', advanced_smelter: 'crafting',
+  windmill: 'cooking', kitchen: 'cooking',
 };
 
 export function skillMultiplier(level: number): number {
@@ -577,6 +622,9 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   church: 80,
   graveyard: 20,
   rubble: 1,
+  large_farm: 60, lumber_mill: 50, deep_quarry: 60,
+  advanced_smelter: 70, windmill: 50, kitchen: 45,
+  large_storehouse: 60,
 };
 
 // V2: Construction time (work ticks needed to complete a building)
@@ -596,12 +644,23 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   church: 120,
   graveyard: 30,
   rubble: 30,
+  large_farm: 120, lumber_mill: 100, deep_quarry: 120,
+  advanced_smelter: 150, windmill: 100, kitchen: 90,
+  large_storehouse: 120,
 };
 
 // V2: Building upgrade paths — from → { to, cost }
 export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cost: Partial<Resources> }>> = {
   tent: { to: 'house', cost: { wood: 7 } },
   house: { to: 'manor', cost: { wood: 15, stone: 15, planks: 10 } },
+  // Production building upgrades
+  farm: { to: 'large_farm', cost: { wood: 10, stone: 5, planks: 5 } },
+  sawmill: { to: 'lumber_mill', cost: { wood: 10, stone: 10, planks: 5 } },
+  quarry: { to: 'deep_quarry', cost: { wood: 15, stone: 10, planks: 5 } },
+  smelter: { to: 'advanced_smelter', cost: { stone: 15, planks: 10, ingots: 5 } },
+  mill: { to: 'windmill', cost: { wood: 10, stone: 10, planks: 5, rope: 3 } },
+  bakery: { to: 'kitchen', cost: { wood: 10, stone: 10, planks: 5 } },
+  storehouse: { to: 'large_storehouse', cost: { wood: 20, stone: 10, planks: 10 } },
 };
 
 export const WATCHTOWER_RANGE = 5;

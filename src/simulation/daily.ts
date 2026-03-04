@@ -10,7 +10,7 @@ import {
 } from '../world.js';
 import {
   TickState, findHome, autoEquipTool, getBuildingEntrance,
-  addResource, addToBuffer, findNearestStorehouse, revealArea, hasTech,
+  addResource, addToBuffer, findNearestStorehouse, revealArea, hasTech, isStorehouse,
 } from './helpers.js';
 import { findPath, planPath } from './movement.js';
 
@@ -92,7 +92,7 @@ export function processDailyChecks(ts: TickState): void {
   for (const v of ts.villagers) {
     if (!v.clothed) {
       for (const b of ts.buildings) {
-        if (b.type !== 'storehouse' || !b.constructed) continue;
+        if (!isStorehouse(b.type) || !b.constructed) continue;
         // Prefer linen, fall back to leather
         for (const mat of ['linen', 'leather'] as const) {
           if ((b.localBuffer[mat] || 0) > 0 && ts.resources[mat] > 0) {
@@ -150,7 +150,7 @@ export function processDailyChecks(ts: TickState): void {
     ts.resources[key] = Math.max(0, ts.resources[key] - loss);
     // Also spoil in storehouse buffers
     for (const b of ts.buildings) {
-      if (b.type === 'storehouse' && b.constructed) {
+      if (isStorehouse(b.type) && b.constructed) {
         const bufAmt = b.localBuffer[key] || 0;
         if (bufAmt > 0) {
           const bufLoss = Math.floor(bufAmt * (rate as number));
@@ -212,7 +212,7 @@ export function processDailyChecks(ts: TickState): void {
   // that villagers can't eat from. Only invite settlers when food is physically accessible.
   let storehouseEdible = 0;
   for (const b of ts.buildings) {
-    if (b.type !== 'storehouse' || !b.constructed) continue;
+    if (!isStorehouse(b.type) || !b.constructed) continue;
     for (const { resource } of FOOD_PRIORITY) {
       storehouseEdible += (b.localBuffer[resource] || 0);
     }
@@ -478,7 +478,7 @@ export function processEventsAndQuests(ts: TickState): void {
 
       if (eventSeed < 0.15) {
         // Wandering trader — deposit into storehouse buffer AND global
-        const traderSH = ts.buildings.find(b => b.type === 'storehouse' && b.constructed);
+        const traderSH = ts.buildings.find(b => isStorehouse(b.type) && b.constructed);
         if (traderSH) addToBuffer(traderSH.localBuffer, 'gold', 5, traderSH.bufferCapacity);
         ts.resources.gold += 5;
         const bonusRes: ResourceType[] = ['wood', 'stone', 'food'];
@@ -488,7 +488,7 @@ export function processEventsAndQuests(ts: TickState): void {
         ts.events.push(`A wandering trader passed through, leaving 5 gold and 3 ${pick}.`);
         ts.renown += 1;
       } else if (eventSeed < 0.25 && (ts.season === 'spring' || ts.season === 'summer')) {
-        const harvestSH = ts.buildings.find(b => b.type === 'storehouse' && b.constructed);
+        const harvestSH = ts.buildings.find(b => isStorehouse(b.type) && b.constructed);
         const wheatAdded = harvestSH ? addToBuffer(harvestSH.localBuffer, 'wheat', 5, harvestSH.bufferCapacity) : 0;
         addResource(ts.resources, 'wheat', wheatAdded, ts.storageCap);
         ts.events.push('A bountiful harvest! +5 wheat.');
@@ -543,7 +543,7 @@ export function processEventsAndQuests(ts: TickState): void {
       ts.completedQuests.push('first_steps');
       ts.renown += 10;
       ts.resources.gold += 20;
-      const qSH1 = ts.buildings.find(b => b.type === 'storehouse' && b.constructed);
+      const qSH1 = ts.buildings.find(b => isStorehouse(b.type) && b.constructed);
       if (qSH1) addToBuffer(qSH1.localBuffer, 'gold', 20, qSH1.bufferCapacity);
       ts.events.push('Quest complete: "First Steps" — 5 villagers, 3 buildings. +10 renown, +20 gold.');
     }
@@ -551,7 +551,7 @@ export function processEventsAndQuests(ts: TickState): void {
       ts.completedQuests.push('prosperous');
       ts.renown += 20;
       ts.resources.gold += 50;
-      const qSH2 = ts.buildings.find(b => b.type === 'storehouse' && b.constructed);
+      const qSH2 = ts.buildings.find(b => isStorehouse(b.type) && b.constructed);
       if (qSH2) addToBuffer(qSH2.localBuffer, 'gold', 50, qSH2.bufferCapacity);
       ts.events.push('Quest complete: "Prosperous" — Settlement thriving! +20 renown, +50 gold.');
     }

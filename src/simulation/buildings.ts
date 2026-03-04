@@ -5,7 +5,7 @@ import {
   BUILDING_TEMPLATES, BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP,
 } from '../world.js';
-import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance } from './helpers.js';
+import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance, isStorehouse } from './helpers.js';
 import { findPath } from './movement.js';
 
 export function placeBuilding(state: GameState, type: BuildingType, x: number, y: number): GameState {
@@ -101,7 +101,7 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
   const archBonus = hasTech(state.research, 'architecture') ? 1.5 : 1.0;
   const siegeBonus = hasTech(state.research, 'siege_engineering') && (type === 'wall' || type === 'gate') ? 1.5 : 1.0;
   const maxHp = Math.floor((BUILDING_MAX_HP[type] || 50) * archBonus * siegeBonus);
-  const bufCap = type === 'storehouse' ? STOREHOUSE_BUFFER_CAP : DEFAULT_BUFFER_CAP;
+  const bufCap = isStorehouse(type) ? STOREHOUSE_BUFFER_CAP : DEFAULT_BUFFER_CAP;
 
   const constructionReq = CONSTRUCTION_TICKS[type] || 60;
   // Small/simple structures (tent, fence) are instant for early game viability

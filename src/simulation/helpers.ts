@@ -78,6 +78,10 @@ export const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   hunting_lodge: 'hunter',
   marketplace: 'trader',
   watchtower: 'guard',
+  // T2 upgraded buildings inherit parent roles
+  large_farm: 'farmer', deep_quarry: 'quarrier',
+  lumber_mill: 'sawyer', advanced_smelter: 'smelter',
+  windmill: 'miller', kitchen: 'baker',
 };
 
 export function roleForBuilding(type: BuildingType): VillagerRole {
@@ -98,7 +102,12 @@ export function findHome(buildings: Building[], villagers: Villager[]): string |
 }
 
 export function computeStorageCap(buildings: Building[]): number {
-  return BASE_STORAGE_CAP + buildings.filter(b => b.type === 'storehouse').length * STOREHOUSE_BONUS;
+  let cap = BASE_STORAGE_CAP;
+  for (const b of buildings) {
+    if (b.type === 'storehouse') cap += STOREHOUSE_BONUS;
+    if (b.type === 'large_storehouse') cap += STOREHOUSE_BONUS * 2;
+  }
+  return cap;
 }
 
 export function addResource(resources: Resources, type: ResourceType, amount: number, cap: number): number {
@@ -175,7 +184,7 @@ export function autoEquipTool(v: Villager, resources: Resources, durabilityBonus
       // Also deduct from nearest storehouse buffer (physical)
       if (buildings) {
         for (const b of buildings) {
-          if (b.type === 'storehouse' && b.constructed && (b.localBuffer[res] || 0) > 0) {
+          if (isStorehouse(b.type) && b.constructed && (b.localBuffer[res] || 0) > 0) {
             b.localBuffer[res] = (b.localBuffer[res] || 0) - 1;
             if ((b.localBuffer[res] || 0) <= 0) delete b.localBuffer[res];
             break;
@@ -214,12 +223,12 @@ export function hasTech(research: ResearchState, tech: TechId): boolean {
 
 export function techProductionBonus(research: ResearchState, buildingType: BuildingType): number {
   let bonus = 0;
-  if (buildingType === 'farm' && hasTech(research, 'crop_rotation')) bonus += 1;
-  if (buildingType === 'farm' && hasTech(research, 'advanced_farming')) bonus += 1;
-  if (buildingType === 'quarry' && hasTech(research, 'masonry')) bonus += 1;
+  if ((buildingType === 'farm' || buildingType === 'large_farm') && hasTech(research, 'crop_rotation')) bonus += 1;
+  if ((buildingType === 'farm' || buildingType === 'large_farm') && hasTech(research, 'advanced_farming')) bonus += 1;
+  if ((buildingType === 'quarry' || buildingType === 'deep_quarry') && hasTech(research, 'masonry')) bonus += 1;
   if (buildingType === 'herb_garden' && hasTech(research, 'herbalism_lore')) bonus += 1;
-  if (buildingType === 'smelter' && hasTech(research, 'metallurgy')) bonus += 1;
-  if (buildingType === 'bakery' && hasTech(research, 'basic_cooking')) bonus += 1;
+  if ((buildingType === 'smelter' || buildingType === 'advanced_smelter') && hasTech(research, 'metallurgy')) bonus += 1;
+  if ((buildingType === 'bakery' || buildingType === 'kitchen') && hasTech(research, 'basic_cooking')) bonus += 1;
   // Master crafting: +1 to ALL production buildings
   if (hasTech(research, 'master_crafting')) bonus += 1;
   return bonus;
@@ -233,9 +242,13 @@ export function revealArea(fog: boolean[][], width: number, height: number, cx: 
   }
 }
 
+export function isStorehouse(type: BuildingType): boolean {
+  return type === 'storehouse' || type === 'large_storehouse';
+}
+
 export function findStorehouseAt(buildings: Building[], x: number, y: number): Building | null {
   for (const b of buildings) {
-    if (b.type !== 'storehouse' || !b.constructed) continue;
+    if (!isStorehouse(b.type) || !b.constructed) continue;
     if (x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height) return b;
   }
   return null;
@@ -245,7 +258,7 @@ export function findNearestStorehouse(buildings: Building[], grid: Tile[][], wid
   let best: Building | null = null;
   let bestDist = Infinity;
   for (const b of buildings) {
-    if (b.type !== 'storehouse') continue;
+    if (!isStorehouse(b.type)) continue;
     const entrance = getBuildingEntrance(b);
     const dist = Math.abs(entrance.x - x) + Math.abs(entrance.y - y);
     if (dist < bestDist) { bestDist = dist; best = b; }

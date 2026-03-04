@@ -187,12 +187,12 @@ heading('No Upgrade Path');
   let state = flatWorld(15, 10);
   state = { ...state, resources: { ...state.resources, wood: 50, stone: 20 } };
 
-  state = placeBuilding(state, 'farm', 3, 3);
-  const farmId = state.buildings.find(b => b.type === 'farm')!.id;
+  state = placeBuilding(state, 'well', 3, 3);
+  const wellId = state.buildings.find(b => b.type === 'well')!.id;
 
-  state = upgradeBuilding(state, farmId);
-  const farm = state.buildings.find(b => b.id === farmId)!;
-  assert(farm.type === 'farm', `Farm has no upgrade path — still farm (type=${farm.type})`);
+  state = upgradeBuilding(state, wellId);
+  const well = state.buildings.find(b => b.id === wellId)!;
+  assert(well.type === 'well', `Well has no upgrade path — still well (type=${well.type})`);
 }
 
 // ================================================================
@@ -260,6 +260,139 @@ heading('Upgraded Building HP');
 
   assert(house.maxHp === BUILDING_MAX_HP['house'], `House maxHp is ${BUILDING_MAX_HP['house']} (got ${house.maxHp})`);
   assert(house.hp === BUILDING_MAX_HP['house'], `House hp is full (${house.hp}/${house.maxHp})`);
+}
+
+// ================================================================
+// TEST: Upgrade Farm to Large Farm
+// ================================================================
+heading('Upgrade Farm to Large Farm');
+
+{
+  let state = flatWorld(15, 10);
+  state = { ...state, resources: { ...state.resources, wood: 50, stone: 20, planks: 20 } };
+
+  state = placeBuilding(state, 'farm', 3, 3);
+  const farmId = state.buildings.find(b => b.type === 'farm')!.id;
+  // Mark as constructed
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => ({
+      ...b, constructed: true, constructionProgress: b.constructionRequired,
+    })),
+    grid: state.grid.map(row => row.map(tile =>
+      tile.building
+        ? { ...tile, building: { ...tile.building, constructed: true, constructionProgress: tile.building.constructionRequired } }
+        : tile
+    )),
+  };
+
+  state = upgradeBuilding(state, farmId);
+  const upgraded = state.buildings.find(b => b.id === farmId)!;
+  assert(upgraded.type === 'large_farm', `Farm upgraded to large_farm (type=${upgraded.type})`);
+  assert(upgraded.width === 3 && upgraded.height === 3, `Large farm is 3x3 (${upgraded.width}x${upgraded.height})`);
+  assert(upgraded.constructed === false, 'Upgraded farm is construction site');
+
+  // Check template values
+  assert(BUILDING_TEMPLATES['large_farm'].maxWorkers === 3, 'Large farm supports 3 workers');
+  assert(BUILDING_TEMPLATES['large_farm'].production!.amountPerWorker === 4, 'Large farm produces 4 wheat/worker');
+}
+
+// ================================================================
+// TEST: Upgrade Sawmill to Lumber Mill
+// ================================================================
+heading('Upgrade Sawmill to Lumber Mill');
+
+{
+  let state = flatWorld(15, 10);
+  state = { ...state, resources: { ...state.resources, wood: 50, stone: 20, planks: 20 } };
+
+  state = placeBuilding(state, 'sawmill', 3, 3);
+  const sawId = state.buildings.find(b => b.type === 'sawmill')!.id;
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => ({
+      ...b, constructed: true, constructionProgress: b.constructionRequired,
+    })),
+    grid: state.grid.map(row => row.map(tile =>
+      tile.building
+        ? { ...tile, building: { ...tile.building, constructed: true, constructionProgress: tile.building.constructionRequired } }
+        : tile
+    )),
+  };
+
+  const woodBefore = state.resources.wood;
+  state = upgradeBuilding(state, sawId);
+  const upgraded = state.buildings.find(b => b.id === sawId)!;
+  assert(upgraded.type === 'lumber_mill', `Sawmill upgraded to lumber_mill (type=${upgraded.type})`);
+  assert(state.resources.wood < woodBefore, `Upgrade cost wood (before=${woodBefore}, after=${state.resources.wood})`);
+  assert(BUILDING_TEMPLATES['lumber_mill'].maxWorkers === 2, 'Lumber mill supports 2 workers');
+  assert(BUILDING_TEMPLATES['lumber_mill'].production!.amountPerWorker === 4, 'Lumber mill produces 4 planks/worker');
+}
+
+// ================================================================
+// TEST: Upgrade Storehouse to Large Storehouse (double storage)
+// ================================================================
+heading('Upgrade Storehouse to Large Storehouse');
+
+{
+  let state = flatWorld(15, 10);
+  state = { ...state, resources: { ...state.resources, wood: 80, stone: 30, planks: 20 } };
+
+  state = placeBuilding(state, 'storehouse', 3, 3);
+  const shId = state.buildings.find(b => b.type === 'storehouse')!.id;
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => ({
+      ...b, constructed: true, constructionProgress: b.constructionRequired,
+    })),
+    grid: state.grid.map(row => row.map(tile =>
+      tile.building
+        ? { ...tile, building: { ...tile.building, constructed: true, constructionProgress: tile.building.constructionRequired } }
+        : tile
+    )),
+  };
+
+  const capBefore = state.storageCap;
+  state = upgradeBuilding(state, shId);
+  const upgraded = state.buildings.find(b => b.id === shId)!;
+  assert(upgraded.type === 'large_storehouse', `Storehouse upgraded (type=${upgraded.type})`);
+  assert(upgraded.width === 2 && upgraded.height === 2, `Large storehouse is 2x2 (${upgraded.width}x${upgraded.height})`);
+}
+
+// ================================================================
+// TEST: Windmill Requires Rope
+// ================================================================
+heading('Windmill Upgrade Requires Rope');
+
+{
+  let state = flatWorld(15, 10);
+  state = { ...state, resources: { ...state.resources, wood: 80, stone: 30, planks: 20, rope: 0 } };
+
+  state = placeBuilding(state, 'mill', 3, 3);
+  const millId = state.buildings.find(b => b.type === 'mill')!.id;
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => ({
+      ...b, constructed: true, constructionProgress: b.constructionRequired,
+    })),
+    grid: state.grid.map(row => row.map(tile =>
+      tile.building
+        ? { ...tile, building: { ...tile.building, constructed: true, constructionProgress: tile.building.constructionRequired } }
+        : tile
+    )),
+  };
+
+  // Should fail — no rope
+  const before = state;
+  state = upgradeBuilding(state, millId);
+  const stillMill = state.buildings.find(b => b.id === millId)!;
+  assert(stillMill.type === 'mill', `Upgrade fails without rope (type=${stillMill.type})`);
+
+  // Add rope and try again
+  state = { ...state, resources: { ...state.resources, rope: 10 } };
+  state = upgradeBuilding(state, millId);
+  const windmill = state.buildings.find(b => b.id === millId)!;
+  assert(windmill.type === 'windmill', `Upgrade succeeds with rope (type=${windmill.type})`);
 }
 
 // ================================================================
