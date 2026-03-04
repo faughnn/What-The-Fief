@@ -14,7 +14,35 @@ import {
   autoEquipTool, degradeTool, gainSkillXp, hasTech, techProductionBonus,
   findStorehouseAt, findNearestStorehouse, revealArea,
 } from './helpers.js';
-import { moveOneStep, atDestination, planPath } from './movement.js';
+import { moveOneStep, atDestination, planPath, findPath } from './movement.js';
+
+// --- Helper: plan path to any tile of a multi-tile building (shortest reachable tile) ---
+function planPathToBuilding(v: Villager, building: Building, grid: Tile[][], width: number, height: number): void {
+  let bestPath: { x: number; y: number }[] | null = null;
+  for (let dy = 0; dy < building.height; dy++) {
+    for (let dx = 0; dx < building.width; dx++) {
+      const tx = building.x + dx;
+      const ty = building.y + dy;
+      if (v.x === tx && v.y === ty) {
+        v.path = [];
+        v.pathIndex = 0;
+        return;
+      }
+      const path = findPath(grid, width, height, v.x, v.y, tx, ty);
+      if (path.length > 0 && (bestPath === null || path.length < bestPath.length)) {
+        bestPath = path;
+      }
+    }
+  }
+  if (bestPath) {
+    v.path = bestPath;
+    v.pathIndex = 0;
+  } else {
+    // Fall back to entrance
+    const entrance = getBuildingEntrance(building);
+    planPath(v, grid, width, height, entrance.x, entrance.y);
+  }
+}
 
 // --- Helper: count only output resources in buffer (for processing buildings) ---
 function bufferOutputTotal(buffer: Partial<Record<ResourceType, number>>, buildingType: BuildingType): number {
@@ -46,11 +74,10 @@ function startHauling(v: Villager, job: Building, buildings: Building[], grid: T
   }
   v.carryTotal = carried;
 
-  // Find nearest storehouse
+  // Find nearest storehouse — try all tiles for best path
   const storehouse = findNearestStorehouse(buildings, grid, width, height, v.x, v.y);
   if (storehouse) {
-    const entrance = getBuildingEntrance(storehouse);
-    planPath(v, grid, width, height, entrance.x, entrance.y);
+    planPathToBuilding(v, storehouse, grid, width, height);
     v.state = 'traveling_to_storage';
   } else {
     // No storehouse — deposit at current location into global resources
@@ -78,8 +105,7 @@ function startPickupInputs(v: Villager, job: Building, buildings: Building[], re
     if (dist < bestDist) { bestDist = dist; bestSH = b; }
   }
   if (bestSH) {
-    const entrance = getBuildingEntrance(bestSH);
-    planPath(v, grid, width, height, entrance.x, entrance.y);
+    planPathToBuilding(v, bestSH, grid, width, height);
     v.state = 'traveling_to_storage';
     v.haulingToWork = true;
   } else {
@@ -106,10 +132,18 @@ function startEating(v: Villager, buildings: Building[], resources: Resources, g
     if (dist < bestDist) { bestDist = dist; bestSH = b; }
   }
   if (bestSH) {
-    const entrance = getBuildingEntrance(bestSH);
-    planPath(v, grid, width, height, entrance.x, entrance.y);
-    v.state = 'traveling_to_eat';
-    return true;
+    planPathToBuilding(v, bestSH, grid, width, height);
+    // Already at storehouse or path found
+    if (v.path.length === 0 && v.x >= bestSH.x && v.x < bestSH.x + bestSH.width
+        && v.y >= bestSH.y && v.y < bestSH.y + bestSH.height) {
+      v.state = 'traveling_to_eat';
+      return true;
+    }
+    if (v.path.length > 0) {
+      v.state = 'traveling_to_eat';
+      return true;
+    }
+    return false;
   }
   return false;
 }
@@ -238,19 +272,24 @@ export function processVillagerStateMachine(ts: TickState): void {
       if (v.state === 'eating') {
         const eatSH = findStorehouseAt(ts.buildings, v.x, v.y);
         let fed = false;
-        for (const { resource, satisfaction } of FOOD_PRIORITY) {
-          const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
-          if (bufAmt > 0) {
-            eatSH!.localBuffer[resource] = bufAmt - 1;
-            if ((eatSH!.localBuffer[resource] || 0) <= 0) delete eatSH!.localBuffer[resource];
-            ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
-            v.food = Math.min(10, v.food + satisfaction);
-            v.lastAte = resource as FoodEaten;
-            v.recentMeals.push(resource as FoodEaten);
-            if (v.recentMeals.length > 5) v.recentMeals.shift();
-            fed = true;
-            break;
+        while (v.food < 8) {
+          let ateThisRound = false;
+          for (const { resource, satisfaction } of FOOD_PRIORITY) {
+            const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
+            if (bufAmt > 0) {
+              eatSH!.localBuffer[resource] = bufAmt - 1;
+              if ((eatSH!.localBuffer[resource] || 0) <= 0) delete eatSH!.localBuffer[resource];
+              ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
+              v.food = Math.min(10, v.food + satisfaction);
+              v.lastAte = resource as FoodEaten;
+              v.recentMeals.push(resource as FoodEaten);
+              if (v.recentMeals.length > 5) v.recentMeals.shift();
+              fed = true;
+              ateThisRound = true;
+              break;
+            }
           }
+          if (!ateThisRound) break;
         }
         if (!fed) {
           v.food = Math.max(0, v.food - 0.5);
@@ -326,12 +365,11 @@ export function processVillagerStateMachine(ts: TickState): void {
         continue;
       }
 
-      // Hungry villagers eat before work (food <= 5)
-      if (v.food <= 5) {
+      // Villagers eat a meal every morning (unless already full)
+      if (v.food < 8) {
         if (startEating(v, ts.buildings, ts.resources, ts.grid, ts.width, ts.height)) {
           continue;
         }
-        // No food available — go to work anyway (will starve)
       }
 
       if (v.jobBuildingId) {
@@ -456,9 +494,9 @@ export function processVillagerStateMachine(ts: TickState): void {
           break;
         }
 
-        // Check if buffer is full
-        if (bufferTotal(job.localBuffer) >= job.bufferCapacity) {
-          // Buffer full — start hauling
+        // Haul when output buffer has a full carry load (not just when completely full)
+        // This ensures resources reach the storehouse before villagers starve
+        if (bufferOutputTotal(job.localBuffer, job.type) >= CARRY_CAPACITY) {
           startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
           break;
         }
@@ -573,15 +611,24 @@ export function processVillagerStateMachine(ts: TickState): void {
             const targetSH = findStorehouseAt(ts.buildings, v.x, v.y);
             for (const [res, amt] of Object.entries(v.carrying)) {
               if (amt && amt > 0) {
+                let deposited = 0;
                 if (targetSH) {
-                  addToBuffer(targetSH.localBuffer, res as ResourceType, amt, targetSH.bufferCapacity);
+                  deposited = addToBuffer(targetSH.localBuffer, res as ResourceType, amt, targetSH.bufferCapacity);
                 }
-                // Also keep global resources in sync
-                addResource(ts.resources, res as ResourceType, amt, ts.storageCap);
+                // Only add to global what was actually deposited — prevents resource inflation
+                if (deposited > 0) {
+                  addResource(ts.resources, res as ResourceType, deposited, ts.storageCap);
+                }
+                // Keep undeposited amount in carrying — will go back to workplace buffer
+                const remaining = amt - deposited;
+                if (remaining > 0) {
+                  v.carrying[res as ResourceType] = remaining;
+                } else {
+                  delete v.carrying[res as ResourceType];
+                }
               }
             }
-            v.carrying = {};
-            v.carryTotal = 0;
+            v.carryTotal = Object.values(v.carrying).reduce((s, a) => s + (a || 0), 0);
 
             // Idle helpers: release temp job and go back to idle task search
             if (v.role === 'idle') {
@@ -758,23 +805,27 @@ export function processVillagerStateMachine(ts: TickState): void {
       }
 
       case 'eating': {
-        // At a storehouse — consume food from storehouse local buffer
+        // At a storehouse — eat until satisfied (food >= 6) or storehouse empty
         const eatSH = findStorehouseAt(ts.buildings, v.x, v.y);
         let fed = false;
-        for (const { resource, satisfaction } of FOOD_PRIORITY) {
-          const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
-          if (bufAmt > 0) {
-            eatSH!.localBuffer[resource] = bufAmt - 1;
-            if ((eatSH!.localBuffer[resource] || 0) <= 0) delete eatSH!.localBuffer[resource];
-            // Keep global in sync
-            ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
-            v.food = Math.min(10, v.food + satisfaction);
-            v.lastAte = resource as FoodEaten;
-            v.recentMeals.push(resource as FoodEaten);
-            if (v.recentMeals.length > 5) v.recentMeals.shift();
-            fed = true;
-            break;
+        while (v.food < 8) {
+          let ateThisRound = false;
+          for (const { resource, satisfaction } of FOOD_PRIORITY) {
+            const bufAmt = eatSH ? (eatSH.localBuffer[resource] || 0) : 0;
+            if (bufAmt > 0) {
+              eatSH!.localBuffer[resource] = bufAmt - 1;
+              if ((eatSH!.localBuffer[resource] || 0) <= 0) delete eatSH!.localBuffer[resource];
+              ts.resources[resource] = Math.max(0, ts.resources[resource] - 1);
+              v.food = Math.min(10, v.food + satisfaction);
+              v.lastAte = resource as FoodEaten;
+              v.recentMeals.push(resource as FoodEaten);
+              if (v.recentMeals.length > 5) v.recentMeals.shift();
+              fed = true;
+              ateThisRound = true;
+              break;
+            }
           }
+          if (!ateThisRound) break; // No food left in storehouse
         }
         if (!fed) {
           v.food = Math.max(0, v.food - 0.5);
@@ -820,9 +871,14 @@ export function processVillagerStateMachine(ts: TickState): void {
   if (ts.dayTick >= TICKS_PER_DAY - 5 && !ts.isNight) {
     for (const v of ts.villagers) {
       if (v.state !== 'sleeping' && v.state !== 'traveling_home' && v.state !== 'scouting') {
-        // Drop any carrying into global storage (convenience)
+        // Drop any carrying into nearest storehouse buffer (if reachable)
+        const dropSH = findNearestStorehouse(ts.buildings, ts.grid, ts.width, ts.height, v.x, v.y);
         for (const [res, amt] of Object.entries(v.carrying)) {
-          if (amt && amt > 0) addResource(ts.resources, res as ResourceType, amt, ts.storageCap);
+          if (amt && amt > 0) {
+            let deposited = 0;
+            if (dropSH) deposited = addToBuffer(dropSH.localBuffer, res as ResourceType, amt, dropSH.bufferCapacity);
+            if (deposited > 0) addResource(ts.resources, res as ResourceType, deposited, ts.storageCap);
+          }
         }
         v.carrying = {};
         v.carryTotal = 0;

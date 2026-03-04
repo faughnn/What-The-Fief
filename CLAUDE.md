@@ -16,16 +16,56 @@ A physically simulated medieval colony. The player is a god-like overseer — no
 ## The Loop
 
 ```
-OBSERVE  -> Run the game, look at what happens
-EVALUATE -> Ask the Bellwright Question (see below)
-DESIGN   -> Pick the biggest gap, design the fix
-TEST     -> Write tests FIRST that enforce physical behavior
-BUILD    -> Implement until ALL tests pass (new and existing)
-COMMIT   -> git commit, update PROGRESS.md with Bellwright Question answer
+OBSERVE  -> Run all tests and the stress test. Read the output.
+EVALUATE -> Ask the Bellwright Question. Research online.
+DESIGN   -> Pick the highest priority gap, design the fix.
+TEST     -> Write unit tests FIRST that enforce physical behavior.
+BUILD    -> Implement until ALL unit tests pass (new and existing).
+STRESS   -> Run the stress test. If it fails, ask the Bellwright Question to diagnose, fix, repeat.
+COMMIT   -> git commit, update PROGRESS.md.
 REPEAT
 ```
 
-Run after every change. Never assume it works. Never commit with failing tests.
+### OBSERVE
+Run all unit tests and the stress test. Read the output carefully — don't skim. If anything is broken, fix it before moving on.
+
+### EVALUATE
+Ask the Bellwright Question (see below). This includes researching online how the real game handles whatever gaps you find. Don't skip the research step.
+
+### DESIGN
+Pick the highest priority gap from the Bellwright Question answer. Design the fix based on what you learned from researching Bellwright. When realism and Bellwright conflict, prefer Bellwright. When neither helps, prefer the more physically grounded option.
+
+### TEST
+Write unit tests FIRST that enforce the physical behavior you're about to build. Tests must be physically unfakeable — abstract implementations must fail them.
+
+Good tests: verify positions each tick, check local buffers not global, measure travel time, confirm adjacency during combat.
+Bad tests: "colony has 50 wheat after 100 ticks" (doesn't verify where/how), "guard defeats enemy" (doesn't verify where).
+
+Write in `src/tests/`. Run ALL before committing.
+
+### BUILD
+Implement until all unit tests pass — both the new ones and all existing ones. Never assume it works. Run them.
+
+If existing tests fail after a mechanics change, don't blindly fix the tests or revert the code. Ask the Bellwright Question: research how Bellwright handles it, then decide whether the test or the code is wrong. Update whichever one doesn't match Bellwright.
+
+### STRESS
+Run the stress test. If it fails, go back to the Bellwright Question: what's wrong, how does Bellwright handle it, research online, fix it, re-run. Loop until it passes.
+
+The stress test must include a **player AI** — a function that examines game state each day and issues commands like a real player would. Bellwright is not a hands-off simulation; the player constantly builds, assigns, and adapts. Testing without player input is testing a scenario that never happens in real gameplay.
+
+The player AI should make reasonable decisions:
+- Build farms when food is low, expand housing when population grows
+- Build walls and assign guards as raid threat increases
+- Build a tanner/weaver before winter for clothing
+- Rebuild destroyed buildings, reassign displaced workers
+- React to events (disease → build well, raids → fortify)
+
+The stress test proves: **given reasonable player decisions, does the colony thrive over 100 days?** This validates both the simulation systems AND the balance — if a competent player can't keep a colony alive, the game is broken.
+
+### COMMIT
+git commit. Update PROGRESS.md with: what you built, the Bellwright Question answer, stress test results, and what's next. Never commit with failing tests or a failing stress test.
+
+**Stuck?** 3 different approaches failed → log in PROGRESS.md, move to next gap.
 
 ## The Bellwright Question
 
@@ -43,6 +83,8 @@ Be brutally honest. If villagers teleport — no. If combat is abstract math —
 - Winter is harsh but possible with stored food
 - Distance and layout measurably affect productivity
 - Each claim needs a test that proves it with numbers
+
+**Before inventing a solution, research how Bellwright does it.** When you identify a gap, don't guess how to fix it. Search the [Bellwright Wiki](https://bellwright.fandom.com/wiki/Bellwright_Wiki) and [Steam discussions](https://steamcommunity.com/app/1812450/discussions/) for how the real game handles it. Don't trust training data alone — look it up. Spend time researching before coding the wrong fix.
 
 The highest priority gap drives what you build next.
 
@@ -124,36 +166,31 @@ These are physics laws. They cannot be violated. Every tick, the validation func
 - Villagers carry out commands autonomously — the player cannot micromanage movement.
 - The player sees the world through the text renderer (map, villager status, economy, alerts).
 
-## V1 → V2 Transition
+## Architecture: Data-Oriented Systems
 
-Phases 1-12 built an abstract simulation where villagers teleport, combat is instant math, and resources go straight to a global pool. The data types and templates (`world.ts`) are reusable. The simulation logic (`simulation.ts`) must be rewritten — it assumes 1 tick = 1 day and every system uses instant resolution. Incrementally patching won't work because every rate, timer, and check is calibrated for the wrong tick model. **Keep the data layer. Rewrite the simulation layer.** Existing v1 tests should be replaced as each system is rebuilt.
+This game uses a data-oriented systems architecture:
 
-## Tests
-
-Tests must be **physically unfakeable** — abstract implementations must fail them.
-
-Good: verify positions each tick, check local buffers not global, measure travel time, confirm adjacency during combat.
-Bad: "colony has 50 wheat after 100 ticks" (doesn't verify where/how), "guard defeats enemy" (doesn't verify where).
-
-Write in `src/tests/`. Run ALL before committing.
-
-## Architecture
-
-- GameState is the single source of truth. tick() is deterministic, no mutation.
-- Split files at ~300 lines into subdirectories with index.ts re-exports.
+- **GameState** is a plain data object. No methods, no logic, just state. It is the single source of truth.
+- **Systems** are functions that take GameState and mutate it for one tick. Each system owns one domain (combat, hunger, movement, etc.).
+- **tick()** in index.ts calls systems in a fixed order. This order matters — movement before combat, combat before cleanup, etc.
+- **Systems are independent.** They read/write GameState but never import or call each other. If system A needs a result from system B, system B writes it to GameState and system A reads it next tick.
+- **No game logic in data files.** world.ts defines types, templates, and constants. Simulation files contain all logic.
 - TypeScript, `npx tsx`, no frameworks, only dependency is `tsx`.
 
-## Design Tiebreaker
+## Code Organization
 
-When unsure: **"How does Bellwright do this?"** When realism and Bellwright conflict, prefer Bellwright. When neither helps, prefer the more physically grounded option. Document decisions in PROGRESS.md.
+- **One system per file.** Each file owns one coherent domain that can be described in 3-5 words (e.g., "villager hunger and eating", "raid spawning and combat", "merchant trade"). When adding a new system, create a new file — don't append to an existing one. If new code doesn't match the file's purpose, it's a new file.
+- **Systems communicate through GameState only.** Never import one system file from another. If two systems need to interact, they read/write GameState fields. The tick orchestrator in index.ts controls execution order.
+- **Helper functions** used by 2+ systems go in helpers.ts. Helpers used by only one system stay in that system's file.
+- If a file is getting large, check whether it contains multiple unrelated subsystems that should be separate files.
 
-## Workflow
+## Code Quality
 
-**Commits:** After each working feature. Never commit broken code.
-
-**PROGRESS.md** after every commit: what you built, test status, Bellwright Question answer, what's next, active files.
-
-**Stuck?** 3 different approaches failed → log in PROGRESS.md, move to next gap.
+- **Don't duplicate — find and reuse.** Before writing a new helper, search for existing ones that do the same thing. If you solve the same problem a second time in a different way, you've created a bug.
+- **Functions do one thing.** If a function has "and" in its description, it's two functions. If a function is over 40 lines, look for a loop body or branch that could be extracted with a clear name.
+- **No magic numbers.** Game-balance values (damage, rates, thresholds, capacities) must be named constants defined near the top of the file or in world.ts. A reviewer should be able to tune the game by reading constants, not hunting through logic.
+- **Follow existing patterns.** Before implementing something new, find a similar existing system and match its structure. Consistency beats novelty.
+- **Name things precisely.** Function names are verb phrases: `findNearestStorehouse`, not `handleStorage`. Booleans read as true/false: `isHungry`, `hasPath`, `canWork`. Avoid generic names: data, info, result, item, process, handle, manage.
 
 ## Completion
 
@@ -161,17 +198,4 @@ There is no checklist. The game is done when the Bellwright Question honestly an
 
 Not "mostly yes." Not "yes, except for combat." Not "yes, if you ignore the resource system." Not "functionally yes." The answer must be an unqualified, 100%, nothing-left-to-build **yes** — and every single claim in that answer must have a passing test backing it up. If even one system is abstract, instant, or faked, the answer is **no**.
 
-Run all tests, run a long simulation, verify zero `ERROR:` lines, ask the Bellwright Question one final time with maximum pedantry. If there is any gap at all, keep building.
-
-### Stress / Balance Testing
-
-The long simulation stress test must include a **player AI** — a function that examines game state each day and issues commands like a real player would. Bellwright is not a hands-off simulation; the player constantly builds, assigns, and adapts. Testing without player input is testing a scenario that never happens in real gameplay.
-
-The player AI should make reasonable decisions:
-- Build farms when food is low, expand housing when population grows
-- Build walls and assign guards as raid threat increases
-- Build a tanner/weaver before winter for clothing
-- Rebuild destroyed buildings, reassign displaced workers
-- React to events (disease → build well, raids → fortify)
-
-The stress test proves: **given reasonable player decisions, does the colony thrive over 100 days?** This validates both the simulation systems AND the balance — if a competent player can't keep a colony alive, the game is broken.
+**Never stop early.** If you think the game might be complete, do one more full loop: run all tests, run the stress test, answer the Bellwright Question with maximum pedantry, and look for gaps you missed. If you still find nothing, do it once more — check edge cases, re-read the invariants, and try to break things. Only stop when two consecutive honest evaluations find zero gaps. When in doubt, err on the side of continuing rather than stopping.

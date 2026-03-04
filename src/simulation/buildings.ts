@@ -5,7 +5,8 @@ import {
   BUILDING_TEMPLATES, BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP,
 } from '../world.js';
-import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent } from './helpers.js';
+import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance } from './helpers.js';
+import { findPath } from './movement.js';
 
 export function placeBuilding(state: GameState, type: BuildingType, x: number, y: number): GameState {
   const template = BUILDING_TEMPLATES[type];
@@ -35,6 +36,47 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
       }
     }
   }
+
+  // Defensive structures (wall, fence, gate) skip the accessibility check —
+  // their purpose is to restrict movement, and allies path through gates
+  if (type === 'wall' || type === 'fence' || type === 'gate') {
+    // Skip accessibility check for defensive structures
+  } else {
+
+  // Check that placing this building wouldn't block access to existing building entrances
+  // Simulate the grid with the new building placed, then verify paths to key buildings
+  const testGrid: Tile[][] = state.grid.map((row, gy) =>
+    row.map((tile, gx) => {
+      if (gx >= x && gx < x + bw && gy >= y && gy < y + bh) {
+        return { ...tile, building: { type, x, y, width: bw, height: bh } as any };
+      }
+      return tile;
+    })
+  );
+  // Check that placing this building wouldn't block ALL access to existing building entrances
+  for (const existing of state.buildings) {
+    if (!existing.constructed) continue;
+    if (existing.type === 'wall' || existing.type === 'fence' || existing.type === 'gate') continue;
+    const entrance = getBuildingEntrance(existing);
+    const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+    let hasAccess = false;
+    for (const { dx, dy } of dirs) {
+      const ax = entrance.x + dx;
+      const ay = entrance.y + dy;
+      if (ax < 0 || ay < 0 || ax >= state.width || ay >= state.height) continue;
+      const adjTile = testGrid[ay][ax];
+      if (adjTile.terrain !== 'water' && (!adjTile.building || adjTile.building.type === 'gate' || adjTile.building.type === 'rubble')) {
+        hasAccess = true;
+        break;
+      }
+    }
+    if (!hasAccess) {
+      console.log(`ERROR: Cannot place ${type} at (${x},${y}) — would block access to ${existing.type} at (${existing.x},${existing.y})`);
+      return state;
+    }
+  }
+
+  } // end of non-defensive accessibility check
 
   const costReduction = hasTech(state.research, 'civil_engineering') ? 0.25 : 0;
   const newResources: Resources = { ...state.resources };

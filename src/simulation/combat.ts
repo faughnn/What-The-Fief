@@ -81,12 +81,19 @@ export function processRaidAndCombat(ts: TickState): void {
   // Track original enemy count (before raid spawning) for cleared check
   const enemyCountBefore = ts.enemies.length;
 
-  // RAID CHECK (daily, spawn enemies at map edge)
-  if (ts.isNewDay && ts.newDay > 20) {
+  // RAID CHECK — raids only start once the colony is established
+  // Milestone gate: population >= 6 AND at least 8 constructed buildings
+  const constructedBuildings = ts.buildings.filter(b => b.constructed && b.type !== 'rubble').length;
+  if (ts.isNewDay && ts.villagers.length >= 6 && constructedBuildings >= 8) {
     let totalRes = 0;
     for (const key of ALL_RESOURCES) totalRes += ts.resources[key];
     const raidProsperity = totalRes / 50 + ts.buildings.length + ts.villagers.length;
-    ts.raidBar += raidProsperity * 0.2;
+    ts.raidBar += raidProsperity * 0.15;
+  }
+  // Raid level decay — weak colonies don't face escalating raids
+  if (ts.isNewDay && ts.raidLevel > 0 && ts.villagers.length <= 3 && ts.enemies.length === 0) {
+    ts.raidLevel = Math.max(0, ts.raidLevel - 1);
+    ts.raidBar = 0;
   }
 
   // Trigger raid — spawn enemies at map edge

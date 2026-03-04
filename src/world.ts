@@ -154,7 +154,7 @@ export const TICKS_PER_DAY = 120;
 export const NIGHT_TICKS = 30;       // ticks 0-29 = night, 30-119 = day
 export const CARRY_CAPACITY = 5;
 export const DEFAULT_BUFFER_CAP = 20;
-export const STOREHOUSE_BUFFER_CAP = 100;
+export const STOREHOUSE_BUFFER_CAP = 2000;
 export const HOME_DEPARTURE_TICK = 95; // villagers start heading home at this tick-in-day
 
 // --- Spoilage rates (fraction lost per tick) ---

@@ -10,23 +10,29 @@ import {
 } from '../world.js';
 import {
   TickState, findHome, autoEquipTool, getBuildingEntrance,
-  addResource, revealArea, hasTech,
+  addResource, addToBuffer, findNearestStorehouse, revealArea, hasTech,
 } from './helpers.js';
 import { findPath, planPath } from './movement.js';
 
-function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean, churchNearby: boolean): number {
+// New settlement optimism: +20 morale fading to 0 over 40 days (like RimWorld)
+const NEW_SETTLEMENT_OPTIMISM_DAYS = 40;
+const NEW_SETTLEMENT_OPTIMISM_MAX = 20;
+
+function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean, churchNearby: boolean, day: number): number {
   let morale = 50;
   morale += housingMorale;
   switch (v.lastAte) {
     case 'bread': morale += 10; break;
     case 'flour': morale += 5; break;
     case 'wheat': case 'food': break;
-    case 'nothing': morale -= 20; break;
+    case 'nothing': if (v.food <= 0) morale -= 20; break;
   }
   if (v.traits.includes('cheerful')) morale += 10;
   if (v.traits.includes('gloomy')) morale -= 10;
   morale += SEASON_MORALE[season];
   morale += WEATHER_MORALE[weather];
+  // New settlement optimism — fades linearly over 40 days
+  morale += Math.max(0, NEW_SETTLEMENT_OPTIMISM_MAX - Math.floor(day / 2));
   // Clothing: unclothed in winter = severe penalty
   if (season === 'winter' && !v.clothed) morale -= 15;
   // Grief penalty
@@ -59,15 +65,6 @@ export function processDailyChecks(ts: TickState): void {
       const homeId = findHome(ts.buildings, ts.villagers);
       if (homeId) v.homeBuildingId = homeId;
     }
-  }
-
-  // Hunger decay — villagers get hungrier each day (eating is now physical)
-  for (const v of ts.villagers) {
-    const isGlutton = v.traits.includes('glutton');
-    const isFrugal = v.traits.includes('frugal');
-    const decay = isGlutton ? 2 : (isFrugal ? 0.5 : 1);
-    v.food = Math.max(0, v.food - decay);
-    v.lastAte = 'nothing' as FoodEaten;
   }
 
   // Tavern visit cooldown — decrement daily
@@ -133,7 +130,12 @@ export function processDailyChecks(ts: TickState): void {
         );
       }
     }
-    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather, familyNearby, churchNearby);
+    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather, familyNearby, churchNearby, ts.newDay);
+  }
+
+  // Reset lastAte AFTER morale calculation — so yesterday's meals influence today's morale
+  for (const v of ts.villagers) {
+    v.lastAte = 'nothing' as FoodEaten;
   }
 
   // Housing check
@@ -178,6 +180,11 @@ export function processDailyChecks(ts: TickState): void {
   // Departure — food<=0 OR homeless>=5 OR morale<=10
   const departing = ts.villagers.filter(v => v.food <= 0 || v.homeless >= 5 || v.morale <= 10);
   for (const d of departing) {
+    const reasons: string[] = [];
+    if (d.food <= 0) reasons.push(`food=${d.food}`);
+    if (d.homeless >= 5) reasons.push(`homeless=${d.homeless}`);
+    if (d.morale <= 10) reasons.push(`morale=${d.morale}`);
+    ts.events.push(`${d.name} departs (${reasons.join(', ')})`);
     for (const b of ts.buildings) b.assignedWorkers = b.assignedWorkers.filter(id => id !== d.id);
     // Apply grief to family members when someone leaves
     for (const other of ts.villagers) {
@@ -189,10 +196,28 @@ export function processDailyChecks(ts: TickState): void {
   }
   ts.villagers = ts.villagers.filter(v => v.food > 0 && v.homeless < 5 && v.morale > 10);
 
+  // Hunger decay — AFTER departure check so villagers get one more dawn to eat.
+  // Departure uses yesterday's food level. Decay applies for today. Eating at dawn (tick 30) restores food.
+  // Note: lastAte is NOT reset here — it's reset AFTER morale calculation
+  // so that yesterday's meals correctly influence today's morale.
+  for (const v of ts.villagers) {
+    const isGlutton = v.traits.includes('glutton');
+    const isFrugal = v.traits.includes('frugal');
+    const decay = isGlutton ? 2 : (isFrugal ? 0.5 : 1);
+    v.food = Math.max(0, v.food - decay);
+  }
+
   // Immigration — new villagers arrive at map edge and walk home
-  let totalEdible = 0;
-  for (const { resource } of FOOD_PRIORITY) totalEdible += ts.resources[resource];
-  if (totalEdible > ts.villagers.length * 3) {
+  // Check food in STOREHOUSE BUFFERS (not global) — global includes farm buffers
+  // that villagers can't eat from. Only invite settlers when food is physically accessible.
+  let storehouseEdible = 0;
+  for (const b of ts.buildings) {
+    if (b.type !== 'storehouse' || !b.constructed) continue;
+    for (const { resource } of FOOD_PRIORITY) {
+      storehouseEdible += (b.localBuffer[resource] || 0);
+    }
+  }
+  if (storehouseEdible > ts.villagers.length * 3) {
     const emptyHome = findHome(ts.buildings, ts.villagers);
     if (emptyHome) {
       const home = ts.buildings.find(b => b.id === emptyHome)!;
@@ -399,14 +424,20 @@ export function processEventsAndQuests(ts: TickState): void {
       const eventSeed = ((ts.newDay * 6364136 + 1442695) & 0x7fffffff) / 0x7fffffff;
 
       if (eventSeed < 0.15) {
+        // Wandering trader — deposit into storehouse buffer AND global
+        const traderSH = ts.buildings.find(b => b.type === 'storehouse' && b.constructed);
+        if (traderSH) addToBuffer(traderSH.localBuffer, 'gold', 5, traderSH.bufferCapacity);
         ts.resources.gold += 5;
         const bonusRes: ResourceType[] = ['wood', 'stone', 'food'];
         const pick = bonusRes[ts.newDay % bonusRes.length];
-        addResource(ts.resources, pick, 3, ts.storageCap);
+        const deposited = traderSH ? addToBuffer(traderSH.localBuffer, pick, 3, traderSH.bufferCapacity) : 0;
+        addResource(ts.resources, pick, deposited, ts.storageCap);
         ts.events.push(`A wandering trader passed through, leaving 5 gold and 3 ${pick}.`);
         ts.renown += 1;
       } else if (eventSeed < 0.25 && (ts.season === 'spring' || ts.season === 'summer')) {
-        addResource(ts.resources, 'wheat', 5, ts.storageCap);
+        const harvestSH = ts.buildings.find(b => b.type === 'storehouse' && b.constructed);
+        const wheatAdded = harvestSH ? addToBuffer(harvestSH.localBuffer, 'wheat', 5, harvestSH.bufferCapacity) : 0;
+        addResource(ts.resources, 'wheat', wheatAdded, ts.storageCap);
         ts.events.push('A bountiful harvest! +5 wheat.');
       } else if (eventSeed < 0.40) {
         ts.raidBar = Math.min(100, ts.raidBar + 15);
@@ -459,12 +490,16 @@ export function processEventsAndQuests(ts: TickState): void {
       ts.completedQuests.push('first_steps');
       ts.renown += 10;
       ts.resources.gold += 20;
+      const qSH1 = ts.buildings.find(b => b.type === 'storehouse' && b.constructed);
+      if (qSH1) addToBuffer(qSH1.localBuffer, 'gold', 20, qSH1.bufferCapacity);
       ts.events.push('Quest complete: "First Steps" — 5 villagers, 3 buildings. +10 renown, +20 gold.');
     }
     if (!ts.completedQuests.includes('prosperous') && ts.prosperity >= 70) {
       ts.completedQuests.push('prosperous');
       ts.renown += 20;
       ts.resources.gold += 50;
+      const qSH2 = ts.buildings.find(b => b.type === 'storehouse' && b.constructed);
+      if (qSH2) addToBuffer(qSH2.localBuffer, 'gold', 50, qSH2.bufferCapacity);
       ts.events.push('Quest complete: "Prosperous" — Settlement thriving! +20 renown, +50 gold.');
     }
   }

@@ -160,8 +160,9 @@ heading('Winter Morale Penalty Without Clothing');
   assert(v !== undefined, 'Villager survived the winter day');
   if (v) {
     assert(v.clothed === false, `Villager remains unclothed (no materials)`);
-    // Base 50 + house(+10) - nothing(-20) + winter(-10) - unclothed(-15) = 15 + weather
-    assert(v.morale <= 25, `Unclothed winter morale penalized (morale=${v.morale})`);
+    // Base 50 + house(+10) + winter(-10) - unclothed(-15) + optimism = 35 + weather + optimism
+    // Key: unclothed penalty (-15) still applies, morale lower than clothed villager
+    assert(v.morale <= 55, `Unclothed winter morale penalized (morale=${v.morale})`);
   }
 }
 

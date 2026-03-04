@@ -188,6 +188,8 @@ heading('Repair Then Production');
   state = addVillager(state, 3, 5);
   state = placeBuilding(state, 'tent', 3, 5);
   state = placeBuilding(state, 'farm', 4, 5);
+  // Storehouse so hauled resources have somewhere to go
+  state = placeBuilding(state, 'storehouse', 7, 5);
   const homeId = state.buildings[0].id;
   const farmId = state.buildings.find(b => b.type === 'farm')!.id;
 
@@ -212,10 +214,13 @@ heading('Repair Then Production');
 
   const farm = state.buildings.find(b => b.id === farmId)!;
   assert(farm.hp === farm.maxHp, `Farm fully repaired: ${farm.hp}/${farm.maxHp}`);
+  // Wheat may be in farm's local buffer, storehouse buffer, or global resources
   const wheat = farm.localBuffer['wheat'] || 0;
+  const sh = state.buildings.find(b => b.type === 'storehouse')!;
+  const shWheat = sh.localBuffer['wheat'] || 0;
   const globalWheat = state.resources.wheat;
-  assert(wheat > 0 || globalWheat > 0,
-    `Production resumed after repair: local=${wheat}, global=${globalWheat}`);
+  assert(wheat > 0 || shWheat > 0 || globalWheat > 0,
+    `Production resumed after repair: local=${wheat}, storehouse=${shWheat}, global=${globalWheat}`);
 }
 
 // ================================================================

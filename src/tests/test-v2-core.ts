@@ -257,6 +257,8 @@ heading('Local Buffers — Production Into Building');
   // Place home and farm close together so villager arrives quickly
   state = placeBuilding(state, 'tent', 0, 5);
   state = placeBuilding(state, 'farm', 2, 5);
+  // Storehouse so hauled resources have somewhere to go
+  state = placeBuilding(state, 'storehouse', 5, 5);
   const homeId = state.buildings[0].id;
   const farmId = state.buildings[1].id;
 
@@ -273,13 +275,15 @@ heading('Local Buffers — Production Into Building');
   // Advance past dawn + travel (2 tiles) + construction (60 ticks for farm) + work ticks
   state = advance(state, TICKS_PER_DAY * 2); // 2 full days: build + produce
 
-  // Check: production should be in the farm's local buffer, NOT (only) in global resources
+  // Check: production should be in the farm's local buffer, storehouse buffer, or global resources
   const farm = state.buildings.find(b => b.id === farmId)!;
   const localWheat = farm.localBuffer['wheat'] || 0;
+  const sh = state.buildings.find(b => b.type === 'storehouse')!;
+  const shWheat = sh.localBuffer['wheat'] || 0;
 
-  // The farm should have some wheat in its local buffer or hauled to global
-  assert(localWheat > 0 || state.resources.wheat > initialGlobalWheat,
-    'Production generated wheat (in local buffer or hauled to global)');
+  // The farm should have some wheat in its local buffer, storehouse buffer, or hauled to global
+  assert(localWheat > 0 || shWheat > 0 || state.resources.wheat > initialGlobalWheat,
+    'Production generated wheat (in local buffer, storehouse buffer, or hauled to global)');
 
   // Key test: at least some production went through the local buffer system
   // If the villager hasn't hauled yet, wheat should be in local buffer, not global

@@ -38,6 +38,24 @@ function advance(state: GameState, n: number): GameState {
   return state;
 }
 
+function constructAll(state: GameState): GameState {
+  return {
+    ...state,
+    buildings: state.buildings.map(b => ({
+      ...b, constructed: true, constructionProgress: b.constructionRequired,
+    })),
+    grid: state.grid.map(row => row.map(tile =>
+      tile.building ? { ...tile, building: { ...tile.building, constructed: true, constructionProgress: tile.building.constructionRequired } } : tile
+    )),
+  };
+}
+
+function addVillager(state: GameState, x: number, y: number): GameState {
+  const v = createVillager(state.nextVillagerId, x, y);
+  v.food = 8;
+  return { ...state, villagers: [...state.villagers, v], nextVillagerId: state.nextVillagerId + 1 };
+}
+
 // ================================================================
 // TEST 1: Battering ram deals extra damage to walls
 // ================================================================
@@ -234,12 +252,25 @@ heading('High-Level Raid Spawns Siege Equipment');
   let state = flatWorld(20, 20);
   state = { ...state, resources: { ...state.resources, wood: 100, stone: 50 } };
 
+  // Need 6+ villagers and 8+ buildings for raids to trigger
+  state = placeBuilding(state, 'storehouse', 5, 5);
+  state = placeBuilding(state, 'tent', 3, 5);
+  state = placeBuilding(state, 'tent', 4, 5);
+  state = placeBuilding(state, 'tent', 6, 7);
+  state = placeBuilding(state, 'tent', 7, 5);
+  state = placeBuilding(state, 'tent', 8, 5);
+  state = placeBuilding(state, 'tent', 9, 5);
+  state = placeBuilding(state, 'farm', 3, 7);
+  state = constructAll(state);
+  for (let i = 0; i < 6; i++) state = addVillager(state, 5 + i, 5);
+
   // Set raid level high enough for siege equipment
+  // Tick must be at day boundary for isNewDay=true
   state = {
     ...state,
+    tick: TICKS_PER_DAY - 1,
     raidBar: 100,
     raidLevel: 2, // Will become 3 after triggering → battering ram
-    tick: TICKS_PER_DAY * 21 - 1, day: 20, // Past day 20 requirement
   };
 
   state = advance(state, 1); // Trigger new day and raid

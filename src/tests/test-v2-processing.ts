@@ -98,6 +98,8 @@ heading('Mill Produces With Local Buffer Inputs');
 
   state = placeBuilding(state, 'tent', 3, 5);
   state = placeBuilding(state, 'mill', 4, 5);
+  // Storehouse so hauled resources have somewhere to go
+  state = placeBuilding(state, 'storehouse', 7, 5);
   const homeId = state.buildings[0].id;
   const millId = state.buildings.find(b => b.type === 'mill')!.id;
 
@@ -127,9 +129,11 @@ heading('Mill Produces With Local Buffer Inputs');
 
   const mill = state.buildings.find(b => b.id === millId)!;
   const localFlour = mill.localBuffer['flour'] || 0;
+  const sh = state.buildings.find(b => b.type === 'storehouse')!;
+  const shFlour = sh.localBuffer['flour'] || 0;
   const remainingWheat = mill.localBuffer['wheat'] || 0;
-  assert(localFlour > 0 || state.resources.flour > 0,
-    `Mill produced flour: local=${localFlour}, global=${state.resources.flour}`);
+  assert(localFlour > 0 || shFlour > 0 || state.resources.flour > 0,
+    `Mill produced flour: local=${localFlour}, storehouse=${shFlour}, global=${state.resources.flour}`);
   assert(remainingWheat < 15,
     `Mill consumed wheat: started with 15, now ${remainingWheat}`);
 }

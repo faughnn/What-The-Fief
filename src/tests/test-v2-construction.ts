@@ -140,6 +140,8 @@ heading('Completed Building Is Functional');
 
   // Actually let's test with a woodcutter (45 ticks to build, produces wood)
   state = placeBuilding(state, 'woodcutter', 4, 5);
+  // Storehouse so hauled resources have somewhere to go
+  state = placeBuilding(state, 'storehouse', 6, 5);
   const homeId = state.buildings[0].id;
   const wcId = state.buildings.find(b => b.type === 'woodcutter')!.id;
 
@@ -162,10 +164,13 @@ heading('Completed Building Is Functional');
   assert(wc.constructed === true, 'Woodcutter is fully constructed after enough time');
 
   // Check that some wood was produced after construction completed
+  // Wood may be in woodcutter's local buffer, storehouse buffer, or global resources
   const localWood = wc.localBuffer['wood'] || 0;
+  const sh = state.buildings.find(b => b.type === 'storehouse')!;
+  const shWood = sh.localBuffer['wood'] || 0;
   const globalWood = state.resources.wood;
-  assert(localWood > 0 || globalWood > woodAfterPlacement,
-    `Wood produced after construction: local=${localWood}, global=${globalWood} (was ${woodAfterPlacement})`);
+  assert(localWood > 0 || shWood > 0 || globalWood > woodAfterPlacement,
+    `Wood produced after construction: local=${localWood}, storehouse=${shWood}, global=${globalWood} (was ${woodAfterPlacement})`);
 }
 
 // ================================================================

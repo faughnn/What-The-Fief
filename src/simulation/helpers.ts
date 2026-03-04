@@ -152,7 +152,7 @@ export function consumeBufferInputs(buffer: Partial<Record<ResourceType, number>
 export function ticksPerUnit(buildingType: BuildingType): number {
   const template = BUILDING_TEMPLATES[buildingType];
   if (!template.production) return Infinity;
-  return Math.max(1, Math.round(80 / template.production.amountPerWorker));
+  return Math.max(1, Math.round(25 / template.production.amountPerWorker));
 }
 
 export function productionMultiplier(v: Villager, buildingType: BuildingType, research: ResearchState, season: Season, weather: WeatherType): number {

@@ -39,15 +39,29 @@ function totalFood(state: GameState): number {
   return total;
 }
 
-// Find a clear grass tile near the colony center for building
-function findBuildSpot(state: GameState, nearX: number, nearY: number, w: number, h: number): { x: number; y: number } | null {
+// Reserved tiles — keep clear for roads and perimeter defense
+function isReservedTile(state: GameState, cx: number, cy: number): boolean {
+  // Perimeter zone: (12,12)-(18,18) edges reserved for walls/fences
+  if (cy === 12 || cy === 18) { if (cx >= 12 && cx <= 18) return true; }
+  if (cx === 12 || cx === 18) { if (cy >= 12 && cy <= 18) return true; }
+  // Road corridors to storehouse
+  for (const b of state.buildings) {
+    if (b.type !== 'storehouse') continue;
+    if (cx === b.x && cy >= b.y - 3 && cy <= b.y + 3) return true;
+    if (cy === b.y + 1 && cx >= b.x - 3 && cx <= b.x + 3) return true;
+  }
+  return false;
+}
+
+// Find clear grass tiles near the colony center for building (returns multiple candidates)
+function findBuildSpots(state: GameState, nearX: number, nearY: number, w: number, h: number, maxSpots: number = 5): { x: number; y: number }[] {
+  const spots: { x: number; y: number }[] = [];
   for (let r = 1; r < 15; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // only perimeter
         const x = nearX + dx;
         const y = nearY + dy;
-        // Check all tiles the building would occupy
         let fits = true;
         for (let by = 0; by < h && fits; by++) {
           for (let bx = 0; bx < w && fits; bx++) {
@@ -57,21 +71,29 @@ function findBuildSpot(state: GameState, nearX: number, nearY: number, w: number
             if (!state.territory[cy][cx]) { fits = false; break; }
             const tile = state.grid[cy][cx];
             if (tile.terrain !== 'grass' || tile.building !== null) { fits = false; break; }
+            if (isReservedTile(state, cx, cy)) { fits = false; break; }
           }
         }
-        if (fits) return { x, y };
+        if (fits) {
+          spots.push({ x, y });
+          if (spots.length >= maxSpots) return spots;
+        }
       }
     }
   }
-  return null;
+  return spots;
 }
 
 function tryBuild(state: GameState, type: BuildingType, centerX: number, centerY: number): GameState {
   if (!canAfford(state, type)) return state;
   const template = BUILDING_TEMPLATES[type];
-  const spot = findBuildSpot(state, centerX, centerY, template.width, template.height);
-  if (!spot) return state;
-  return placeBuilding(state, type, spot.x, spot.y);
+  const spots = findBuildSpots(state, centerX, centerY, template.width, template.height);
+  for (const spot of spots) {
+    const prevCount = state.buildings.length;
+    const newState = placeBuilding(state, type, spot.x, spot.y);
+    if (newState.buildings.length > prevCount) return newState; // Placement succeeded
+  }
+  return state;
 }
 
 function tryAssignIdle(state: GameState, buildingType: BuildingType): GameState {
@@ -89,120 +111,174 @@ function playerAI(state: GameState): GameState {
   const centerX = 15;
   const centerY = 15;
 
-  // --- HOUSING: always ensure capacity (need headroom for immigration + guards) ---
+  // --- CRITICAL: Rebuild storehouse if destroyed (highest priority) ---
+  if (countBuildings(state, 'storehouse') === 0 && canAfford(state, 'storehouse')) {
+    state = tryBuild(state, 'storehouse', centerX, centerY);
+  }
+
+  // --- HOUSING: build only when needed, cap at 10 tents max ---
   const homes = state.buildings.filter(b => ['tent', 'house', 'manor'].includes(b.type) && b.type !== 'rubble');
   const homeCapacity = homes.reduce((sum, b) => {
     const cap = b.type === 'tent' ? 1 : b.type === 'house' ? 2 : 4;
     return sum + cap;
   }, 0);
-  // Build 1 tent if capacity is tight (at most 1 per day to avoid wood drain)
-  if (homeCapacity <= pop + 1 && canAfford(state, 'tent')) {
+  const tentCount = homes.filter(b => b.type === 'tent').length;
+  if (homeCapacity < pop && tentCount < 10 && canAfford(state, 'tent')) {
     state = tryBuild(state, 'tent', centerX, centerY);
   }
 
-  // --- FOOD FIRST: build farms early and assign farmers ---
+  // --- BUILD infrastructure (all inside perimeter 13-17) ---
+  // Farms — always maintain at least 1
   if (countBuildings(state, 'farm') === 0) {
-    state = tryBuild(state, 'farm', centerX - 3, centerY);
+    state = tryBuild(state, 'farm', 13, 17);
   }
-  // Build second farm early if pop > 3
   if (countBuildings(state, 'farm') < 2 && pop >= 3 && day >= 3) {
-    state = tryBuild(state, 'farm', centerX - 5, centerY);
+    state = tryBuild(state, 'farm', 13, 14);
   }
-  // Third farm when pop exceeds 6
   if (countBuildings(state, 'farm') < 3 && pop >= 6) {
-    state = tryBuild(state, 'farm', centerX - 3, centerY + 3);
+    state = tryBuild(state, 'farm', 13, 16);
+  }
+  if (countBuildings(state, 'farm') < 4 && pop >= 8) {
+    state = tryBuild(state, 'farm', 14, 17);
+  }
+  // Resources (placed inside perimeter)
+  if (countBuildings(state, 'woodcutter') === 0 && day >= 2) {
+    state = tryBuild(state, 'woodcutter', 17, 14);
+  }
+  if (countBuildings(state, 'quarry') === 0 && day >= 3) {
+    state = tryBuild(state, 'quarry', 17, 17);
+  }
+  // Tanner early — need leather for clothing before winter
+  if (day >= 5 && countBuildings(state, 'tanner') === 0) {
+    state = tryBuild(state, 'tanner', 17, 13);
+  }
+  // Tavern for morale — critical for preventing departure spirals after raids
+  if (day >= 8 && countBuildings(state, 'tavern') === 0) {
+    state = tryBuild(state, 'tavern', 14, 13);
+  }
+  // Well
+  if (day >= 10 && countBuildings(state, 'well') === 0) {
+    state = tryBuild(state, 'well', centerX, centerY + 2);
+  }
+  // Sawmill
+  if (day >= 15 && countBuildings(state, 'sawmill') === 0 && state.resources.wood > 20) {
+    state = tryBuild(state, 'sawmill', 16, 17);
+  }
+  // Watchtower — inside perimeter
+  if (day >= 18 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower')) {
+    state = tryBuild(state, 'watchtower', 13, 13);
   }
 
-  // Assign farmers FIRST — assign to ALL farms with empty slots
-  for (const farm of state.buildings.filter(b => b.type === 'farm' && b.constructed)) {
-    const template = BUILDING_TEMPLATES['farm'];
-    while (farm.assignedWorkers.length < template.maxWorkers) {
+  // --- WORKER ASSIGNMENT: spread workers across buildings, 1 per building first ---
+  // Priority order: 1 farmer per farm, 1 woodcutter, 1 quarry, 1 tanner, then extras
+  const assignmentOrder: BuildingType[] = ['farm', 'woodcutter', 'quarry', 'tanner', 'sawmill'];
+  for (const type of assignmentOrder) {
+    for (const b of state.buildings.filter(b => b.type === type && b.constructed && b.assignedWorkers.length === 0)) {
       const idle = idleVillagers(state);
       if (idle.length === 0) break;
+      state = assignVillager(state, idle[0], b.id);
+    }
+  }
+  // Second pass: fill farms to 2 workers if we have spare villagers (pop >= 8)
+  if (pop >= 8) {
+    for (const farm of state.buildings.filter(b => b.type === 'farm' && b.constructed && b.assignedWorkers.length < 2)) {
+      const idle = idleVillagers(state);
+      if (idle.length <= 2) break; // Keep 2 spare for guards
       state = assignVillager(state, idle[0], farm.id);
-      // Re-find farm in updated state
-      const updatedFarm = state.buildings.find(b => b.id === farm.id);
-      if (!updatedFarm || updatedFarm.assignedWorkers.length >= template.maxWorkers) break;
     }
   }
 
-  // --- RESOURCES: woodcutter and quarry ---
-  if (countBuildings(state, 'woodcutter') === 0 && day >= 2) {
-    state = tryBuild(state, 'woodcutter', centerX + 3, centerY);
-  }
-  if (countBuildings(state, 'quarry') === 0 && day >= 4) {
-    state = tryBuild(state, 'quarry', centerX + 3, centerY + 3);
-  }
-  // Assign to resource buildings
-  for (const type of ['woodcutter', 'quarry'] as BuildingType[]) {
-    state = tryAssignIdle(state, type);
-  }
-
-  // --- DEFENSE: walls and guards (day 8+) ---
-  if (day >= 8) {
-    const wallCount = countBuildings(state, 'wall') + countBuildings(state, 'gate');
-    if (wallCount < 8 && state.resources.stone >= 10) {
-      const wallSpots = [
-        { x: 11, y: 11 }, { x: 12, y: 11 }, { x: 13, y: 11 }, { x: 14, y: 11 },
-        { x: 15, y: 11 }, { x: 16, y: 11 }, { x: 17, y: 11 }, { x: 18, y: 11 },
-      ];
-      for (const spot of wallSpots) {
-        if (spot.y < state.height && spot.x < state.width) {
-          const tile = state.grid[spot.y][spot.x];
-          if (tile.terrain === 'grass' && !tile.building && state.territory[spot.y][spot.x]) {
-            if (canAfford(state, 'wall')) {
-              state = placeBuilding(state, 'wall', spot.x, spot.y);
-            }
+  // Emergency food response: if storehouse food+wheat is low, reassign non-essential workers to farms
+  const storehouseFoodCheck = state.buildings.find(b => b.type === 'storehouse' && b.constructed);
+  const shFood = storehouseFoodCheck ? (storehouseFoodCheck.localBuffer.food || 0) + (storehouseFoodCheck.localBuffer.wheat || 0) + (storehouseFoodCheck.localBuffer.bread || 0) : 0;
+  if (shFood < pop * 5) {
+    // Reassign quarry/woodcutter workers to unstaffed farms
+    const unstaffedFarms = state.buildings.filter(b => b.type === 'farm' && b.constructed && b.assignedWorkers.length === 0);
+    const nonEssentialTypes = ['quarry', 'woodcutter', 'sawmill'];
+    for (const farm of unstaffedFarms) {
+      for (const nt of nonEssentialTypes) {
+        const building = state.buildings.find(b => b.type === nt && b.constructed && b.assignedWorkers.length > 0);
+        if (building) {
+          const workerId = building.assignedWorkers[0];
+          // Unassign from current job
+          const worker = state.villagers.find(v => v.id === workerId);
+          if (worker) {
+            worker.jobBuildingId = null;
+            worker.role = 'idle' as any;
+            worker.state = 'idle';
+            building.assignedWorkers = building.assignedWorkers.filter(w => w !== workerId);
+            state = assignVillager(state, workerId, farm.id);
+            break;
           }
         }
       }
     }
-    if (countBuildings(state, 'gate') === 0 && canAfford(state, 'gate')) {
-      const gateSpot = { x: 19, y: 11 };
-      if (gateSpot.y < state.height && gateSpot.x < state.width) {
-        const tile = state.grid[gateSpot.y][gateSpot.x];
-        if (tile.terrain === 'grass' && !tile.building && state.territory[gateSpot.y][gateSpot.x]) {
-          state = placeBuilding(state, 'gate', gateSpot.x, gateSpot.y);
+  }
+
+  // --- DEFENSE: fence perimeter once economy is established (raids require pop>=6 + 8 buildings) ---
+  if (day >= 10 && pop >= 5) {
+    const gatePositions = new Set(['12,15', '18,15', '15,12', '15,18']);
+    const perimeterSpots: { x: number; y: number }[] = [];
+    // Build perimeter evenly: alternate sides for balanced coverage
+    // North wall: y=12, x=12-18
+    for (let x = 12; x <= 18; x++) perimeterSpots.push({ x, y: 12 });
+    // South wall: y=18, x=12-18
+    for (let x = 12; x <= 18; x++) perimeterSpots.push({ x, y: 18 });
+    // West wall: x=12, y=13-17
+    for (let y = 13; y <= 17; y++) if (!gatePositions.has(`12,${y}`)) perimeterSpots.push({ x: 12, y });
+    // East wall: x=18, y=13-17
+    for (let y = 13; y <= 17; y++) if (!gatePositions.has(`18,${y}`)) perimeterSpots.push({ x: 18, y });
+
+    // Phase 1: Fences (instant-build, cheap wood) for immediate protection
+    for (const spot of perimeterSpots) {
+      if (gatePositions.has(`${spot.x},${spot.y}`)) continue; // Skip gate positions
+      if (spot.y >= state.height || spot.x >= state.width) continue;
+      const tile = state.grid[spot.y][spot.x];
+      if (tile.terrain !== 'grass' || tile.building || !state.territory[spot.y][spot.x]) continue;
+      if (!canAfford(state, 'fence')) continue;
+      state = placeBuilding(state, 'fence', spot.x, spot.y);
+    }
+
+    // Place gates at designated positions
+    for (const key of gatePositions) {
+      const [gx, gy] = key.split(',').map(Number);
+      if (gy >= state.height || gx >= state.width) continue;
+      const tile = state.grid[gy][gx];
+      if (!tile.building && tile.terrain === 'grass' && state.territory[gy][gx]) {
+        if (canAfford(state, 'gate')) {
+          state = placeBuilding(state, 'gate', gx, gy);
         }
       }
     }
 
-    // Always maintain at least 1 guard when pop >= 4 (only if they have homes)
-    const guardCount = state.villagers.filter(v => v.role === 'guard').length;
-    const needGuards = pop >= 7 ? 2 : (pop >= 4 ? 1 : 0);
-    while (state.villagers.filter(v => v.role === 'guard').length < needGuards) {
-      // Only assign guard if they have a home (otherwise they'll leave in 5 days)
-      const idle = state.villagers.filter(v => v.role === 'idle' && v.homeBuildingId);
-      if (idle.length === 0) break;
-      state = setGuard(state, idle[0].id);
+    // Guards: always maintain 2 guards once pop >= 5 (need 2 for even level 1 raid with 2 bandits)
+    // At low pop (3-4), maintain 1 guard
+    const currentGuards = state.villagers.filter(v => v.role === 'guard').length;
+    const needGuards = pop >= 5 ? 2 : (pop >= 3 ? 1 : 0);
+    if (currentGuards < needGuards) {
+      // First try idle villagers
+      let idle = state.villagers.filter(v => v.role === 'idle' && v.homeBuildingId);
+      for (const v of idle) {
+        if (state.villagers.filter(v2 => v2.role === 'guard').length >= needGuards) break;
+        state = setGuard(state, v.id);
+      }
+      // If still not enough guards and pop >= 4, reassign a non-essential worker
+      if (state.villagers.filter(v => v.role === 'guard').length < needGuards && pop >= 4) {
+        const workers = state.villagers.filter(v =>
+          v.role !== 'guard' && v.role !== 'idle' && v.homeBuildingId
+        );
+        // Prefer reassigning from less critical jobs (quarrier, sawyer)
+        const reassignOrder: string[] = ['sawyer', 'quarrier', 'woodcutter'];
+        for (const role of reassignOrder) {
+          const w = workers.find(v => v.role === role);
+          if (w && state.villagers.filter(v2 => v2.role === 'guard').length < needGuards) {
+            state = setGuard(state, w.id);
+          }
+        }
+      }
     }
   }
 
-  // --- CLOTHING: tanner (day 12+) ---
-  if (day >= 12) {
-    if (countBuildings(state, 'tanner') === 0) {
-      state = tryBuild(state, 'tanner', centerX - 3, centerY + 3);
-    }
-    state = tryAssignIdle(state, 'tanner');
-  }
-
-  // --- WELL: fire protection (day 15+) ---
-  if (day >= 15 && countBuildings(state, 'well') === 0) {
-    state = tryBuild(state, 'well', centerX, centerY + 2);
-  }
-
-  // --- EXPANSION (day 20+): sawmill, more production ---
-  if (day >= 20) {
-    if (countBuildings(state, 'sawmill') === 0 && state.resources.wood > 20) {
-      state = tryBuild(state, 'sawmill', centerX + 5, centerY);
-    }
-    state = tryAssignIdle(state, 'sawmill');
-  }
-
-  // --- WATCHTOWER (day 30+) ---
-  if (day >= 30 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower')) {
-    state = tryBuild(state, 'watchtower', centerX, centerY - 3);
-  }
   // Assign guard to watchtower
   const tower = state.buildings.find(b => b.type === 'watchtower' && b.constructed && b.assignedWorkers.length === 0);
   if (tower) {
@@ -213,9 +289,6 @@ function playerAI(state: GameState): GameState {
   }
 
   // --- ONGOING: reactive decisions ---
-  if (homeCapacity <= pop) {
-    state = tryBuild(state, 'tent', centerX, centerY);
-  }
   // Emergency tribute
   if (state.banditUltimatum && state.resources.gold >= state.banditUltimatum.goldDemand) {
     if (state.villagers.filter(v => v.role === 'guard').length < 2) {
@@ -241,8 +314,9 @@ console.log = function (...args: any[]) {
 
 // Setup — small starting colony (like starting a Bellwright game)
 let state = createWorld(40, 40, 42);
-for (let y = 10; y < 30; y++) {
-  for (let x = 10; x < 30; x++) {
+// Make entire map grass/territory/fog so settlers from any edge can walk in
+for (let y = 0; y < 40; y++) {
+  for (let x = 0; x < 40; x++) {
     state.fog[y][x] = true;
     state.territory[y][x] = true;
     state.grid[y][x] = { terrain: 'grass', building: null, deposit: null };
@@ -260,7 +334,7 @@ state = {
   ...state,
   buildings: state.buildings.map(b => ({
     ...b, constructed: true, constructionProgress: b.constructionRequired,
-    localBuffer: b.type === 'storehouse' ? { food: 50 } : b.localBuffer,
+    localBuffer: b.type === 'storehouse' ? { food: 50, wood: 80, stone: 30, gold: 20 } : b.localBuffer,
   })),
   grid: state.grid.map(row => row.map(tile =>
     tile.building
@@ -299,7 +373,7 @@ interface DaySnapshot {
   raidLevel: number;
   raidBar: number;
   prosperity: number;
-  resources: { wood: number; stone: number; food: number; gold: number };
+  resources: { wood: number; stone: number; food: number; wheat: number; gold: number };
   events: string[];
   graveyard: number;
   deaths: string[];
@@ -311,6 +385,8 @@ interface DaySnapshot {
   caravans: number;
   guards: number;
   playerActions: string[];
+  storehouseBuf: Record<string, number>;
+  villagersHungry: string[];
 }
 
 const snapshots: DaySnapshot[] = [];
@@ -327,10 +403,12 @@ console.log = function (...args: any[]) {
 for (let day = 0; day < 100; day++) {
   const playerActions: string[] = [];
 
-  // Player AI acts at start of each day
+  // Player AI acts at start of each day (suppress expected placement errors)
+  const preErrors = errorLines.length;
   const preBuildCount = state.buildings.filter(b => b.type !== 'rubble').length;
   const preGuardCount = state.villagers.filter(v => v.role === 'guard').length;
   state = playerAI(state);
+  errorLines.length = preErrors; // Discard playerAI placement failures
   const postBuildCount = state.buildings.filter(b => b.type !== 'rubble').length;
   const postGuardCount = state.villagers.filter(v => v.role === 'guard').length;
   if (postBuildCount > preBuildCount) {
@@ -370,6 +448,7 @@ for (let day = 0; day < 100; day++) {
       wood: state.resources.wood,
       stone: state.resources.stone,
       food: state.resources.food,
+      wheat: state.resources.wheat || 0,
       gold: state.resources.gold,
     },
     events: [...state.events],
@@ -383,6 +462,14 @@ for (let day = 0; day < 100; day++) {
     caravans: state.caravans.length,
     guards: state.villagers.filter(v => v.role === 'guard').length,
     playerActions,
+    storehouseBuf: (() => {
+      const sh = state.buildings.find(b => b.type === 'storehouse' && b.constructed);
+      if (!sh) return {};
+      const buf: Record<string, number> = {};
+      for (const [k, v] of Object.entries(sh.localBuffer)) { if (v && v > 0) buf[k] = v; }
+      return buf;
+    })(),
+    villagersHungry: state.villagers.filter(v => v.food <= 2).map(v => `${v.name}(f=${v.food.toFixed(1)},s=${v.state})`),
   });
 
   prevVillagerIds = currentIds;
@@ -411,8 +498,11 @@ for (const s of snapshots) {
 
   console.log(`--- Day ${s.day} | ${s.season} | ${s.weather} ---`);
   console.log(`  Pop: ${s.villagers} (${s.guards} guards) | Buildings: ${s.buildings} | Prosperity: ${s.prosperity}`);
-  console.log(`  Resources: wood=${s.resources.wood} stone=${s.resources.stone} food=${s.resources.food} gold=${s.resources.gold}`);
+  console.log(`  Resources: wood=${s.resources.wood} stone=${s.resources.stone} food=${s.resources.food} wheat=${s.resources.wheat} gold=${s.resources.gold}`);
   console.log(`  Raid level: ${s.raidLevel} | Raid bar: ${s.raidBar}`);
+  const bufStr = Object.entries(s.storehouseBuf).map(([k, v]) => `${k}=${v}`).join(' ');
+  if (bufStr) console.log(`  Storehouse buffer: ${bufStr}`);
+  if (s.villagersHungry.length > 0) console.log(`  HUNGRY: ${s.villagersHungry.join(', ')}`);
 
   for (const a of s.playerActions) console.log(`  [PLAYER] ${a}`);
   if (s.activeRaid) console.log(`  ** RAID IN PROGRESS **`);
@@ -439,7 +529,7 @@ console.log(`  Total deaths: ${state.graveyard.length}`);
 console.log(`  Peak population: ${Math.max(...snapshots.map(s => s.villagers))}`);
 console.log(`  Final raid level: ${state.raidLevel}`);
 console.log(`  Final prosperity: ${Math.round(state.prosperity)}`);
-console.log(`  Final resources: wood=${state.resources.wood} stone=${state.resources.stone} food=${state.resources.food} gold=${state.resources.gold}`);
+console.log(`  Final resources: wood=${state.resources.wood} stone=${state.resources.stone} food=${state.resources.food} wheat=${state.resources.wheat || 0} gold=${state.resources.gold} leather=${state.resources.leather || 0} linen=${state.resources.linen || 0}`);
 console.log(`  Buildings standing: ${state.buildings.filter(b => b.type !== 'rubble').length}`);
 console.log(`  Rubble piles: ${state.buildings.filter(b => b.type === 'rubble').length}`);
 console.log(`  Errors: ${errorLines.length}`);

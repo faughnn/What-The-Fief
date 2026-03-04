@@ -156,12 +156,19 @@ export function processAnimals(ts: TickState): void {
         const dropSH = findStorehouseAt(ts.buildings, v.x, v.y);
         for (const [res, amt] of Object.entries(v.carrying)) {
           if (amt && amt > 0) {
-            if (dropSH) addToBuffer(dropSH.localBuffer, res as ResourceType, amt, dropSH.bufferCapacity);
-            addResource(ts.resources, res as ResourceType, amt, ts.storageCap);
+            let deposited = 0;
+            if (dropSH) deposited = addToBuffer(dropSH.localBuffer, res as ResourceType, amt, dropSH.bufferCapacity);
+            if (deposited > 0) addResource(ts.resources, res as ResourceType, deposited, ts.storageCap);
+            // Keep undeposited amount in carrying
+            const remaining = amt - deposited;
+            if (remaining > 0) {
+              v.carrying[res as ResourceType] = remaining;
+            } else {
+              delete v.carrying[res as ResourceType];
+            }
           }
         }
-        v.carrying = {};
-        v.carryTotal = 0;
+        v.carryTotal = Object.values(v.carrying).reduce((s, a) => s + (a || 0), 0);
         // Go back to work or hunt
         v.state = 'working';
         if (v.jobBuildingId) {

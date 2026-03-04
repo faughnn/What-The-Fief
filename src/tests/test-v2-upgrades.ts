@@ -113,9 +113,21 @@ heading('Upgrade Requires Physical Construction');
   state = addVillager(state, 3, 3);
 
   state = placeBuilding(state, 'tent', 3, 3);
+  state = placeBuilding(state, 'storehouse', 7, 3);
   state = placeBuilding(state, 'woodcutter', 5, 3);
   const tentId = state.buildings.find(b => b.type === 'tent')!.id;
+  const shId = state.buildings.find(b => b.type === 'storehouse')!.id;
   const wcId = state.buildings.find(b => b.type === 'woodcutter')!.id;
+
+  // Pre-construct storehouse and tent, stock food so villager survives
+  state = {
+    ...state,
+    buildings: state.buildings.map(b => {
+      if (b.type === 'storehouse') return { ...b, constructed: true, constructionProgress: b.constructionRequired, localBuffer: { ...b.localBuffer, food: 20 } };
+      if (b.type === 'tent') return { ...b, constructed: true, constructionProgress: b.constructionRequired };
+      return b;
+    }),
+  };
 
   // Assign villager to woodcutter (they need a job to act as builder)
   state = { ...state, villagers: state.villagers.map(v => ({ ...v, homeBuildingId: tentId })) };
@@ -125,6 +137,9 @@ heading('Upgrade Requires Physical Construction');
   state = advance(state, TICKS_PER_DAY * 2);
   const wcBefore = state.buildings.find(b => b.id === wcId)!;
   assert(wcBefore.constructed === true, `Woodcutter constructed before upgrade test`);
+
+  // Unassign villager so they become idle (idle priority 2: build unconstructed buildings)
+  state = { ...state, villagers: state.villagers.map(v => ({ ...v, jobBuildingId: null, role: 'idle' as any })) };
 
   // Now upgrade the tent
   state = upgradeBuilding(state, tentId);
