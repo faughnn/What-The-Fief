@@ -24,7 +24,7 @@ export const WEATHER_OUTDOOR_MULT: Record<WeatherType, number> = {
 
 export const OUTDOOR_BUILDINGS: BuildingType[] = [
   'farm', 'woodcutter', 'quarry', 'herb_garden', 'flax_field', 'hemp_field',
-  'chicken_coop', 'apiary', 'livestock_barn',
+  'chicken_coop', 'apiary', 'livestock_barn', 'foraging_hut',
   'large_farm', 'deep_quarry',
 ];
 
@@ -55,7 +55,7 @@ export type BuildingType =
   | 'blacksmith' | 'toolmaker' | 'armorer'
   | 'town_hall' | 'wall' | 'fence'
   | 'research_desk'
-  | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace' | 'hunting_lodge'
+  | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace' | 'hunting_lodge' | 'foraging_hut'
   | 'gate'
   | 'watchtower'
   | 'tavern'
@@ -376,6 +376,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 10 }, description: 'Hunters track and kill wildlife',
     maxWorkers: 2, production: null, mapChar: 'H',
   },
+  foraging_hut: {
+    type: 'foraging_hut', width: 1, height: 1, allowedTerrain: ['grass', 'forest'],
+    cost: { wood: 6 }, description: 'Gathers food and herbs from nearby forest',
+    maxWorkers: 1, production: { output: 'food', amountPerWorker: 2, inputs: null }, mapChar: 'G',
+  },
   gate: {
     type: 'gate', width: 1, height: 1, allowedTerrain: ['grass'],
     cost: { wood: 5, stone: 2 }, description: 'Lets allies through, blocks enemies',
@@ -475,7 +480,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   research_desk: 'crafting',
   chicken_coop: 'farming',
   livestock_barn: 'farming',
-  apiary: 'herbalism',
+  apiary: 'herbalism', foraging_hut: 'herbalism',
   weaponsmith: 'crafting', fletcher: 'crafting',
   // T2 upgraded buildings inherit parent skills
   large_farm: 'farming', deep_quarry: 'mining',
@@ -688,7 +693,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   blacksmith: 45, toolmaker: 45, armorer: 50,
   town_hall: 100, wall: 100, fence: 30,
   research_desk: 30, chicken_coop: 25, livestock_barn: 40,
-  apiary: 20, marketplace: 60, hunting_lodge: 30, gate: 80,
+  apiary: 20, marketplace: 60, hunting_lodge: 30, foraging_hut: 25, gate: 80,
   watchtower: 70,
   tavern: 40,
   well: 50,
@@ -711,7 +716,7 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   blacksmith: 80, toolmaker: 100, armorer: 120,
   town_hall: 240, wall: 20, fence: 10,
   research_desk: 60, chicken_coop: 45, livestock_barn: 75,
-  apiary: 35, marketplace: 120, hunting_lodge: 50, gate: 15,
+  apiary: 35, marketplace: 120, hunting_lodge: 50, foraging_hut: 40, gate: 15,
   watchtower: 90,
   tavern: 60,
   well: 40,
