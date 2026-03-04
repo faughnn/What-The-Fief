@@ -57,6 +57,7 @@ export interface TickState {
   caravans: { id: string; settlementId: string; x: number; y: number; goods: Partial<Record<string, number>>; ticksLeft: number }[];
   banditCamps: BanditCamp[];
   nextCampId: number;
+  lastCampSpawnDay: number;
   nextEnemyId: number;
   nextAnimalId: number;
   nextDropId: number;

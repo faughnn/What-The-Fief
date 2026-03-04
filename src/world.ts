@@ -527,6 +527,10 @@ export type VillagerState =
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
 export type Direction = 'n' | 's' | 'e' | 'w';
 
+// --- Guard formations ---
+export type GuardMode = 'patrol' | 'charge' | 'hold';
+export type GuardLine = 'front' | 'back';
+
 export interface Villager {
   id: string;
   name: string;
@@ -557,9 +561,11 @@ export interface Villager {
   carryTotal: number;
   workProgress: number;
   haulingToWork: boolean; // true = picking up inputs for processing building
-  // Guard patrol
+  // Guard patrol + formations
   patrolRoute: { x: number; y: number }[]; // waypoints for guard patrol
   patrolIndex: number; // current waypoint index
+  guardMode: GuardMode;   // charge=aggressive, hold=defensive, patrol=default
+  guardLine: GuardLine;   // front=melee priority, back=ranged priority
   // Clothing
   clothed: boolean;
   clothingDurability: number; // days remaining
@@ -862,6 +868,7 @@ export interface GameState {
   caravans: Caravan[];
   banditCamps: BanditCamp[];
   nextCampId: number;
+  lastCampSpawnDay: number;
 }
 
 export interface NpcSettlement {
@@ -932,6 +939,8 @@ export function createVillager(id: number, x: number, y: number): Villager {
     haulingToWork: false,
     patrolRoute: [],
     patrolIndex: 0,
+    guardMode: 'patrol' as GuardMode,
+    guardLine: 'front' as GuardLine,
     clothed: false,
     clothingDurability: 0,
     recentMeals: [],
@@ -1019,6 +1028,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     season: 'spring', weather: 'clear',
     renown: 0, events: [], completedQuests: [], banditUltimatum: null, graveyard: [],
     npcSettlements: [], caravans: [],
-    banditCamps: [], nextCampId: 1,
+    banditCamps: [], nextCampId: 1, lastCampSpawnDay: -999,
   };
 }

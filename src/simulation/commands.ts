@@ -6,6 +6,7 @@ import {
   BUILDING_TEMPLATES, TRADE_PRICES, UPGRADE_PATHS,
   BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   TechId, TECH_TREE, MerchantState,
+  GuardMode, GuardLine,
 } from '../world.js';
 import { roleForBuilding, bufferTotal, findNearestStorehouse } from './helpers.js';
 
@@ -185,6 +186,21 @@ export function payTribute(state: GameState): GameState {
     resources: { ...state.resources, gold: state.resources.gold - cost },
     banditUltimatum: null,
   };
+}
+
+export function setFormation(state: GameState, villagerId: string, mode: GuardMode, line: GuardLine): GameState {
+  const villager = state.villagers.find(v => v.id === villagerId);
+  if (!villager) { console.log(`ERROR: Villager ${villagerId} not found`); return state; }
+  if (villager.role !== 'guard') { console.log(`ERROR: ${villagerId} is not a guard`); return state; }
+
+  const newVillagers = state.villagers.map(v => {
+    if (v.id === villagerId) {
+      return { ...v, skills: { ...v.skills }, traits: [...v.traits], guardMode: mode, guardLine: line };
+    }
+    return v;
+  });
+
+  return { ...state, villagers: newVillagers };
 }
 
 export function assaultCamp(state: GameState, villagerId: string, campId: string): GameState {

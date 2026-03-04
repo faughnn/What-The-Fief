@@ -18,7 +18,7 @@ import { processFire } from './buildings.js';
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
 export { placeBuilding, claimTerritory, processFire } from './buildings.js';
-export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, sendScout, upgradeBuilding, payTribute, assaultCamp } from './commands.js';
+export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp } from './commands.js';
 
 // ================================================================
 // TICK — V2 spatial simulation
@@ -89,6 +89,7 @@ export function tick(state: GameState): GameState {
     caravans: state.caravans.map(c => ({ ...c, goods: { ...c.goods } })),
     banditCamps: state.banditCamps.map(c => ({ ...c })),
     nextCampId: state.nextCampId,
+    lastCampSpawnDay: state.lastCampSpawnDay,
     nextVillagerId: state.nextVillagerId,
   };
   ts.storageCap = computeStorageCap(ts.buildings);
@@ -161,6 +162,7 @@ export function tick(state: GameState): GameState {
     caravans: ts.caravans,
     banditCamps: ts.banditCamps,
     nextCampId: ts.nextCampId,
+    lastCampSpawnDay: ts.lastCampSpawnDay,
     nextVillagerId: ts.nextVillagerId,
     nextEnemyId: ts.nextEnemyId,
     nextAnimalId: ts.nextAnimalId,

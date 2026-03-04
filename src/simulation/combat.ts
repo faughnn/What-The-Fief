@@ -146,30 +146,28 @@ export function processRaidAndCombat(ts: TickState): void {
   // Camps appear at map edges once colony is established
   const constructedBuildings = ts.buildings.filter(b => b.constructed && b.type !== 'rubble').length;
   if (ts.isNewDay && ts.villagers.length >= 6 && constructedBuildings >= 8) {
-    // Spawn first camp after CAMP_SPAWN_DAY, then new camps every CAMP_SPAWN_INTERVAL
+    // Spawn first camp after CAMP_SPAWN_DAY, then new camps every CAMP_SPAWN_INTERVAL from last spawn
     const activeCamps = ts.banditCamps.length;
     if (activeCamps < CAMP_MAX_COUNT) {
-      const shouldSpawn = activeCamps === 0
+      const daysSinceLastSpawn = ts.newDay - ts.lastCampSpawnDay;
+      const shouldSpawn = activeCamps === 0 && ts.lastCampSpawnDay < 0
         ? ts.newDay >= CAMP_SPAWN_DAY
-        : ts.newDay >= CAMP_SPAWN_DAY + activeCamps * CAMP_SPAWN_INTERVAL;
+        : daysSinceLastSpawn >= CAMP_SPAWN_INTERVAL;
       if (shouldSpawn) {
-        // Check we haven't already spawned a camp this session (avoid duplicate spawns)
-        const alreadySpawnedThisDay = ts.banditCamps.some(c => c.lastRaidDay === ts.newDay);
-        if (!alreadySpawnedThisDay) {
-          const side = activeCamps; // rotate sides: 0=N, 1=S, 2=W, 3=E
-          const pos = pickCampPosition(ts, side);
-          const campHp = CAMP_BASE_HP + ts.raidLevel * CAMP_HP_PER_LEVEL;
-          ts.banditCamps.push({
-            id: `camp${ts.nextCampId}`,
-            x: pos.x, y: pos.y,
-            hp: campHp, maxHp: campHp,
-            strength: Math.max(1, ts.raidLevel),
-            lastRaidDay: ts.newDay,
-            raidInterval: CAMP_RAID_INTERVAL,
-          });
-          ts.nextCampId++;
-          ts.events.push(`A bandit camp has been spotted at (${pos.x},${pos.y})!`);
-        }
+        const side = activeCamps; // rotate sides: 0=N, 1=S, 2=W, 3=E
+        const pos = pickCampPosition(ts, side);
+        const campHp = CAMP_BASE_HP + ts.raidLevel * CAMP_HP_PER_LEVEL;
+        ts.banditCamps.push({
+          id: `camp${ts.nextCampId}`,
+          x: pos.x, y: pos.y,
+          hp: campHp, maxHp: campHp,
+          strength: Math.max(1, ts.raidLevel),
+          lastRaidDay: ts.newDay,
+          raidInterval: CAMP_RAID_INTERVAL,
+        });
+        ts.nextCampId++;
+        ts.lastCampSpawnDay = ts.newDay;
+        ts.events.push(`A bandit camp has been spotted at (${pos.x},${pos.y})!`);
       }
     }
   }
@@ -442,8 +440,16 @@ export function processRaidAndCombat(ts: TickState): void {
       continue;
     }
 
-    // NON-TOWER GUARD: standard melee behavior
-    // Find nearest enemy
+    // NON-TOWER GUARD: behavior depends on guardMode and guardLine
+    // guardMode: 'charge' = aggressive (infinite detect range), 'hold' = defensive (3-tile range), 'patrol' = default (10-tile)
+    // guardLine: 'front' = close to melee, 'back' = stay at range when possible
+
+    // Determine detect range based on mode
+    const detectRange = v.guardMode === 'charge' ? Infinity
+      : v.guardMode === 'hold' ? 3
+      : GUARD_DETECT_RANGE;
+
+    // Find nearest enemy within detect range
     let nearestEnemy: EnemyEntity | null = null;
     let nearestDist = Infinity;
     for (const e of ts.enemies) {
@@ -452,22 +458,31 @@ export function processRaidAndCombat(ts: TickState): void {
       if (dist < nearestDist) { nearestDist = dist; nearestEnemy = e; }
     }
 
-    // Bow guard: shoot at range before closing to melee
-    if (nearestEnemy && v.weapon === 'bow' && nearestDist <= WEAPON_STATS.bow.range && nearestDist > 1) {
+    // Back-line guard with bow: prioritize ranged attacks, avoid closing to melee
+    if (nearestEnemy && v.guardLine === 'back' && v.weapon === 'bow' && nearestDist <= WEAPON_STATS.bow.range && nearestDist > 1) {
       nearestEnemy.hp -= Math.max(1, WEAPON_STATS.bow.attack + attackBonus - nearestEnemy.defense);
       degradeWeapon(v, ts.resources, ts.buildings);
       continue;
     }
 
-    // No enemies or too far — patrol
-    if (!nearestEnemy || nearestDist > GUARD_DETECT_RANGE) {
+    // Front-line bow guard: also shoot at range if able (same as before)
+    if (nearestEnemy && v.guardLine === 'front' && v.weapon === 'bow' && nearestDist <= WEAPON_STATS.bow.range && nearestDist > 1) {
+      nearestEnemy.hp -= Math.max(1, WEAPON_STATS.bow.attack + attackBonus - nearestEnemy.defense);
+      degradeWeapon(v, ts.resources, ts.buildings);
+      continue;
+    }
+
+    // No enemies or out of detect range — patrol/hold behavior
+    if (!nearestEnemy || nearestDist > detectRange) {
+      // Hold mode: stay in position (no patrol movement, just stand ground)
+      if (v.guardMode === 'hold') continue;
+
+      // Patrol/charge: walk patrol route
       if (v.patrolRoute.length > 0 && !ts.isNight) {
         const waypoint = v.patrolRoute[v.patrolIndex % v.patrolRoute.length];
         if (v.x === waypoint.x && v.y === waypoint.y) {
-          // Reached waypoint — advance to next
           v.patrolIndex = (v.patrolIndex + 1) % v.patrolRoute.length;
         } else {
-          // Move toward current waypoint (1 tile/tick)
           const patrolPath = findPath(ts.grid, ts.width, ts.height, v.x, v.y, waypoint.x, waypoint.y);
           if (patrolPath.length > 0) {
             v.x = patrolPath[0].x;
@@ -478,23 +493,41 @@ export function processRaidAndCombat(ts: TickState): void {
       continue;
     }
 
-    // If adjacent — fight
+    // If adjacent — fight (both front and back line fight when cornered)
     if (isAdjacent(v.x, v.y, nearestEnemy.x, nearestEnemy.y)) {
-      // Weapon stats override tool-based combat stats when equipped
       const baseStats = v.weapon !== 'none'
         ? { attack: WEAPON_STATS[v.weapon].attack, defense: WEAPON_STATS[v.weapon].defense }
         : GUARD_COMBAT[v.tool];
-      // Guard attacks enemy
       nearestEnemy.hp -= Math.max(1, baseStats.attack + attackBonus - nearestEnemy.defense);
-      // Enemy attacks guard
       const guardDef = baseStats.defense + defenseBonus;
       v.hp -= Math.max(1, nearestEnemy.attack - guardDef);
-      // Degrade weapon
       if (v.weapon !== 'none') degradeWeapon(v, ts.resources, ts.buildings);
       continue;
     }
 
-    // Move toward enemy (1 tile/tick)
+    // Back-line guard: try to maintain distance instead of closing
+    if (v.guardLine === 'back' && v.weapon === 'bow' && nearestDist <= WEAPON_STATS.bow.range) {
+      // Already in bow range but not adjacent — just shoot (handled above)
+      // If closer than range 2, try to retreat 1 tile away from enemy
+      if (nearestDist <= 1) {
+        const retreatX = v.x + (v.x > nearestEnemy.x ? 1 : v.x < nearestEnemy.x ? -1 : 0);
+        const retreatY = v.y + (v.y > nearestEnemy.y ? 1 : v.y < nearestEnemy.y ? -1 : 0);
+        if (retreatX >= 0 && retreatX < ts.width && retreatY >= 0 && retreatY < ts.height) {
+          const tile = ts.grid[retreatY][retreatX];
+          if (tile.terrain !== 'water' && !tile.building) {
+            v.x = retreatX;
+            v.y = retreatY;
+            continue;
+          }
+        }
+      }
+      continue;
+    }
+
+    // Hold mode: don't move toward enemy, wait for them to come
+    if (v.guardMode === 'hold') continue;
+
+    // Front-line / charge / patrol: move toward enemy
     const guardPath = findPath(ts.grid, ts.width, ts.height, v.x, v.y, nearestEnemy.x, nearestEnemy.y);
     if (guardPath.length > 0) {
       v.x = guardPath[0].x;

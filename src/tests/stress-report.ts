@@ -6,7 +6,7 @@ import {
   TICKS_PER_DAY, BUILDING_TEMPLATES, FOOD_PRIORITY,
 } from '../world.js';
 import {
-  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp,
+  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp, setFormation,
 } from '../simulation.js';
 
 // ================================================================
@@ -309,6 +309,15 @@ function playerAI(state: GameState): GameState {
     }
   }
 
+  // Set formations: bow guards → back line, melee guards → front line charge
+  for (const g of state.villagers.filter(v => v.role === 'guard')) {
+    if (g.weapon === 'bow' && (g.guardLine !== 'back' || g.guardMode !== 'patrol')) {
+      state = setFormation(state, g.id, 'patrol', 'back');
+    } else if (g.weapon !== 'bow' && g.guardMode !== 'charge') {
+      state = setFormation(state, g.id, 'charge', 'front');
+    }
+  }
+
   // Assign guard to watchtower
   const tower = state.buildings.find(b => b.type === 'watchtower' && b.constructed && b.assignedWorkers.length === 0);
   if (tower) {
@@ -318,18 +327,19 @@ function playerAI(state: GameState): GameState {
     }
   }
 
-  // --- ASSAULT BANDIT CAMPS: send spare guards to attack camps when safe ---
-  // Only assault when: 3+ guards, no active enemies, at least 1 camp exists
-  const guardCount = state.villagers.filter(v => v.role === 'guard' && v.hp > 0).length;
-  if (guardCount >= 3 && state.enemies.length === 0 && state.banditCamps.length > 0) {
-    // Find guards not already assaulting and not assigned to watchtower
-    const freeGuards = state.villagers.filter(v =>
-      v.role === 'guard' && v.hp > 0 && !v.assaultTargetId && !v.jobBuildingId
+  // --- ASSAULT BANDIT CAMPS: send 2 guards together to attack weak camps ---
+  const allGuards = state.villagers.filter(v => v.role === 'guard' && v.hp > 0);
+  if (allGuards.length >= 2 && state.enemies.length === 0 && state.banditCamps.length > 0) {
+    const freeGuards = allGuards.filter(v =>
+      v.hp >= v.maxHp && !v.assaultTargetId && !v.jobBuildingId
     );
-    if (freeGuards.length > 0) {
-      // Attack weakest camp first
-      const weakestCamp = [...state.banditCamps].sort((a, b) => a.hp - b.hp)[0];
+    // Only assault when 2+ free guards at full HP and camp strength is manageable
+    const weakestCamp = [...state.banditCamps].sort((a, b) => a.hp - b.hp)[0];
+    const campDmgPerTick = Math.max(1, Math.floor(weakestCamp.strength * 1.5));
+    const guardSurvivalTicks = Math.floor(freeGuards[0]?.maxHp / campDmgPerTick) || 0;
+    if (freeGuards.length >= 2 && guardSurvivalTicks >= 5) {
       state = assaultCamp(state, freeGuards[0].id, weakestCamp.id);
+      state = assaultCamp(state, freeGuards[1].id, weakestCamp.id);
     }
   }
 
