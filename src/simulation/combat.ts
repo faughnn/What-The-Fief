@@ -10,7 +10,7 @@ import {
   CAMP_SPAWN_DAY, CAMP_SPAWN_INTERVAL, CAMP_MAX_COUNT,
   CAMP_CLEAR_GOLD, CAMP_CLEAR_RENOWN,
 } from '../world.js';
-import { TickState, isAdjacent, hasTech, degradeWeapon, addToBuffer, isStorehouse } from './helpers.js';
+import { TickState, isAdjacent, hasTech, degradeWeapon, addToBuffer, isStorehouse, destroyBuildingAndCreateRubble } from './helpers.js';
 import { findPath, findPathEnemy } from './movement.js';
 
 // --- Find settlement center (average building position) ---
@@ -41,44 +41,6 @@ function findAdjacentTarget(
     }
   }
   return null;
-}
-
-// --- Helper: destroy a building ---
-function destroyBuilding(
-  building: Building, buildings: Building[], grid: Tile[][],
-  villagers: Villager[], width: number, height: number,
-  nextBuildingIdRef: { value: number },
-): void {
-  // Unassign workers/residents
-  for (const v of villagers) {
-    if (v.jobBuildingId === building.id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
-    if (v.homeBuildingId === building.id) v.homeBuildingId = null;
-  }
-  // Remove original building from array
-  const idx = buildings.findIndex(b => b.id === building.id);
-  if (idx >= 0) buildings.splice(idx, 1);
-  // Create rubble at each tile the building occupied
-  for (let dy = 0; dy < building.height; dy++) {
-    for (let dx = 0; dx < building.width; dx++) {
-      const gy = building.y + dy;
-      const gx = building.x + dx;
-      if (gy < height && gx < width) {
-        const rubble: Building = {
-          id: `b${nextBuildingIdRef.value++}`,
-          type: 'rubble', x: gx, y: gy, width: 1, height: 1,
-          assignedWorkers: [],
-          hp: 1, maxHp: 1,
-          constructed: false,
-          constructionProgress: 0,
-          constructionRequired: CONSTRUCTION_TICKS['rubble'] || 30,
-          localBuffer: {}, bufferCapacity: 0,
-          onFire: false,
-        };
-        buildings.push(rubble);
-        grid[gy][gx].building = rubble;
-      }
-    }
-  }
 }
 
 // --- Camp spawning: pick a position at the map edge ---
@@ -299,7 +261,7 @@ export function processRaidAndCombat(ts: TickState): void {
       const siegeDmg = e.siege === 'battering_ram' ? 5 : Math.max(1, e.attack);
       adjTarget.hp -= siegeDmg;
       if (adjTarget.hp <= 0) {
-        destroyBuilding(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
+        destroyBuildingAndCreateRubble(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
       }
       continue;
     }
@@ -313,7 +275,7 @@ export function processRaidAndCombat(ts: TickState): void {
       // Can't reach center — attack nearest adjacent building
       adjTarget.hp -= Math.max(1, e.attack);
       if (adjTarget.hp <= 0) {
-        destroyBuilding(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
+        destroyBuildingAndCreateRubble(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
       }
     } else {
       // No path AND no adjacent target — retreat toward nearest map edge
@@ -582,37 +544,14 @@ export function processRaidAndCombat(ts: TickState): void {
   ts.nextBuildingId = nextBldIdRef.value;
 
   // Convert any 0-hp buildings to rubble (handles externally-damaged buildings)
+  const nextBldIdRef2 = { value: ts.nextBuildingId };
   for (let i = ts.buildings.length - 1; i >= 0; i--) {
     const b = ts.buildings[i];
     if (b.hp <= 0 && b.type !== 'rubble') {
-      // Unassign workers/residents
-      for (const v of ts.villagers) {
-        if (v.jobBuildingId === b.id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
-        if (v.homeBuildingId === b.id) v.homeBuildingId = null;
-      }
-      ts.buildings.splice(i, 1);
-      for (let dy = 0; dy < b.height; dy++) {
-        for (let dx = 0; dx < b.width; dx++) {
-          const gy = b.y + dy;
-          const gx = b.x + dx;
-          if (gy < ts.height && gx < ts.width) {
-            const rubble: Building = {
-              id: `b${ts.nextBuildingId++}`,
-              type: 'rubble', x: gx, y: gy, width: 1, height: 1,
-              assignedWorkers: [],
-              hp: 1, maxHp: 1,
-              constructed: false,
-              constructionProgress: 0,
-              constructionRequired: CONSTRUCTION_TICKS['rubble'] || 30,
-              localBuffer: {}, bufferCapacity: 0,
-            };
-            ts.buildings.push(rubble);
-            ts.grid[gy][gx].building = rubble;
-          }
-        }
-      }
+      destroyBuildingAndCreateRubble(b, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef2);
     }
   }
+  ts.nextBuildingId = nextBldIdRef2.value;
 
   // Final orphaned job cleanup: any villager whose job building was destroyed this tick
   for (const v of ts.villagers) {

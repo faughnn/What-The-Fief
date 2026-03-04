@@ -12,6 +12,7 @@ import {
   MerchantState,
   Season, WeatherType, HOUSING_INFO,
   BASE_STORAGE_CAP, STOREHOUSE_BONUS,
+  CONSTRUCTION_TICKS,
 } from '../world.js';
 
 // --- TickState: mutable working copy of game state during a tick ---
@@ -314,4 +315,44 @@ export function findStorehouseWithResource(buildings: Building[], res: ResourceT
 
 export function findNearestStorehouse(buildings: Building[], grid: Tile[][], width: number, height: number, x: number, y: number): Building | null {
   return findNearestBuilding(buildings, x, y, b => isStorehouse(b.type));
+}
+
+export function destroyBuildingAndCreateRubble(
+  building: Building,
+  buildings: Building[],
+  grid: Tile[][],
+  villagers: { id: string; jobBuildingId: string | null; homeBuildingId: string | null; role: string; state: string }[],
+  width: number, height: number,
+  nextBuildingIdRef: { value: number },
+): void {
+  // Unassign workers/residents
+  for (const v of villagers) {
+    if (v.jobBuildingId === building.id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
+    if (v.homeBuildingId === building.id) v.homeBuildingId = null;
+  }
+  // Remove original building from array
+  const idx = buildings.findIndex(b => b.id === building.id);
+  if (idx >= 0) buildings.splice(idx, 1);
+  // Create rubble at each tile the building occupied
+  for (let dy = 0; dy < building.height; dy++) {
+    for (let dx = 0; dx < building.width; dx++) {
+      const gy = building.y + dy;
+      const gx = building.x + dx;
+      if (gy < height && gx < width) {
+        const rubble: Building = {
+          id: `b${nextBuildingIdRef.value++}`,
+          type: 'rubble', x: gx, y: gy, width: 1, height: 1,
+          assignedWorkers: [],
+          hp: 1, maxHp: 1,
+          constructed: false,
+          constructionProgress: 0,
+          constructionRequired: CONSTRUCTION_TICKS['rubble'] || 30,
+          localBuffer: {}, bufferCapacity: 0,
+          onFire: false,
+        };
+        buildings.push(rubble);
+        grid[gy][gx] = { ...grid[gy][gx], building: rubble };
+      }
+    }
+  }
 }

@@ -6,7 +6,7 @@ import {
   DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP, OUTPOST_BUFFER_CAP,
   FREE_CONSTRUCTION,
 } from '../world.js';
-import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance, isStorehouse, deductFromBuffer } from './helpers.js';
+import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance, isStorehouse, deductFromBuffer, destroyBuildingAndCreateRubble } from './helpers.js';
 import { findPath } from './movement.js';
 
 export function placeBuilding(state: GameState, type: BuildingType, x: number, y: number): GameState {
@@ -216,40 +216,12 @@ export function processFire(ts: TickState): void {
   }
 
   // Replace destroyed buildings with rubble
+  const nextBldIdRef = { value: ts.nextBuildingId };
   for (const id of toRemove) {
-    const idx = ts.buildings.findIndex(b => b.id === id);
-    if (idx >= 0) {
-      const old = ts.buildings[idx];
-      const rubble: Building = {
-        id: `b${ts.nextBuildingId}`, type: 'rubble',
-        x: old.x, y: old.y, width: 1, height: 1,
-        assignedWorkers: [],
-        hp: 1, maxHp: 1,
-        constructed: false, constructionProgress: 0,
-        constructionRequired: CONSTRUCTION_TICKS['rubble'] || 30,
-        localBuffer: {}, bufferCapacity: 0,
-        onFire: false,
-      };
-      ts.nextBuildingId++;
-      ts.buildings.splice(idx, 1, rubble);
-      // Update grid
-      for (let dy = 0; dy < old.height; dy++) {
-        for (let dx = 0; dx < old.width; dx++) {
-          const gy = old.y + dy, gx = old.x + dx;
-          if (gy < ts.height && gx < ts.width) {
-            if (dx === 0 && dy === 0) {
-              ts.grid[gy][gx] = { ...ts.grid[gy][gx], building: rubble };
-            } else {
-              ts.grid[gy][gx] = { ...ts.grid[gy][gx], building: null };
-            }
-          }
-        }
-      }
-      // Unassign workers
-      for (const v of ts.villagers) {
-        if (v.jobBuildingId === id) { v.jobBuildingId = null; v.role = 'idle'; v.state = 'idle'; }
-        if (v.homeBuildingId === id) v.homeBuildingId = null;
-      }
+    const building = ts.buildings.find(b => b.id === id);
+    if (building) {
+      destroyBuildingAndCreateRubble(building, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
     }
   }
+  ts.nextBuildingId = nextBldIdRef.value;
 }
