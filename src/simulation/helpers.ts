@@ -54,7 +54,7 @@ export interface TickState {
   completedQuests: string[];
   banditUltimatum: { goldDemand: number; daysLeft: number } | null;
   graveyard: { name: string; day: number }[];
-  npcSettlements: { id: string; name: string; direction: string; specialty: string }[];
+  npcSettlements: { id: string; name: string; direction: string; specialty: string; x: number; y: number; trust: number; trustRank: string; liberated: boolean; liberationInProgress: boolean }[];
   caravans: { id: string; settlementId: string; x: number; y: number; goods: Partial<Record<string, number>>; ticksLeft: number }[];
   banditCamps: BanditCamp[];
   nextCampId: number;

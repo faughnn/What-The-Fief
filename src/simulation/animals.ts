@@ -4,6 +4,7 @@ import {
   Villager, Building, Tile, ResourceType,
   AnimalEntity, AnimalType, ANIMAL_TEMPLATES, ResourceDrop,
   CARRY_CAPACITY,
+  TRUST_KILL_WILDLIFE, TRUST_VILLAGE_RADIUS, TRUST_THRESHOLDS, TrustRank,
 } from '../world.js';
 import {
   TickState, isAdjacent, addResource, addToBuffer,
@@ -227,7 +228,7 @@ export function processAnimals(ts: TickState): void {
         // Go back to work or hunt
         v.state = 'working';
         if (v.jobBuildingId) {
-          const job = ts.buildings.find(b => b.id === v.jobBuildingId);
+          const job = ts.buildingMap.get(v.jobBuildingId);
           if (job) {
             const entrance = getBuildingEntrance(job);
             planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
@@ -241,7 +242,7 @@ export function processAnimals(ts: TickState): void {
     }
   }
 
-  // Remove dead animals, create resource drops
+  // Remove dead animals, create resource drops, award trust for hostile kills
   for (let i = ts.animals.length - 1; i >= 0; i--) {
     if (ts.animals[i].hp <= 0) {
       const dead = ts.animals[i];
@@ -252,6 +253,21 @@ export function processAnimals(ts: TickState): void {
           resources: { ...template.drops },
         });
         ts.nextDropId++;
+      }
+      // Award trust for killing hostile animals near NPC villages
+      if (template.behavior === 'hostile') {
+        for (const village of ts.npcSettlements) {
+          if (village.liberated) continue;
+          const dist = Math.abs(dead.x - village.x) + Math.abs(dead.y - village.y);
+          if (dist <= TRUST_VILLAGE_RADIUS) {
+            village.trust += TRUST_KILL_WILDLIFE;
+            let newRank: TrustRank = 'stranger';
+            for (const t of TRUST_THRESHOLDS) {
+              if (village.trust >= t.trust) newRank = t.rank;
+            }
+            village.trustRank = newRank;
+          }
+        }
       }
       ts.animals.splice(i, 1);
     }

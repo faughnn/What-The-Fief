@@ -9,8 +9,12 @@ import {
   BanditCamp, CAMP_BASE_HP, CAMP_HP_PER_LEVEL, CAMP_RAID_INTERVAL,
   CAMP_SPAWN_DAY, CAMP_SPAWN_INTERVAL, CAMP_MAX_COUNT,
   CAMP_CLEAR_GOLD, CAMP_CLEAR_RENOWN,
+  WOLF_SPAWN_THRESHOLD, RAM_SPAWN_THRESHOLD, MAX_RAMS,
+  SIEGE_TOWER_THRESHOLD, WOLF_STRENGTH_OFFSET,
+  TRUST_KILL_BANDIT, TRUST_VILLAGE_RADIUS, TRUST_THRESHOLDS, TrustRank,
+  LIBERATION_RENOWN_REWARD,
 } from '../world.js';
-import { TickState, isAdjacent, hasTech, degradeWeapon, addToBuffer, isStorehouse, destroyBuildingAndCreateRubble } from './helpers.js';
+import { TickState, isAdjacent, hasTech, degradeWeapon, addToBuffer, isStorehouse, destroyBuildingAndCreateRubble, buildBuildingMap } from './helpers.js';
 import { findPath, findPathEnemy } from './movement.js';
 
 // --- Find settlement center (average building position) ---
@@ -23,7 +27,7 @@ function findSettlementCenter(buildings: Building[]): { x: number; y: number } {
 
 // --- Find adjacent wall/building for enemy to attack ---
 function findAdjacentTarget(
-  x: number, y: number, grid: Tile[][], width: number, height: number, buildings: Building[],
+  x: number, y: number, grid: Tile[][], width: number, height: number, buildingMap: Map<string, Building>,
 ): Building | null {
   const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
   // Priority: walls first, then fences, then other buildings
@@ -35,7 +39,7 @@ function findAdjacentTarget(
       const tile = grid[ny][nx];
       if (tile.building) {
         if (prio === null || tile.building.type === prio) {
-          return buildings.find(b => b.id === tile.building!.id) || null;
+          return buildingMap.get(tile.building!.id) ?? null;
         }
       }
     }
@@ -57,7 +61,7 @@ function pickCampPosition(ts: TickState, side: number): { x: number; y: number }
 // --- Spawn enemies at a camp's location ---
 function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
   const numBandits = camp.strength + 1;
-  const numWolves = camp.strength >= 3 ? camp.strength - 2 : 0;
+  const numWolves = camp.strength >= WOLF_SPAWN_THRESHOLD ? camp.strength - WOLF_STRENGTH_OFFSET : 0;
   for (let i = 0; i < numBandits + numWolves; i++) {
     const type: EnemyType = i < numBandits ? 'bandit' : 'wolf';
     const t = ENEMY_TEMPLATES[type];
@@ -72,8 +76,8 @@ function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
     ts.nextEnemyId++;
   }
   // Siege equipment at higher strength
-  if (camp.strength >= 3) {
-    const numRams = Math.min(camp.strength - 2, 2);
+  if (camp.strength >= RAM_SPAWN_THRESHOLD) {
+    const numRams = Math.min(camp.strength - WOLF_STRENGTH_OFFSET, MAX_RAMS);
     for (let i = 0; i < numRams; i++) {
       ts.enemies.push({
         id: `e${ts.nextEnemyId}`, type: 'bandit',
@@ -85,7 +89,7 @@ function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
       ts.nextEnemyId++;
     }
   }
-  if (camp.strength >= 5) {
+  if (camp.strength >= SIEGE_TOWER_THRESHOLD) {
     ts.enemies.push({
       id: `e${ts.nextEnemyId}`, type: 'bandit',
       x: Math.max(0, Math.min(ts.width - 1, camp.x - 1)),
@@ -97,7 +101,7 @@ function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
   }
   camp.lastRaidDay = ts.newDay;
   const dirLabels = camp.y === 0 ? 'north' : camp.y >= ts.height - 1 ? 'south' : camp.x === 0 ? 'west' : 'east';
-  ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${camp.strength >= 3 ? ' with siege equipment' : ''} attacks from the bandit camp to the ${dirLabels}!`);
+  ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${camp.strength >= RAM_SPAWN_THRESHOLD ? ' with siege equipment' : ''} attacks from the bandit camp to the ${dirLabels}!`);
 }
 
 export function processRaidAndCombat(ts: TickState): void {
@@ -164,7 +168,7 @@ export function processRaidAndCombat(ts: TickState): void {
       ts.raidLevel += 1;
       ts.raidBar = 0;
       const numBandits = ts.raidLevel + 1;
-      const numWolves = ts.raidLevel >= 4 ? ts.raidLevel - 2 : 0;
+      const numWolves = ts.raidLevel >= (WOLF_SPAWN_THRESHOLD + 1) ? ts.raidLevel - WOLF_STRENGTH_OFFSET : 0;
       const edgeSide = ts.newDay % 4;
       for (let i = 0; i < numBandits + numWolves; i++) {
         const type: EnemyType = i < numBandits ? 'bandit' : 'wolf';
@@ -183,8 +187,8 @@ export function processRaidAndCombat(ts: TickState): void {
         });
         ts.nextEnemyId++;
       }
-      if (ts.raidLevel >= 3) {
-        const numRams = Math.min(ts.raidLevel - 2, 2);
+      if (ts.raidLevel >= RAM_SPAWN_THRESHOLD) {
+        const numRams = Math.min(ts.raidLevel - WOLF_STRENGTH_OFFSET, MAX_RAMS);
         for (let i = 0; i < numRams; i++) {
           let ex: number, ey: number;
           switch (edgeSide) {
@@ -201,7 +205,7 @@ export function processRaidAndCombat(ts: TickState): void {
           ts.nextEnemyId++;
         }
       }
-      if (ts.raidLevel >= 5) {
+      if (ts.raidLevel >= SIEGE_TOWER_THRESHOLD) {
         let ex: number, ey: number;
         switch (edgeSide) {
           case 0: ex = Math.min(ts.width - 1, ((numBandits + numWolves + 5) * 3) % ts.width); ey = 0; break;
@@ -216,7 +220,7 @@ export function processRaidAndCombat(ts: TickState): void {
         });
         ts.nextEnemyId++;
       }
-      ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${ts.raidLevel >= 3 ? ' with siege equipment' : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
+      ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${ts.raidLevel >= RAM_SPAWN_THRESHOLD ? ' with siege equipment' : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
     }
   }
 
@@ -255,7 +259,7 @@ export function processRaidAndCombat(ts: TickState): void {
     }
 
     // Check if adjacent to a wall/building — attack it
-    const adjTarget = findAdjacentTarget(e.x, e.y, ts.grid, ts.width, ts.height, ts.buildings);
+    const adjTarget = findAdjacentTarget(e.x, e.y, ts.grid, ts.width, ts.height, ts.buildingMap);
     if (adjTarget && (adjTarget.type === 'wall' || adjTarget.type === 'fence' || adjTarget.type === 'gate')) {
       // Battering ram deals 5 damage to structures
       const siegeDmg = e.siege === 'battering_ram' ? 5 : Math.max(1, e.attack);
@@ -364,9 +368,9 @@ export function processRaidAndCombat(ts: TickState): void {
     if (v.assaultTargetId) continue;
 
     // Check if guard is assigned to a watchtower
-    const towerJob = v.jobBuildingId
-      ? ts.buildings.find(b => b.id === v.jobBuildingId && b.type === 'watchtower' && b.constructed)
-      : null;
+    const towerJobCandidate = v.jobBuildingId ? ts.buildingMap.get(v.jobBuildingId) : null;
+    const towerJob = towerJobCandidate && towerJobCandidate.type === 'watchtower' && towerJobCandidate.constructed
+      ? towerJobCandidate : null;
 
     if (towerJob) {
       // WATCHTOWER GUARD: stay at tower, shoot at range
@@ -514,9 +518,42 @@ export function processRaidAndCombat(ts: TickState): void {
     }
   }
 
-  // Remove dead enemies
+  // Remove dead enemies + award trust to nearby NPC villages
   for (let i = ts.enemies.length - 1; i >= 0; i--) {
-    if (ts.enemies[i].hp <= 0) ts.enemies.splice(i, 1);
+    if (ts.enemies[i].hp <= 0) {
+      const deadE = ts.enemies[i];
+      // Award trust to nearby NPC villages
+      for (const village of ts.npcSettlements) {
+        if (village.liberated) continue;
+        const dist = Math.abs(deadE.x - village.x) + Math.abs(deadE.y - village.y);
+        if (dist <= TRUST_VILLAGE_RADIUS) {
+          village.trust += TRUST_KILL_BANDIT;
+          // Update trust rank
+          let newRank: TrustRank = 'stranger';
+          for (const t of TRUST_THRESHOLDS) {
+            if (village.trust >= t.trust) newRank = t.rank;
+          }
+          village.trustRank = newRank;
+        }
+      }
+      ts.enemies.splice(i, 1);
+    }
+  }
+
+  // Check liberation completion — if a village has liberationInProgress and no enemies remain nearby
+  for (const village of ts.npcSettlements) {
+    if (!village.liberationInProgress) continue;
+    const nearbyEnemies = ts.enemies.filter(e => {
+      const dist = Math.abs(e.x - village.x) + Math.abs(e.y - village.y);
+      return dist <= TRUST_VILLAGE_RADIUS;
+    });
+    if (nearbyEnemies.length === 0) {
+      village.liberationInProgress = false;
+      village.liberated = true;
+      village.trustRank = 'leader';
+      ts.renown += LIBERATION_RENOWN_REWARD;
+      ts.events.push(`${village.name} has been liberated! The villagers hail you as their leader!`);
+    }
   }
 
   // Remove dead villagers (guards and non-guards)
@@ -554,8 +591,10 @@ export function processRaidAndCombat(ts: TickState): void {
   ts.nextBuildingId = nextBldIdRef2.value;
 
   // Final orphaned job cleanup: any villager whose job building was destroyed this tick
+  // Rebuild map after building mutations (destroyBuildingAndCreateRubble)
+  ts.buildingMap = buildBuildingMap(ts.buildings);
   for (const v of ts.villagers) {
-    if (v.jobBuildingId && !ts.buildings.find(b => b.id === v.jobBuildingId)) {
+    if (v.jobBuildingId && !ts.buildingMap.has(v.jobBuildingId)) {
       v.jobBuildingId = null;
       if (v.role !== 'guard') v.role = 'idle';
       v.state = 'idle';

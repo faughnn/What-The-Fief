@@ -1007,11 +1007,35 @@ export interface SupplyRoute {
   active: boolean;          // can be paused
 }
 
+// --- Trust system for NPC villages ---
+export type TrustRank = 'stranger' | 'associate' | 'friend' | 'protector' | 'leader';
+
+export const TRUST_THRESHOLDS: { rank: TrustRank; trust: number }[] = [
+  { rank: 'stranger', trust: 0 },
+  { rank: 'associate', trust: 100 },
+  { rank: 'friend', trust: 500 },
+  { rank: 'protector', trust: 1200 },
+];
+export const TRUST_KILL_BANDIT = 15;       // trust gained per bandit killed near village
+export const TRUST_KILL_WILDLIFE = 5;      // trust gained per hostile animal killed near village
+export const TRUST_VILLAGE_RADIUS = 10;    // tiles — must be within this distance for trust credit
+export const LIBERATION_BRIGAND_COUNT = 4; // brigands spawned during liberation
+export const LIBERATION_RENOWN_REWARD = 30;
+
 export interface NpcSettlement {
   id: string;
   name: string;
   direction: 'n' | 's' | 'e' | 'w';
   specialty: ResourceType;
+  // Village position on the map
+  x: number;
+  y: number;
+  // Trust system
+  trust: number;
+  trustRank: TrustRank;
+  liberated: boolean;
+  // Liberation state
+  liberationInProgress: boolean; // brigands have been spawned, waiting to be defeated
 }
 
 export interface Caravan {
@@ -1165,6 +1189,31 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     }
   }
 
+  // Generate NPC villages at map edges (only on maps >= 30x30)
+  const NPC_VILLAGE_DATA: { name: string; direction: 'n' | 's' | 'e' | 'w'; specialty: ResourceType }[] = [
+    { name: 'Thornfield', direction: 'n', specialty: 'wood' },
+    { name: 'Millhaven', direction: 'e', specialty: 'wheat' },
+    { name: 'Ironhollow', direction: 's', specialty: 'stone' },
+    { name: 'Greenwater', direction: 'w', specialty: 'food' },
+  ];
+  const npcSettlements: NpcSettlement[] = [];
+  if (width >= 30 && height >= 30) {
+    for (let i = 0; i < NPC_VILLAGE_DATA.length; i++) {
+      const v = NPC_VILLAGE_DATA[i];
+      let vx = Math.floor(width / 2), vy = Math.floor(height / 2);
+      if (v.direction === 'n') { vx = Math.floor(width * 0.3 + i * 3); vy = 2; }
+      else if (v.direction === 's') { vx = Math.floor(width * 0.7 - i * 2); vy = height - 3; }
+      else if (v.direction === 'e') { vx = width - 3; vy = Math.floor(height * 0.3 + i * 3); }
+      else if (v.direction === 'w') { vx = 2; vy = Math.floor(height * 0.7 - i * 2); }
+      // Ensure village is on grass
+      if (grid[vy][vx].terrain !== 'grass') grid[vy][vx] = { terrain: 'grass', building: null, deposit: null };
+      npcSettlements.push({
+        id: `village${i + 1}`, name: v.name, direction: v.direction, specialty: v.specialty,
+        x: vx, y: vy, trust: 0, trustRank: 'stranger', liberated: false, liberationInProgress: false,
+      });
+    }
+  }
+
   return {
     tick: 0, day: 0, grid, width, height,
     resources: { ...emptyResources(), wood: 50, stone: 20, food: 30 },
@@ -1180,7 +1229,7 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     merchant: null, merchantTimer: 15, prosperity: 0,
     season: 'spring', weather: 'clear',
     renown: 0, events: [], completedQuests: [], banditUltimatum: null, graveyard: [],
-    npcSettlements: [], caravans: [],
+    npcSettlements, caravans: [],
     banditCamps: [], nextCampId: 1, lastCampSpawnDay: -999,
     constructionPoints: INITIAL_CONSTRUCTION_POINTS,
     constructionPointsMilestones: [],

@@ -8,6 +8,7 @@ import {
   TechId, TECH_TREE, MerchantState,
   GuardMode, GuardLine,
   FESTIVAL_FOOD_COST, FESTIVAL_GOLD_COST, FESTIVAL_COOLDOWN, TICKS_PER_DAY,
+  LIBERATION_BRIGAND_COUNT, ENEMY_TEMPLATES, EnemyEntity,
 } from '../world.js';
 import { roleForBuilding, bufferTotal, findNearestStorehouse, isStorehouse, deductFromBuffer } from './helpers.js';
 
@@ -464,5 +465,50 @@ export function holdFestival(state: GameState): GameState {
     buildings: newBuildings,
     lastFestivalDay: currentDay,
     events: [...state.events, 'A grand festival is held! The villagers celebrate with feasting and merriment!'],
+  };
+}
+
+// --- Liberation Command ---
+
+export function liberateVillage(state: GameState, villageId: string): GameState {
+  const village = state.npcSettlements.find(v => v.id === villageId);
+  if (!village) { console.log(`ERROR: Village ${villageId} not found`); return state; }
+  if (village.liberated) { console.log(`ERROR: Village ${village.name} already liberated`); return state; }
+  if (village.liberationInProgress) { console.log(`ERROR: Village ${village.name} liberation already in progress`); return state; }
+  if (village.trustRank !== 'protector') { console.log(`ERROR: Need protector rank to liberate ${village.name} (current: ${village.trustRank})`); return state; }
+
+  // Spawn brigands near the village
+  const enemies: EnemyEntity[] = [...state.enemies];
+  let nextId = state.nextEnemyId;
+  const template = ENEMY_TEMPLATES.bandit;
+  const offsets = [[-2, 0], [2, 0], [0, -2], [0, 2], [-1, -1], [1, 1]];
+  for (let i = 0; i < LIBERATION_BRIGAND_COUNT; i++) {
+    const off = offsets[i % offsets.length];
+    let ex = village.x + off[0];
+    let ey = village.y + off[1];
+    // Clamp to map bounds
+    ex = Math.max(0, Math.min(state.width - 1, ex));
+    ey = Math.max(0, Math.min(state.height - 1, ey));
+    enemies.push({
+      id: `e${nextId}`, type: 'bandit',
+      x: ex, y: ey,
+      hp: template.maxHp, maxHp: template.maxHp,
+      attack: template.attack, defense: template.defense,
+      siege: 'none', ticksAlive: 0,
+    });
+    nextId++;
+  }
+
+  // Mark village liberation in progress
+  const newSettlements = state.npcSettlements.map(v =>
+    v.id === villageId ? { ...v, liberationInProgress: true } : v
+  );
+
+  return {
+    ...state,
+    npcSettlements: newSettlements,
+    enemies,
+    nextEnemyId: nextId,
+    events: [...state.events, `Liberation of ${village.name} has begun! Defeat the brigands to free the village!`],
   };
 }
