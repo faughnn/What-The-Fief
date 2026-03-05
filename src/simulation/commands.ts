@@ -7,6 +7,7 @@ import {
   BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   TechId, TECH_TREE, MerchantState,
   GuardMode, GuardLine,
+  FESTIVAL_FOOD_COST, FESTIVAL_GOLD_COST, FESTIVAL_COOLDOWN, TICKS_PER_DAY,
 } from '../world.js';
 import { roleForBuilding, bufferTotal, findNearestStorehouse, isStorehouse, deductFromBuffer } from './helpers.js';
 
@@ -416,5 +417,52 @@ export function cancelSupplyRoute(state: GameState, routeId: string): GameState 
     ...state,
     villagers: newVillagers,
     supplyRoutes: state.supplyRoutes.filter(r => r.id !== routeId),
+  };
+}
+
+// --- Festival Command ---
+
+export function holdFestival(state: GameState): GameState {
+  // Require constructed tavern
+  const tavern = state.buildings.find(b => b.type === 'tavern' && b.constructed);
+  if (!tavern) { console.log('ERROR: No constructed tavern for festival'); return state; }
+
+  // Check cooldown
+  const currentDay = Math.floor(state.tick / TICKS_PER_DAY);
+  if (currentDay - state.lastFestivalDay < FESTIVAL_COOLDOWN) {
+    console.log(`ERROR: Festival cooldown — last festival was ${currentDay - state.lastFestivalDay} days ago (need ${FESTIVAL_COOLDOWN})`);
+    return state;
+  }
+
+  // Check resources in storehouse
+  const sh = state.buildings.find(b => isStorehouse(b.type) && b.constructed &&
+    (b.localBuffer.food || 0) >= FESTIVAL_FOOD_COST &&
+    (b.localBuffer.gold || 0) >= FESTIVAL_GOLD_COST);
+  if (!sh) { console.log('ERROR: Not enough food/gold in storehouse for festival'); return state; }
+  if (state.resources.food < FESTIVAL_FOOD_COST || state.resources.gold < FESTIVAL_GOLD_COST) {
+    console.log('ERROR: Not enough global food/gold for festival'); return state;
+  }
+
+  // Deduct resources
+  const newResources = { ...state.resources };
+  newResources.food -= FESTIVAL_FOOD_COST;
+  newResources.gold -= FESTIVAL_GOLD_COST;
+
+  const newBuildings = state.buildings.map(b => {
+    if (b.id === sh.id) {
+      const newBuffer = { ...b.localBuffer };
+      newBuffer.food = (newBuffer.food || 0) - FESTIVAL_FOOD_COST;
+      newBuffer.gold = (newBuffer.gold || 0) - FESTIVAL_GOLD_COST;
+      return { ...b, localBuffer: newBuffer, assignedWorkers: [...b.assignedWorkers] };
+    }
+    return b;
+  });
+
+  return {
+    ...state,
+    resources: newResources,
+    buildings: newBuildings,
+    lastFestivalDay: currentDay,
+    events: [...state.events, 'A grand festival is held! The villagers celebrate with feasting and merriment!'],
   };
 }

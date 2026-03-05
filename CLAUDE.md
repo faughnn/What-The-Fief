@@ -6,6 +6,15 @@ You are building a 2D top-down colony sim that plays like Bellwright. Work auton
 
 A physically simulated medieval colony. The player is a god-like overseer — no character on the grid. You place buildings, assign jobs, set patrol routes, and watch your villagers live their lives. Every entity has a grid position every tick. Every movement is step-by-step. Every interaction requires physical presence. The simulation IS the animation data — when a renderer is plugged in, it just reads GameState and draws.
 
+## Environment Notes
+
+- **Platform**: Windows (Git Bash). `tail`, `head`, and other Unix utils are NOT available.
+- **Node.js path**: `export PATH="/c/Program Files/nodejs:$PATH"` (run once per session)
+- **Run all tests**: `npx tsx src/tests/run-all.ts`
+- **Run stress test**: `npx tsx src/tests/stress-report.ts`
+- **Run single test**: `npx tsx src/tests/test-v2-<name>.ts`
+- There is no `run-all.ts` equivalent for `find` — the runner script globs test files itself.
+
 ## Session Start (do this FIRST every time)
 
 1. `export PATH="/c/Program Files/nodejs:$PATH"`
@@ -85,6 +94,12 @@ Be brutally honest. If villagers teleport — no. If combat is abstract math —
 - Each claim needs a test that proves it with numbers
 
 **Before inventing a solution, research how Bellwright does it.** When you identify a gap, don't guess how to fix it. Search the [Bellwright Wiki](https://bellwright.fandom.com/wiki/Bellwright_Wiki) and [Steam discussions](https://steamcommunity.com/app/1812450/discussions/) for how the real game handles it. Don't trust training data alone — look it up. Spend time researching before coding the wrong fix.
+
+**How to fetch Bellwright wiki pages:** Use the Fandom MediaWiki API for clean wikitext (much better than HTML scraping):
+```bash
+curl -s "https://bellwright.fandom.com/api.php?action=parse&page=PAGE_NAME&format=json&prop=wikitext"
+```
+Replace `PAGE_NAME` with the topic (e.g., `Morale`, `Settlement`, `Villagers`). The response is JSON with wikitext in `.parse.wikitext.*`. Pipe through `sed 's/\\n/\n/g'` for readability. Use `WebSearch` as a fallback for Steam discussions.
 
 The highest priority gap drives what you build next.
 

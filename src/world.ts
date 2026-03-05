@@ -209,10 +209,65 @@ export const CONSTRUCTION_POINT_PER_IMMIGRANT = 2;
 // Buildings that don't cost construction points
 export const FREE_CONSTRUCTION: BuildingType[] = ['rubble'];
 
+// --- Festivals ---
+export const FESTIVAL_FOOD_COST = 20;
+export const FESTIVAL_GOLD_COST = 10;
+export const FESTIVAL_MORALE_BOOST = 20;
+export const FESTIVAL_DURATION = 3;    // days the morale boost lasts
+export const FESTIVAL_COOLDOWN = 10;   // days between festivals
+
 export const DEFAULT_BUFFER_CAP = 20;
 export const STOREHOUSE_BUFFER_CAP = 2000;
 export const OUTPOST_BUFFER_CAP = 100;
 export const HOME_DEPARTURE_TICK = 95; // villagers start heading home at this tick-in-day
+
+// --- Villager Food Thresholds ---
+export const FOOD_CAP = 10;             // max food a villager can have
+export const FOOD_EAT_THRESHOLD = 8;    // villager eats until food >= this
+export const FOOD_HUNGRY = 3;           // interrupt work to eat
+export const FOOD_CRITICAL = 2;         // very hungry, stop everything to eat
+export const FOOD_STARVATION_LOSS = 0.5; // food loss when no food available at storehouse
+export const RECENT_MEALS_LIMIT = 5;    // track last N meals for variety bonus
+
+// --- Tavern ---
+export const TAVERN_MORALE_THRESHOLD = 60;  // visit tavern only when morale < this
+export const TAVERN_MORALE_BOOST = 15;      // morale gained per tavern visit
+export const TAVERN_COOLDOWN_DAYS = 3;      // days between tavern visits
+
+// --- Clothing ---
+export const CLOTHING_DURABILITY = 10;      // days clothing lasts before wearing out
+
+// --- Disease ---
+export const DISEASE_SPREAD_CHANCE = 0.10;  // per-tick chance to spread to adjacent villager
+export const DISEASE_DURATION_BASE = 5;     // days sick without medicine
+export const DISEASE_DURATION_MEDICINE = 3; // days sick with medicine tech
+export const DISEASE_HP_LOSS_PER_DAY = 3;   // HP lost per day from sickness
+
+// --- Fire ---
+export const FIRE_DAMAGE_PER_TICK = 2;      // HP lost per tick from fire
+export const FIRE_SPREAD_CHANCE = 0.05;     // per-tick chance to spread to adjacent building
+export const WELL_FIRE_PROTECTION_RANGE = 3; // wells within this range prevent fire spread
+
+// --- Building Proximity ---
+export const CHURCH_MORALE_RANGE = 5;       // church morale bonus range
+export const DECORATION_RANGE = 5;          // decoration morale bonus range
+
+// --- Combat Raid Thresholds ---
+export const WOLF_SPAWN_THRESHOLD = 3;      // camp strength to start spawning wolves
+export const RAM_SPAWN_THRESHOLD = 3;       // camp strength to spawn battering rams
+export const MAX_RAMS = 2;                  // max battering rams per raid
+export const SIEGE_TOWER_THRESHOLD = 5;     // camp strength to spawn siege tower
+export const WOLF_STRENGTH_OFFSET = 2;      // wolves = strength - this
+
+// --- HP & Regeneration ---
+export const GUARD_BASE_HP = 15;
+export const GUARD_MORALE_HP_DIVISOR = 10;  // guard maxHp += morale / this
+export const ARMOR_BONUS_HP = 5;            // armored_guards tech bonus
+export const VILLAGER_BASE_HP = 10;
+export const HP_REGEN_PER_DAY = 2;
+export const MEDICINE_REGEN_BONUS = 1;
+export const RESEARCH_TICKS_PER_POINT = 30; // ticks per research knowledge point
+export const INPUT_PICKUP_MULTIPLIER = 3;   // carry up to Nx the needed input amount
 
 // --- Spoilage rates (fraction lost per tick) ---
 export const SPOILAGE: Partial<Record<ResourceType, number>> = {
@@ -554,7 +609,8 @@ export type VillagerRole =
   | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker'
   | 'weaponsmith_worker' | 'fletcher_worker'
   | 'scout' | 'guard' | 'researcher' | 'hunter'
-  | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader';
+  | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
+  | 'hauler';
 
 export type VillagerState =
   | 'sleeping'
@@ -574,7 +630,11 @@ export type VillagerState =
   | 'relaxing'
   | 'traveling_to_heal'
   | 'healing'
-  | 'assaulting_camp';
+  | 'assaulting_camp'
+  | 'supply_traveling_to_source'
+  | 'supply_loading'
+  | 'supply_traveling_to_dest'
+  | 'supply_unloading';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
 export type Direction = 'n' | 's' | 'e' | 'w';
 
@@ -634,6 +694,8 @@ export interface Villager {
   assaultTargetId: string | null; // ID of bandit camp to attack
   // Job preference (player-set)
   preferredJob: BuildingType | null; // preferred building type for auto-assign
+  // Supply route assignment
+  supplyRouteId: string | null; // ID of supply route this hauler is assigned to
 }
 
 // --- Combat ---
@@ -929,6 +991,20 @@ export interface GameState {
   // Construction points — gating building count
   constructionPoints: number; // available points to spend
   constructionPointsMilestones: number[]; // prosperity thresholds already claimed
+  // Supply routes
+  supplyRoutes: SupplyRoute[];
+  nextRouteId: number;
+  // Festivals
+  lastFestivalDay: number;
+}
+
+// --- Supply Routes (player-directed hauling between storehouses/outposts) ---
+export interface SupplyRoute {
+  id: string;
+  fromBuildingId: string;   // source storehouse/outpost
+  toBuildingId: string;     // destination storehouse/outpost
+  resourceType: ResourceType | 'any'; // what to haul ('any' = whatever is available)
+  active: boolean;          // can be paused
 }
 
 export interface NpcSettlement {
@@ -1026,6 +1102,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     grief: 0,
     assaultTargetId: null,
     preferredJob: null,
+    supplyRouteId: null,
   };
 }
 
@@ -1107,5 +1184,8 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     banditCamps: [], nextCampId: 1, lastCampSpawnDay: -999,
     constructionPoints: INITIAL_CONSTRUCTION_POINTS,
     constructionPointsMilestones: [],
+    supplyRoutes: [],
+    nextRouteId: 1,
+    lastFestivalDay: -100,
   };
 }

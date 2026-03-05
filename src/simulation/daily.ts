@@ -9,11 +9,17 @@ import {
   FoodEaten, TICKS_PER_DAY,
   RENOWN_PER_RECRUIT, FREE_SETTLERS,
   CONSTRUCTION_POINT_PER_IMMIGRANT,
+  CLOTHING_DURABILITY,
+  CHURCH_MORALE_RANGE, DECORATION_RANGE,
+  DISEASE_HP_LOSS_PER_DAY,
+  GUARD_BASE_HP, GUARD_MORALE_HP_DIVISOR, ARMOR_BONUS_HP,
+  VILLAGER_BASE_HP, HP_REGEN_PER_DAY, MEDICINE_REGEN_BONUS,
+  FESTIVAL_MORALE_BOOST, FESTIVAL_DURATION,
 } from '../world.js';
 import {
   TickState, findHome, autoEquipTool, autoEquipWeapon, getBuildingEntrance,
   addResource, addToBuffer, findStorehouseWithResource, hasTech, isStorehouse,
-  roleForBuilding, deductFromBuffer,
+  roleForBuilding, deductFromBuffer, deductFromStorehouseAndGlobal,
 } from './helpers.js';
 import { planPath } from './movement.js';
 
@@ -21,7 +27,7 @@ import { planPath } from './movement.js';
 const NEW_SETTLEMENT_OPTIMISM_DAYS = 40;
 const NEW_SETTLEMENT_OPTIMISM_MAX = 20;
 
-function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean, churchNearby: boolean, decorationBonus: number, day: number): number {
+function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean, churchNearby: boolean, decorationBonus: number, day: number, festivalActive: boolean): number {
   let morale = 50;
   morale += housingMorale;
   switch (v.lastAte) {
@@ -50,6 +56,8 @@ function calculateMorale(v: Villager, housingMorale: number, season: Season, wea
   const uniqueFoods = new Set(v.recentMeals.filter(m => m !== 'nothing'));
   if (uniqueFoods.size >= 3) morale += 10;
   else if (uniqueFoods.size >= 2) morale += 5;
+  // Festival boost
+  if (festivalActive) morale += FESTIVAL_MORALE_BOOST;
   return Math.max(0, Math.min(100, morale));
 }
 
@@ -89,54 +97,48 @@ export function processDailyChecks(ts: TickState): void {
       for (const mat of ['linen', 'leather'] as const) {
         const sh = findStorehouseWithResource(ts.buildings, mat);
         if (sh && ts.resources[mat] > 0) {
-          deductFromBuffer(sh.localBuffer, mat, 1);
-          ts.resources[mat] -= 1;
+          deductFromStorehouseAndGlobal(sh.localBuffer, ts.resources, mat, 1);
           v.clothed = true;
-          v.clothingDurability = 10;
+          v.clothingDurability = CLOTHING_DURABILITY;
           break;
         }
       }
     }
   }
 
+  // Festival active check
+  const festivalActive = ts.newDay - ts.lastFestivalDay < FESTIVAL_DURATION && ts.lastFestivalDay >= 0;
+
   // Calculate morale
   for (const v of ts.villagers) {
     let housingMorale = 0;
-    if (v.homeBuildingId) {
-      const home = ts.buildings.find(b => b.id === v.homeBuildingId);
-      if (home) housingMorale = HOUSING_INFO[home.type]?.morale ?? 0;
-    }
+    const home = v.homeBuildingId ? ts.buildingMap.get(v.homeBuildingId) : undefined;
+    if (home) housingMorale = HOUSING_INFO[home.type]?.morale ?? 0;
     // Check if any family member shares the same home
     const familyNearby = v.family.length > 0 && v.homeBuildingId !== null &&
       ts.villagers.some(other => other.id !== v.id && v.family.includes(other.id) && other.homeBuildingId === v.homeBuildingId);
     // Check if a constructed church is within 5 tiles of the villager's home
     let churchNearby = false;
-    if (v.homeBuildingId) {
-      const home = ts.buildings.find(b => b.id === v.homeBuildingId);
-      if (home) {
-        churchNearby = ts.buildings.some(b =>
-          b.type === 'church' && b.constructed &&
-          Math.abs(b.x - home.x) + Math.abs(b.y - home.y) <= 5
-        );
-      }
+    if (home) {
+      churchNearby = ts.buildings.some(b =>
+        b.type === 'church' && b.constructed &&
+        Math.abs(b.x - home.x) + Math.abs(b.y - home.y) <= CHURCH_MORALE_RANGE
+      );
     }
     // Decoration bonus — sum of unique decoration types within 5 tiles of home
     let decorationBonus = 0;
-    if (v.homeBuildingId) {
-      const home = ts.buildings.find(b => b.id === v.homeBuildingId);
-      if (home) {
-        const seen = new Set<BuildingType>();
-        for (const b of ts.buildings) {
-          const bonus = DECORATION_MORALE[b.type];
-          if (!bonus || !b.constructed || seen.has(b.type)) continue;
-          if (Math.abs(b.x - home.x) + Math.abs(b.y - home.y) <= 5) {
-            decorationBonus += bonus;
-            seen.add(b.type);
-          }
+    if (home) {
+      const seen = new Set<BuildingType>();
+      for (const b of ts.buildings) {
+        const bonus = DECORATION_MORALE[b.type];
+        if (!bonus || !b.constructed || seen.has(b.type)) continue;
+        if (Math.abs(b.x - home.x) + Math.abs(b.y - home.y) <= DECORATION_RANGE) {
+          decorationBonus += bonus;
+          seen.add(b.type);
         }
       }
     }
-    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather, familyNearby, churchNearby, decorationBonus, ts.newDay);
+    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather, familyNearby, churchNearby, decorationBonus, ts.newDay, festivalActive);
   }
 
   // Reset lastAte AFTER morale calculation — so yesterday's meals influence today's morale
@@ -308,7 +310,7 @@ export function processDailyChecks(ts: TickState): void {
   if (storehouseEdible > ts.villagers.length * 3 && ts.renown >= renownCost) {
     const emptyHome = findHome(ts.buildings, ts.villagers);
     if (emptyHome) {
-      const home = ts.buildings.find(b => b.id === emptyHome)!;
+      const home = ts.buildingMap.get(emptyHome)!;
       const entrance = getBuildingEntrance(home);
       // Spawn at map edge (south or west)
       const edgeX = ts.newDay % 2 === 0 ? 0 : Math.min(ts.width - 1, entrance.x);
@@ -344,7 +346,7 @@ export function processDailyChecks(ts: TickState): void {
   // but we want net negative, so use 3 HP loss
   for (const v of ts.villagers) {
     if (v.sick) {
-      v.hp = Math.max(1, v.hp - 3); // Lose 3 HP per day from sickness (net -1 after regen)
+      v.hp = Math.max(1, v.hp - DISEASE_HP_LOSS_PER_DAY);
       v.sickDays -= 1;
       if (v.sickDays <= 0) {
         v.sick = false;
@@ -367,13 +369,13 @@ export function processDailyChecks(ts: TickState): void {
   // HP regen (2 HP per day)
   for (const v of ts.villagers) {
     if (v.role === 'guard') {
-      const armorBonus = hasTech(ts.research, 'armored_guards') ? 5 : 0;
-      v.maxHp = 15 + Math.floor(v.morale / 10) + armorBonus;
+      const armorBonus = hasTech(ts.research, 'armored_guards') ? ARMOR_BONUS_HP : 0;
+      v.maxHp = GUARD_BASE_HP + Math.floor(v.morale / GUARD_MORALE_HP_DIVISOR) + armorBonus;
     } else {
-      v.maxHp = 10;
+      v.maxHp = VILLAGER_BASE_HP;
     }
-    const regenBonus = hasTech(ts.research, 'medicine') ? 1 : 0;
-    if (v.hp < v.maxHp) v.hp = Math.min(v.maxHp, v.hp + 2 + regenBonus);
+    const regenBonus = hasTech(ts.research, 'medicine') ? MEDICINE_REGEN_BONUS : 0;
+    if (v.hp < v.maxHp) v.hp = Math.min(v.maxHp, v.hp + HP_REGEN_PER_DAY + regenBonus);
     v.hp = Math.min(v.hp, v.maxHp);
   }
 

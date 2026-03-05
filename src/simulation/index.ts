@@ -6,7 +6,7 @@ import {
   GameState,
   TICKS_PER_DAY, NIGHT_TICKS,
 } from '../world.js';
-import { TickState, computeStorageCap, hasTech } from './helpers.js';
+import { TickState, computeStorageCap, hasTech, buildBuildingMap } from './helpers.js';
 import { validateState } from './validation.js';
 import { processDailyChecks } from './daily.js';
 import { processDisease } from './disease.js';
@@ -21,7 +21,7 @@ import { processFire } from './buildings.js';
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
 export { placeBuilding, claimTerritory, processFire } from './buildings.js';
-export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute } from './commands.js';
+export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute, holdFestival } from './commands.js';
 
 // ================================================================
 // TICK — V2 spatial simulation
@@ -98,7 +98,10 @@ export function tick(state: GameState): GameState {
     constructionPointsMilestones: [...state.constructionPointsMilestones],
     supplyRoutes: state.supplyRoutes.map(r => ({ ...r })),
     nextRouteId: state.nextRouteId,
+    lastFestivalDay: state.lastFestivalDay,
+    buildingMap: new Map(),
   };
+  ts.buildingMap = buildBuildingMap(ts.buildings);
   ts.storageCap = computeStorageCap(ts.buildings);
 
   // Season & weather (on new day)
@@ -179,6 +182,7 @@ export function tick(state: GameState): GameState {
     constructionPointsMilestones: ts.constructionPointsMilestones,
     supplyRoutes: ts.supplyRoutes,
     nextRouteId: ts.nextRouteId,
+    lastFestivalDay: ts.lastFestivalDay,
   };
 
   const errors = validateState(newState);

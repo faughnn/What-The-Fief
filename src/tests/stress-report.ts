@@ -6,7 +6,7 @@ import {
   TICKS_PER_DAY, BUILDING_TEMPLATES, FOOD_PRIORITY,
 } from '../world.js';
 import {
-  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp, setFormation,
+  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp, setFormation, holdFestival,
 } from '../simulation.js';
 
 // ================================================================
@@ -349,6 +349,13 @@ function playerAI(state: GameState): GameState {
       const { payTribute } = require('../simulation.js');
       state = payTribute(state);
     }
+  }
+
+  // Festival — hold when tavern exists, morale is sagging, and we can afford it
+  const avgMorale = state.villagers.reduce((sum, v) => sum + v.morale, 0) / Math.max(1, state.villagers.length);
+  if (avgMorale < 65 && countConstructed(state, 'tavern') > 0 && state.resources.food >= 30 && state.resources.gold >= 20) {
+    const result = holdFestival(state);
+    if (result !== state) state = result;
   }
 
   return state;

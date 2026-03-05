@@ -68,6 +68,21 @@ export interface TickState {
   constructionPointsMilestones: number[];
   supplyRoutes: { id: string; fromBuildingId: string; toBuildingId: string; resourceType: string; active: boolean }[];
   nextRouteId: number;
+  lastFestivalDay: number;
+  // O(1) lookup maps — built once per tick, used instead of buildings.find/villagers.find
+  buildingMap: Map<string, Building>;
+}
+
+// --- Build O(1) lookup map from buildings array ---
+export function buildBuildingMap(buildings: Building[]): Map<string, Building> {
+  const map = new Map<string, Building>();
+  for (const b of buildings) map.set(b.id, b);
+  return map;
+}
+
+// --- Rebuild the building map after mutations (splice/push) ---
+export function rebuildBuildingMap(ts: TickState): void {
+  ts.buildingMap = buildBuildingMap(ts.buildings);
 }
 
 // --- Check if two positions are adjacent (Manhattan distance <= 1) ---
@@ -172,6 +187,18 @@ export function consumeBufferInputs(buffer: Partial<Record<ResourceType, number>
 export function deductFromBuffer(buffer: Partial<Record<ResourceType, number>>, res: ResourceType, amount: number): void {
   buffer[res] = (buffer[res] || 0) - amount;
   if ((buffer[res] || 0) <= 0) delete buffer[res];
+}
+
+// Deduct from both a storehouse's local buffer AND the global resource pool in one call.
+// Eliminates the paired pattern of deductFromBuffer + ts.resources[res] -= N.
+export function deductFromStorehouseAndGlobal(
+  buffer: Partial<Record<ResourceType, number>>,
+  resources: Resources,
+  res: ResourceType,
+  amount: number,
+): void {
+  deductFromBuffer(buffer, res, amount);
+  resources[res] = Math.max(0, resources[res] - amount);
 }
 
 export function ticksPerUnit(buildingType: BuildingType): number {
