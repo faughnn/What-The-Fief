@@ -3,7 +3,7 @@ import {
   createWorld, createVillager, GameState, Building,
   BUILDING_TEMPLATES, TICKS_PER_DAY, BuildingType,
 } from '../world.js';
-import { tick, placeBuilding, assignVillager, setPreferredJob } from '../simulation/index.js';
+import { tick, placeBuilding, assignVillager, setPreferredJob, setJobPriority } from '../simulation/index.js';
 
 let passed = 0;
 let failed = 0;
@@ -223,6 +223,79 @@ console.log('\n=== Job Priority: Clearing Preference Returns to Skill-Based ==='
   // With no preferences, skill-based: v1 (crafting 30) should get tanner
   assert(tanner.assignedWorkers.includes('v1'),
     'After clearing preference, skill-based assignment resumes (v1 gets tanner)');
+}
+
+// ========================
+// JOB PRIORITIES (1-9 SCALE)
+// ========================
+
+console.log('\n=== JobPriority Scale: setJobPriority sets priority ===');
+{
+  let state = setupColony(1);
+  state = setJobPriority(state, 'v1', 'farm', 1);
+  assert(state.villagers[0].jobPriorities.farm === 1, 'Priority for farm set to 1');
+}
+
+console.log('\n=== JobPriority Scale: multiple priorities ===');
+{
+  let state = setupColony(1);
+  state = setJobPriority(state, 'v1', 'farm', 1);
+  state = setJobPriority(state, 'v1', 'woodcutter', 3);
+  state = setJobPriority(state, 'v1', 'quarry', 0);
+  const v = state.villagers[0];
+  assert(v.jobPriorities.farm === 1, 'Farm priority 1');
+  assert(v.jobPriorities.woodcutter === 3, 'Woodcutter priority 3');
+  assert(v.jobPriorities.quarry === 0, 'Quarry disabled');
+}
+
+console.log('\n=== JobPriority Scale: invalid range rejected ===');
+{
+  let state = setupColony(1);
+  state = setJobPriority(state, 'v1', 'farm', 10);
+  assert(state.villagers[0].jobPriorities.farm === undefined, 'Priority 10 rejected');
+  state = setJobPriority(state, 'v1', 'farm', -1);
+  assert(state.villagers[0].jobPriorities.farm === undefined, 'Priority -1 rejected');
+}
+
+console.log('\n=== JobPriority Scale: disabled job blocks assignment ===');
+{
+  let state = setupColony(1);
+  state = setJobPriority(state, 'v1', 'farm', 0);
+
+  state = placeBuilding(state, 'farm', 8, 8);
+  state.buildings.find(b => b.type === 'farm')!.constructed = true;
+  state.buildings.find(b => b.type === 'farm')!.hp = state.buildings.find(b => b.type === 'farm')!.maxHp;
+
+  for (let i = 0; i < TICKS_PER_DAY; i++) state = tick(state);
+
+  const v = state.villagers.find(vv => vv.id === 'v1')!;
+  assert(v.role !== 'farmer', `Disabled farm: not assigned (role=${v.role})`);
+}
+
+console.log('\n=== JobPriority Scale: higher priority preferred ===');
+{
+  let state = setupColony(1);
+  state = setJobPriority(state, 'v1', 'farm', 5);
+  state = setJobPriority(state, 'v1', 'woodcutter', 1);
+
+  state = placeBuilding(state, 'farm', 8, 8);
+  state = placeBuilding(state, 'woodcutter', 12, 8);
+  for (const b of state.buildings) {
+    if (b.type === 'farm' || b.type === 'woodcutter') {
+      b.constructed = true; b.hp = b.maxHp;
+    }
+  }
+
+  for (let i = 0; i < TICKS_PER_DAY; i++) state = tick(state);
+
+  const v = state.villagers.find(vv => vv.id === 'v1')!;
+  assert(v.role === 'woodcutter', `Higher priority woodcutter(1) beats farm(5): role=${v.role}`);
+}
+
+console.log('\n=== JobPriority Scale: default villager has empty jobPriorities ===');
+{
+  const v = createVillager(1, 0, 0);
+  assert(Object.keys(v.jobPriorities).length === 0, 'New villager has empty jobPriorities');
 }
 
 // ========================

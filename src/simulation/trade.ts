@@ -3,6 +3,7 @@
 import {
   ResourceType, createVillager, FOOD_PRIORITY, TICKS_PER_DAY,
   CONSTRUCTION_POINT_MILESTONES,
+  DISEASE_DURATION_BASE, DISEASE_DURATION_MEDICINE,
 } from '../world.js';
 import {
   TickState, getBuildingEntrance, addResource, addToBuffer,
@@ -13,21 +14,29 @@ import { findPath } from './movement.js';
 // Caravan spawn intervals (in days)
 const CARAVAN_INTERVAL_BASE = 10;
 const CARAVAN_INTERVAL_TRADE_ROUTES = 7;
+const CARAVAN_INTERVAL_LIBERATED = 5;  // liberated villages send caravans more often
 const CARAVAN_GOODS_BASE = 8;
 const CARAVAN_GOODS_TRADE_ROUTES = 12;
+const CARAVAN_GOODS_LIBERATED = 15;    // liberated villages send more goods
+const LIBERATED_RENOWN_INTERVAL = 10;  // days between renown from liberated villages
+const LIBERATED_RENOWN_PER_VILLAGE = 2; // renown per liberated village per interval
+const LIBERATED_PROSPERITY_BONUS = 5;  // prosperity bonus per liberated village
 
 export function processCaravans(ts: TickState): void {
   const marketplace = ts.buildings.find(b => b.type === 'marketplace' && b.constructed);
 
   // Auto-spawn caravans from NPC settlements
   if (ts.isNewDay && marketplace && ts.npcSettlements.length > 0) {
-    const interval = hasTech(ts.research, 'trade_routes') ? CARAVAN_INTERVAL_TRADE_ROUTES : CARAVAN_INTERVAL_BASE;
-    if (ts.newDay > 0 && ts.newDay % interval === 0) {
-      // Pick a settlement (rotate based on day)
-      const settlement = ts.npcSettlements[Math.floor(ts.newDay / interval) % ts.npcSettlements.length];
+    // Check each settlement independently — liberated ones have shorter intervals
+    for (const settlement of ts.npcSettlements) {
+      const isLiberated = settlement.liberated;
+      const interval = isLiberated ? CARAVAN_INTERVAL_LIBERATED
+        : hasTech(ts.research, 'trade_routes') ? CARAVAN_INTERVAL_TRADE_ROUTES : CARAVAN_INTERVAL_BASE;
+      if (ts.newDay > 0 && ts.newDay % interval === 0) {
       // Don't spawn if one from this settlement is already en route
       if (!ts.caravans.some(c => c.settlementId === settlement.id)) {
-        const goodsAmount = hasTech(ts.research, 'trade_routes') ? CARAVAN_GOODS_TRADE_ROUTES : CARAVAN_GOODS_BASE;
+        const goodsAmount = isLiberated ? CARAVAN_GOODS_LIBERATED
+          : hasTech(ts.research, 'trade_routes') ? CARAVAN_GOODS_TRADE_ROUTES : CARAVAN_GOODS_BASE;
         // Spawn at map edge based on settlement direction
         let sx = 0, sy = Math.floor(ts.height / 2);
         if (settlement.direction === 'e') sx = ts.width - 1;
@@ -43,6 +52,7 @@ export function processCaravans(ts: TickState): void {
           ticksLeft: TICKS_PER_DAY * 5,
         });
         ts.events.push(`A caravan from ${settlement.name} is approaching!`);
+      }
       }
     }
   }
@@ -127,6 +137,9 @@ export function processProsperity(ts: TickState): void {
     ts.prosperity += Math.min(30, uniqueBuildings.size * 5);
     if (ts.villagers.some(v => v.role === 'guard')) ts.prosperity += 10;
     if (ts.research.completed.length > 0) ts.prosperity += 10;
+    // Liberated village bonus
+    const liberatedCount = ts.npcSettlements.filter(s => s.liberated).length;
+    ts.prosperity += liberatedCount * LIBERATED_PROSPERITY_BONUS;
   }
   ts.prosperity = Math.min(100, ts.prosperity);
 
@@ -147,6 +160,14 @@ export function processEventsAndQuests(ts: TickState): void {
 
   if (ts.isNewDay) {
     if (ts.prosperity > 70) ts.renown += 1;
+
+    // Liberated villages provide ongoing renown
+    if (ts.newDay > 0 && ts.newDay % LIBERATED_RENOWN_INTERVAL === 0) {
+      const liberatedCount = ts.npcSettlements.filter(s => s.liberated).length;
+      if (liberatedCount > 0) {
+        ts.renown += liberatedCount * LIBERATED_RENOWN_PER_VILLAGE;
+      }
+    }
 
     const eventRng = ((ts.newDay * 2654435761 + 374761393) & 0x7fffffff) / 0x7fffffff;
     if (eventRng < 0.10 && ts.villagers.length > 0) {
@@ -174,7 +195,7 @@ export function processEventsAndQuests(ts: TickState): void {
       } else if (eventSeed < 0.50) {
         const home = findHome(ts.buildings, ts.villagers);
         if (home) {
-          const homeB = ts.buildings.find(b => b.id === home)!;
+          const homeB = ts.buildingMap.get(home)!;
           const entrance = getBuildingEntrance(homeB);
           const newV = createVillager(nextVId, entrance.x, entrance.y);
           newV.homeBuildingId = home;
@@ -188,7 +209,7 @@ export function processEventsAndQuests(ts: TickState): void {
         const target = ts.villagers[ts.newDay % ts.villagers.length];
         if (!target.sick) {
           target.sick = true;
-          target.sickDays = hasTech(ts.research, 'medicine') ? 3 : 5;
+          target.sickDays = hasTech(ts.research, 'medicine') ? DISEASE_DURATION_MEDICINE : DISEASE_DURATION_BASE;
           ts.events.push(`${target.name} has fallen ill with a plague!`);
         }
       } else if (eventSeed < 0.65) {

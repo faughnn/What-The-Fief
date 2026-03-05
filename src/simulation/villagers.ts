@@ -137,7 +137,7 @@ function startEating(v: Villager, buildings: Building[], resources: Resources, g
 // --- Helper: try to visit tavern before going home ---
 function tryVisitTavern(v: Villager, buildings: Building[], grid: Tile[][], width: number, height: number): boolean {
   if (v.morale >= TAVERN_MORALE_THRESHOLD || v.tavernVisitCooldown > 0) return false;
-  const tavern = buildings.find(b => b.type === 'tavern' && b.constructed);
+  const tavern = buildings.find(b => (b.type === 'tavern' || b.type === 'inn') && b.constructed);
   if (!tavern) return false;
   const entrance = getBuildingEntrance(tavern);
   planPath(v, grid, width, height, entrance.x, entrance.y);

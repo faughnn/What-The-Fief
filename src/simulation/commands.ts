@@ -9,8 +9,9 @@ import {
   GuardMode, GuardLine,
   FESTIVAL_FOOD_COST, FESTIVAL_GOLD_COST, FESTIVAL_COOLDOWN, TICKS_PER_DAY,
   LIBERATION_BRIGAND_COUNT, ENEMY_TEMPLATES, EnemyEntity,
+  createVillager, RENOWN_PER_RECRUIT,
 } from '../world.js';
-import { roleForBuilding, bufferTotal, findNearestStorehouse, isStorehouse, deductFromBuffer } from './helpers.js';
+import { roleForBuilding, bufferTotal, findNearestStorehouse, isStorehouse, deductFromBuffer, findHome } from './helpers.js';
 
 export function assignVillager(state: GameState, villagerId: string, buildingId: string): GameState {
   const villager = state.villagers.find(v => v.id === villagerId);
@@ -424,9 +425,9 @@ export function cancelSupplyRoute(state: GameState, routeId: string): GameState 
 // --- Festival Command ---
 
 export function holdFestival(state: GameState): GameState {
-  // Require constructed tavern
-  const tavern = state.buildings.find(b => b.type === 'tavern' && b.constructed);
-  if (!tavern) { console.log('ERROR: No constructed tavern for festival'); return state; }
+  // Require constructed tavern or inn
+  const tavern = state.buildings.find(b => (b.type === 'tavern' || b.type === 'inn') && b.constructed);
+  if (!tavern) { console.log('ERROR: No constructed tavern/inn for festival'); return state; }
 
   // Check cooldown
   const currentDay = Math.floor(state.tick / TICKS_PER_DAY);
@@ -510,5 +511,52 @@ export function liberateVillage(state: GameState, villageId: string): GameState 
     enemies,
     nextEnemyId: nextId,
     events: [...state.events, `Liberation of ${village.name} has begun! Defeat the brigands to free the village!`],
+  };
+}
+
+const RECRUIT_RENOWN_COST = 10;
+
+export function recruitFromVillage(state: GameState, villageId: string): GameState {
+  const village = state.npcSettlements.find(v => v.id === villageId);
+  if (!village) { console.log(`ERROR: No village with id '${villageId}'`); return state; }
+  if (!village.liberated) { console.log(`ERROR: Village ${village.name} is not liberated`); return state; }
+  if (state.renown < RECRUIT_RENOWN_COST) { console.log(`ERROR: Need ${RECRUIT_RENOWN_COST} renown to recruit (have ${state.renown})`); return state; }
+
+  // Check housing availability
+  const home = findHome(state.buildings, state.villagers);
+  if (!home) { console.log('ERROR: No available housing for recruit'); return state; }
+
+  // Spawn villager at village edge
+  let sx = village.x, sy = village.y;
+  // Clamp to map bounds
+  sx = Math.max(0, Math.min(state.width - 1, sx));
+  sy = Math.max(0, Math.min(state.height - 1, sy));
+
+  const newV = createVillager(state.nextVillagerId, sx, sy);
+  newV.homeBuildingId = home;
+  newV.state = 'idle';
+  newV.food = 5;
+
+  return {
+    ...state,
+    villagers: [...state.villagers, newV],
+    nextVillagerId: state.nextVillagerId + 1,
+    renown: state.renown - RECRUIT_RENOWN_COST,
+    events: [...state.events, `${newV.name} recruited from ${village.name}!`],
+  };
+}
+
+export function setJobPriority(state: GameState, villagerId: string, buildingType: BuildingType, priority: number): GameState {
+  if (priority < 0 || priority > 9) { console.log(`ERROR: Priority must be 0-9 (got ${priority})`); return state; }
+  const v = state.villagers.find(vv => vv.id === villagerId);
+  if (!v) { console.log(`ERROR: No villager '${villagerId}'`); return state; }
+
+  return {
+    ...state,
+    villagers: state.villagers.map(vv =>
+      vv.id === villagerId
+        ? { ...vv, jobPriorities: { ...vv.jobPriorities, [buildingType]: priority } }
+        : vv
+    ),
   };
 }

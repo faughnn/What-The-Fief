@@ -236,7 +236,10 @@ export function processDailyChecks(ts: TickState): void {
   };
 
   const assignOneIdle = (b: Building, type: BuildingType): boolean => {
-    const idleVillagers = ts.villagers.filter(v => v.role === 'idle' && v.hp > 0);
+    // Filter out villagers who have this job type disabled (priority 0)
+    const idleVillagers = ts.villagers.filter(v =>
+      v.role === 'idle' && v.hp > 0 && v.jobPriorities[type] !== 0
+    );
     if (idleVillagers.length <= minIdleReserve) return false;
     // Prefer villagers whose preferredJob matches this building type
     const preferred = idleVillagers.filter(v => v.preferredJob === type);
@@ -246,6 +249,27 @@ export function processDailyChecks(ts: TickState): void {
     doAssign(b, type, best);
     return true;
   };
+
+  // Pass -1: Assign villagers with explicit jobPriorities to their highest-priority building
+  for (const v of ts.villagers) {
+    if (v.role !== 'idle' || v.hp <= 0) continue;
+    const priorities = Object.entries(v.jobPriorities)
+      .filter(([_, p]) => p > 0) // Skip disabled (0) entries
+      .sort(([, a], [, b]) => a - b); // Sort by priority (1=highest)
+    if (priorities.length === 0) continue;
+    const idleCount = ts.villagers.filter(vv => vv.role === 'idle' && vv.hp > 0).length;
+    if (idleCount <= minIdleReserve) break;
+    for (const [type] of priorities) {
+      const building = ts.buildings.find(b =>
+        b.type === type && b.constructed && b.type !== 'rubble' &&
+        b.assignedWorkers.length < (BUILDING_TEMPLATES[type as BuildingType]?.maxWorkers || 0)
+      );
+      if (building) {
+        doAssign(building, type as BuildingType, v);
+        break;
+      }
+    }
+  }
 
   // Pass 0: Assign villagers with preferred jobs to matching buildings (highest priority)
   for (const type of autoAssignOrder) {

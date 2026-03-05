@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 752 tests passing (43 test files). 100-day stress test: 14 pop, 4 deaths, 0 errors, 9 techs researched, prosperity 80. All villagers clothed.
+- **Status**: V2 spatial simulation. 788 tests passing (46 test files). 100-day stress test: 14 pop, 4 deaths, 0 errors, 9 techs researched, prosperity 80. All villagers clothed.
 - **What exists**:
   - **Core**: 120 ticks/day. 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -18,6 +18,9 @@
   - **Festivals**: holdFestival costs 20 food + 10 gold, requires tavern, 10-day cooldown. +20 morale for 3 days. Player AI triggers when avg morale < 65. 19 tests.
   - **NPC Villages & Trust**: 4 NPC villages on maps >= 30x30. Trust system (stranger → associate → friend → protector → leader). Trust gained by killing enemies/wildlife near villages. Liberation at protector rank spawns brigands; clearing them liberates village (+30 renown). 45 tests.
   - **Roads**: road building (1 stone, instant, no construction points). Doubles villager movement speed on road tiles. Passable for all entities. 21 tests.
+  - **Inn**: upgraded tavern (2x2, houses 4, +15 morale). Tavern → inn upgrade path. Works for festivals and morale visits. 16 tests.
+  - **Liberated village integration**: Liberated villages send more frequent caravans (every 5 days vs 10) with more goods (15 vs 8). recruitFromVillage command (10 renown cost, requires housing). Ongoing renown stream (+2 per liberated village every 10 days). +5 prosperity per liberated village. 11 tests.
+  - **Job priorities**: Per-villager job priority system (1-9 scale, 0=disabled). setJobPriority command. Auto-assign Pass -1 assigns villagers to their highest-priority building first. Disabled jobs block assignment. Coexists with preferredJob. 23 tests (6 new + 17 existing).
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -80,26 +83,19 @@
 - ✅ **Festivals**: holdFestival command, tavern+food+gold cost, +20 morale for 3 days, 10-day cooldown. Player AI triggers when avg morale < 65. 19 tests.
 - ✅ **NPC villages + trust system**: 4 villages on large maps, trust progression (stranger→associate→friend→protector→leader), trust from killing enemies/wildlife near villages, liberation combat (spawn brigands, defeat to liberate), renown reward. 45 tests.
 - ✅ **Roads**: 1 stone cost, instant construction, no construction point cost. Doubles movement speed (2 path steps per moveOneStep call). Passable for all entities. 21 tests.
+- ✅ **Inn**: tavern → inn upgrade. 2x2, houses 4 villagers, +15 morale. Festivals and morale visits work with inn (no tavern needed). 16 tests.
+- ✅ **Liberated village integration**: Enhanced caravans (5-day interval, 15 goods), recruitment (10 renown), renown stream (+2/village/10 days), prosperity boost (+5/village). 11 tests.
+- ✅ **Job priorities**: setJobPriority(villagerId, buildingType, priority) with 0-9 scale. Priority 0 disables, 1=highest. Auto-assign respects priorities before default order. Works alongside setPreferredJob. 23 tests.
 - ✅ 100-day stress test: player AI grows to 14 pop, 9 techs, prosperity 80, all clothed, 0 errors
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
-**Priority 1 — Core progression depth:**
-1. **No liberated village integration.** Villages can be liberated but don't contribute workers, buildings, or trade. Bellwright has liberated villages that become functional settlements connected via trade routes.
-
-**Priority 2 — Depth & polish:**
-2. **No Inn building.** Bellwright has Inn (upgraded tavern) that "significantly affects morale."
-3. **No job priorities UI.** Bellwright lets players set per-villager task priorities beyond just preferred building.
-
-### Honest priority order for closing gaps:
-1. Liberated village integration (workers, buildings, trade boost)
-2. Inn building (upgraded tavern)
-3. Job priorities UI
+**Re-evaluating...** All previously identified gaps have been closed. Need to do a fresh Bellwright comparison to find remaining gaps.
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
-- `src/tests/test-v2-*.ts` — 43 test files, 752 tests total
+- `src/tests/test-v2-*.ts` — 46 test files, 788 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
@@ -136,6 +132,9 @@
 - Auto-assign: breadth-first (1 per building first, then fill to max capacity). Haul threshold: only idle-haul when buffer >= CARRY_CAPACITY. Processing workers don't go idle when inputs unavailable (prevents job corruption).
 - Construction points: 20 initial, 1 per building (rubble free), +2 per immigrant, milestones at prosperity 50/65/80/90 grant 5/5/10/10 points. Total possible: 20 + immigrants*2 + 30 from milestones.
 - Supply routes: createSupplyRoute(villagerId, fromId, toId, resourceType). Villager becomes hauler with supply_traveling_to_source/dest states. Loads CARRY_CAPACITY from source buffer, walks to dest, deposits. cancelSupplyRoute releases hauler. Source/dest must be storehouse/outpost.
-- Festivals: holdFestival costs 20 food + 10 gold from storehouse. Requires constructed tavern. 10-day cooldown. Morale boost +20 for 3 days (FESTIVAL_DURATION). Tracked via lastFestivalDay in GameState.
+- Festivals: holdFestival costs 20 food + 10 gold from storehouse. Requires constructed tavern or inn. 10-day cooldown. Morale boost +20 for 3 days (FESTIVAL_DURATION). Tracked via lastFestivalDay in GameState.
+- Inn: upgraded tavern (2x2, wood:20 stone:15 planks:10 rope:5). Houses 4 villagers with +15 morale. Tavern → inn upgrade. Works for festivals and morale visits (tryVisitTavern checks both 'tavern' and 'inn').
 - NPC villages: 4 villages on maps >= 30x30 at edges (Thornfield/N, Millhaven/E, Ironhollow/S, Greenwater/W). Trust: stranger(0) → associate(100) → friend(500) → protector(1200) → leader(liberated). Trust +15 per bandit kill, +5 per hostile animal kill within 10 tiles. Liberation at protector rank spawns 4 brigands; clearing them → liberated + leader rank + 30 renown.
 - Roads: building type 'road', costs 1 stone, instant construction, no construction point cost, FREE_CONSTRUCTION. Passable for allies and enemies. moveOneStep takes 2 path steps when landing on road tile (double speed). Grid parameter added to moveOneStep (optional, backward compatible).
+- Liberated village integration: liberated villages send caravans every 5 days (vs 10 base) with 15 goods (vs 8 base). recruitFromVillage(villageId) costs 10 renown, requires housing, spawns villager at village edge. +2 renown per liberated village every 10 days. +5 prosperity per liberated village. Each settlement checks caravan interval independently.
+- Job priorities: setJobPriority(villagerId, buildingType, priority). Scale 0-9 where 0=disabled, 1=highest, 9=lowest. Auto-assign Pass -1 iterates villagers with explicit priorities, assigns to their highest-priority available building. Disabled jobs block assignment in assignOneIdle. Coexists with preferredJob (Pass 0). Villager.jobPriorities: Partial<Record<BuildingType, number>>.

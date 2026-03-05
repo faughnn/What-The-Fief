@@ -1,9 +1,10 @@
 // disease.ts — Disease spreading (per-tick)
 
+import { DISEASE_SPREAD_CHANCE, DISEASE_DURATION_BASE, DISEASE_DURATION_MEDICINE } from '../world.js';
 import { TickState, hasTech } from './helpers.js';
 
 export function processDisease(ts: TickState): void {
-  // Per-tick: sick villagers spread disease to adjacent healthy villagers (10% per tick)
+  // Per-tick: sick villagers spread disease to adjacent healthy villagers
   for (const v of ts.villagers) {
     if (!v.sick) continue;
     for (const other of ts.villagers) {
@@ -11,9 +12,9 @@ export function processDisease(ts: TickState): void {
       // Check adjacency (within 1 tile)
       if (Math.abs(other.x - v.x) <= 1 && Math.abs(other.y - v.y) <= 1) {
         const spreadRng = ((ts.newTick * 1103515245 + v.x * 12345 + other.x * 67890 + v.y * 2654435761) & 0x7fffffff) / 0x7fffffff;
-        if (spreadRng < 0.10) {
+        if (spreadRng < DISEASE_SPREAD_CHANCE) {
           other.sick = true;
-          other.sickDays = hasTech(ts.research, 'medicine') ? 3 : 5;
+          other.sickDays = hasTech(ts.research, 'medicine') ? DISEASE_DURATION_MEDICINE : DISEASE_DURATION_BASE;
         }
       }
     }

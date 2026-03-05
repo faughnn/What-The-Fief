@@ -10,9 +10,12 @@ A physically simulated medieval colony. The player is a god-like overseer — no
 
 - **Platform**: Windows (Git Bash). `tail`, `head`, and other Unix utils are NOT available.
 - **Node.js path**: `export PATH="/c/Program Files/nodejs:$PATH"` (run once per session)
-- **Run all tests**: `npx tsx src/tests/run-all.ts`
-- **Run stress test**: `npx tsx src/tests/stress-report.ts`
-- **Run single test**: `npx tsx src/tests/test-v2-<name>.ts`
+- **Run all tests (quiet)**: `npx tsx src/tests/run-all.ts -q` — shows only failures and final summary. Use this first.
+- **Run all tests (verbose)**: `npx tsx src/tests/run-all.ts` — shows every PASS/FAIL. Use only when debugging specific failures.
+- **Run stress test (quiet)**: `npx tsx src/tests/stress-report.ts -q` — one-line summary. Use this first.
+- **Run stress test (verbose)**: `npx tsx src/tests/stress-report.ts` — full day-by-day report. Use only when diagnosing stress test issues.
+- **Run single test**: `npx tsx src/tests/test-v2-<name>.ts` — run when quiet mode reports failures in a specific file.
+- **Testing workflow**: Always run quiet first (`-q`). If failures occur, run the specific failing test file for details. Only use verbose mode when you need the full output to diagnose an issue. This saves context window space.
 - There is no `run-all.ts` equivalent for `find` — the runner script globs test files itself.
 
 ## Session Start (do this FIRST every time)
@@ -36,7 +39,7 @@ REPEAT
 ```
 
 ### OBSERVE
-Run all unit tests and the stress test. Read the output carefully — don't skim. If anything is broken, fix it before moving on.
+Run all unit tests and the stress test in quiet mode first (`-q`). If anything fails, run the specific failing test or verbose stress test to diagnose. Fix breakages before moving on.
 
 ### EVALUATE
 Ask the Bellwright Question (see below). This includes researching online how the real game handles whatever gaps you find. Don't skip the research step.

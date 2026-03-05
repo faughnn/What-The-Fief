@@ -33,6 +33,7 @@ export const HOUSING_INFO: Partial<Record<BuildingType, { capacity: number; mora
   tent: { capacity: 1, morale: 0 },
   house: { capacity: 2, morale: 10 },
   manor: { capacity: 4, morale: 20 },
+  inn: { capacity: 4, morale: 15 },
 };
 
 // --- Decoration morale bonuses (range 5 tiles from home) ---
@@ -74,6 +75,8 @@ export type BuildingType =
   | 'large_farm' | 'lumber_mill' | 'deep_quarry'
   | 'advanced_smelter' | 'windmill' | 'kitchen'
   | 'large_storehouse'
+  // Upgraded morale buildings
+  | 'inn'
   // Weapon/armor production
   | 'weaponsmith' | 'fletcher'
   // Decoration / morale buildings
@@ -477,6 +480,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 10, stone: 5 }, description: 'Villagers visit for morale boost',
     maxWorkers: 0, production: null, mapChar: 'V',
   },
+  inn: {
+    type: 'inn', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { wood: 20, stone: 15, planks: 10, rope: 5 }, description: 'Upgraded tavern — higher morale, houses 4',
+    maxWorkers: 0, production: null, mapChar: 'I',
+  },
   well: {
     type: 'well', width: 1, height: 1, allowedTerrain: ['grass'],
     cost: { stone: 10 }, description: 'Reduces fire risk in nearby buildings',
@@ -701,6 +709,7 @@ export interface Villager {
   assaultTargetId: string | null; // ID of bandit camp to attack
   // Job preference (player-set)
   preferredJob: BuildingType | null; // preferred building type for auto-assign
+  jobPriorities: Partial<Record<BuildingType, number>>; // 1=highest, 9=lowest, 0=disabled
   // Supply route assignment
   supplyRouteId: string | null; // ID of supply route this hauler is assigned to
 }
@@ -825,6 +834,9 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   advanced_smelter: 70, windmill: 50, kitchen: 45,
   large_storehouse: 60,
   weaponsmith: 45, fletcher: 35,
+  garden: 20, fountain: 30, statue: 40,
+  outpost: 40, road: 10,
+  inn: 60,
 };
 
 // V2: Construction time (work ticks needed to complete a building)
@@ -848,6 +860,9 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   advanced_smelter: 150, windmill: 100, kitchen: 90,
   large_storehouse: 120,
   weaponsmith: 90, fletcher: 60,
+  garden: 30, fountain: 40, statue: 50,
+  outpost: 60, road: 1,
+  inn: 120,
 };
 
 // V2: Building upgrade paths — from → { to, cost }
@@ -862,6 +877,7 @@ export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cos
   mill: { to: 'windmill', cost: { wood: 10, stone: 10, planks: 5, rope: 3 } },
   bakery: { to: 'kitchen', cost: { wood: 10, stone: 10, planks: 5 } },
   storehouse: { to: 'large_storehouse', cost: { wood: 20, stone: 10, planks: 10 } },
+  tavern: { to: 'inn', cost: { wood: 15, stone: 10, planks: 8, rope: 3 } },
 };
 
 export const WATCHTOWER_RANGE = 5;
@@ -1133,6 +1149,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     grief: 0,
     assaultTargetId: null,
     preferredJob: null,
+    jobPriorities: {},
     supplyRouteId: null,
   };
 }

@@ -353,7 +353,7 @@ function playerAI(state: GameState): GameState {
 
   // Festival — hold when tavern exists, morale is sagging, and we can afford it
   const avgMorale = state.villagers.reduce((sum, v) => sum + v.morale, 0) / Math.max(1, state.villagers.length);
-  if (avgMorale < 65 && countConstructed(state, 'tavern') > 0 && state.resources.food >= 30 && state.resources.gold >= 20) {
+  if (avgMorale < 65 && (countConstructed(state, 'tavern') > 0 || countConstructed(state, 'inn') > 0) && state.resources.food >= 30 && state.resources.gold >= 20) {
     const result = holdFestival(state);
     if (result !== state) state = result;
   }
@@ -557,6 +557,9 @@ console.log = origLog;
 // ================================================================
 // PRINT REPORT
 // ================================================================
+const quiet = process.argv.includes('--quiet') || process.argv.includes('-q');
+
+if (!quiet) {
 console.log('='.repeat(70));
 console.log('  COLONYSIM — 100-DAY SIMULATION WITH PLAYER AI');
 console.log('='.repeat(70));
@@ -594,10 +597,19 @@ for (const s of snapshots) {
 
   console.log();
 }
+} // end if (!quiet)
 
 // ================================================================
 // SUMMARY
 // ================================================================
+if (quiet) {
+  // Quiet mode: one-line summary
+  const techCount = state.research.completed.length;
+  console.log(`STRESS TEST: ${state.villagers.length} pop, ${state.graveyard.length} deaths, ${errorLines.length} errors, ${techCount} techs, prosperity ${Math.round(state.prosperity)}`);
+  if (errorLines.length > 0) {
+    for (const e of errorLines.slice(0, 5)) console.log(`  ${e}`);
+  }
+} else {
 console.log('='.repeat(70));
 console.log('  FINAL SUMMARY');
 console.log('='.repeat(70));
@@ -676,3 +688,4 @@ if (state.graveyard.length > 0) {
     console.log(`    ${g.name} — died day ${g.day}`);
   }
 }
+} // end if (!quiet)

@@ -21,7 +21,7 @@ import { processFire } from './buildings.js';
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
 export { placeBuilding, claimTerritory, processFire } from './buildings.js';
-export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute, holdFestival, liberateVillage } from './commands.js';
+export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute, holdFestival, liberateVillage, recruitFromVillage, setJobPriority } from './commands.js';
 
 // ================================================================
 // TICK — V2 spatial simulation
@@ -47,6 +47,7 @@ export function tick(state: GameState): GameState {
       traits: [...v.traits],
       path: [...v.path],
       carrying: { ...v.carrying },
+      jobPriorities: { ...v.jobPriorities },
       patrolRoute: [...v.patrolRoute],
       recentMeals: [...v.recentMeals],
       family: [...v.family],
