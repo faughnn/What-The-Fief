@@ -45,7 +45,7 @@ export function findPath(
   return findPathCore(grid, width, height, fromX, fromY, toX, toY, (tile) => {
     if (!tile.building) return true;
     const t = tile.building.type;
-    return t === 'gate' || t === 'rubble' || t === 'fence';
+    return t === 'gate' || t === 'rubble' || t === 'fence' || t === 'road';
   });
 }
 
@@ -61,13 +61,23 @@ export function findPathEnemy(
   });
 }
 
-// --- Movement: move villager 1 step along their path ---
-export function moveOneStep(v: Villager): boolean {
+// --- Movement: move villager 1 step along their path (2 on roads) ---
+export function moveOneStep(v: Villager, grid?: Tile[][]): boolean {
   if (v.pathIndex >= v.path.length) return false;
   const next = v.path[v.pathIndex];
   v.x = next.x;
   v.y = next.y;
   v.pathIndex++;
+  // Road speed bonus: if the villager just stepped onto a road tile, take another step
+  if (grid && v.pathIndex < v.path.length) {
+    const tile = grid[v.y]?.[v.x];
+    if (tile?.building?.type === 'road') {
+      const next2 = v.path[v.pathIndex];
+      v.x = next2.x;
+      v.y = next2.y;
+      v.pathIndex++;
+    }
+  }
   return true;
 }
 

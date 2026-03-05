@@ -236,7 +236,7 @@ export function processAnimals(ts: TickState): void {
           }
         }
       } else {
-        moveOneStep(v);
+        moveOneStep(v, ts.grid);
       }
       continue;
     }

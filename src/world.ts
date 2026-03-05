@@ -79,7 +79,9 @@ export type BuildingType =
   // Decoration / morale buildings
   | 'garden' | 'fountain' | 'statue'
   // Outpost
-  | 'outpost';
+  | 'outpost'
+  // Roads
+  | 'road';
 
 export interface Building {
   id: string;
@@ -207,7 +209,7 @@ export const CONSTRUCTION_POINT_MILESTONES: { prosperity: number; points: number
 ];
 export const CONSTRUCTION_POINT_PER_IMMIGRANT = 2;
 // Buildings that don't cost construction points
-export const FREE_CONSTRUCTION: BuildingType[] = ['rubble'];
+export const FREE_CONSTRUCTION: BuildingType[] = ['rubble', 'road'];
 
 // --- Festivals ---
 export const FESTIVAL_FOOD_COST = 20;
@@ -563,6 +565,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     type: 'outpost', width: 1, height: 1, allowedTerrain: ['grass', 'forest', 'stone'],
     cost: { wood: 10, stone: 5 }, description: 'Remote supply point — acts as mini-storehouse',
     maxWorkers: 0, production: null, mapChar: 'O',
+  },
+  road: {
+    type: 'road', width: 1, height: 1, allowedTerrain: ['grass', 'forest', 'stone'],
+    cost: { stone: 1 }, description: 'Dirt road — doubles movement speed',
+    maxWorkers: 0, production: null, mapChar: '=',
   },
 };
 

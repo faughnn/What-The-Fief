@@ -5,8 +5,9 @@ import {
   BUILDING_TEMPLATES, BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP, OUTPOST_BUFFER_CAP,
   FREE_CONSTRUCTION,
+  FIRE_DAMAGE_PER_TICK, FIRE_SPREAD_CHANCE, WELL_FIRE_PROTECTION_RANGE,
 } from '../world.js';
-import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance, isStorehouse, deductFromBuffer, destroyBuildingAndCreateRubble } from './helpers.js';
+import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance, isStorehouse, deductFromBuffer, destroyBuildingAndCreateRubble, rebuildBuildingMap } from './helpers.js';
 import { findPath } from './movement.js';
 
 export function placeBuilding(state: GameState, type: BuildingType, x: number, y: number): GameState {
@@ -40,7 +41,7 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
 
   // Defensive structures (wall, fence, gate) skip the accessibility check —
   // their purpose is to restrict movement, and allies path through gates
-  if (type === 'wall' || type === 'fence' || type === 'gate') {
+  if (type === 'wall' || type === 'fence' || type === 'gate' || type === 'road') {
     // Skip accessibility check for defensive structures
   } else {
 
@@ -66,7 +67,7 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
       const ay = entrance.y + dy;
       if (ax < 0 || ay < 0 || ax >= state.width || ay >= state.height) continue;
       const adjTile = testGrid[ay][ax];
-      if (adjTile.terrain !== 'water' && (!adjTile.building || adjTile.building.type === 'gate' || adjTile.building.type === 'rubble')) {
+      if (adjTile.terrain !== 'water' && (!adjTile.building || adjTile.building.type === 'gate' || adjTile.building.type === 'rubble' || adjTile.building.type === 'road')) {
         hasAccess = true;
         break;
       }
@@ -111,7 +112,7 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
 
   const constructionReq = CONSTRUCTION_TICKS[type] || 60;
   // Small/simple structures (tent, fence) are instant for early game viability
-  const isInstant = type === 'tent' || type === 'fence';
+  const isInstant = type === 'tent' || type === 'fence' || type === 'road';
 
   const building: Building = {
     id: `b${state.nextBuildingId}`, type, x, y, width: bw, height: bh,
@@ -168,8 +169,7 @@ export function processFire(ts: TickState): void {
   for (const b of ts.buildings) {
     if (!b.onFire || !b.constructed) continue;
 
-    // Fire damage: 2 HP per tick
-    b.hp -= 2;
+    b.hp -= FIRE_DAMAGE_PER_TICK;
 
     // Villager at building extinguishes fire (5 ticks of presence = out)
     const villagerAtBuilding = ts.villagers.some(v =>
@@ -190,7 +190,7 @@ export function processFire(ts: TickState): void {
     // Fire spread to adjacent buildings (small chance per tick)
     if (b.onFire) {
       const spreadRng = ((ts.newTick * 2246822519 + b.x * 374761393 + b.y * 668265263) & 0x7fffffff) / 0x7fffffff;
-      if (spreadRng < 0.05) { // 5% per tick
+      if (spreadRng < FIRE_SPREAD_CHANCE) {
         for (const other of ts.buildings) {
           if (other.id === b.id || other.onFire || !other.constructed) continue;
           if (other.type === 'well' || other.type === 'fountain' || other.type === 'rubble') continue;
@@ -203,7 +203,7 @@ export function processFire(ts: TickState): void {
             // Well nearby reduces spread chance
             const hasWell = ts.buildings.some(w =>
               (w.type === 'well' || w.type === 'fountain') && w.constructed &&
-              Math.abs(w.x - other.x) <= 3 && Math.abs(w.y - other.y) <= 3
+              Math.abs(w.x - other.x) <= WELL_FIRE_PROTECTION_RANGE && Math.abs(w.y - other.y) <= WELL_FIRE_PROTECTION_RANGE
             );
             if (!hasWell) {
               other.onFire = true;
@@ -218,10 +218,11 @@ export function processFire(ts: TickState): void {
   // Replace destroyed buildings with rubble
   const nextBldIdRef = { value: ts.nextBuildingId };
   for (const id of toRemove) {
-    const building = ts.buildings.find(b => b.id === id);
+    const building = ts.buildingMap.get(id);
     if (building) {
       destroyBuildingAndCreateRubble(building, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
     }
   }
   ts.nextBuildingId = nextBldIdRef.value;
+  if (toRemove.length > 0) rebuildBuildingMap(ts);
 }

@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 731 tests passing (42 test files). 100-day stress test: 14 pop, 4 deaths, 0 errors, 9 techs researched, prosperity 80. All villagers clothed.
+- **Status**: V2 spatial simulation. 752 tests passing (43 test files). 100-day stress test: 14 pop, 4 deaths, 0 errors, 9 techs researched, prosperity 80. All villagers clothed.
 - **What exists**:
   - **Core**: 120 ticks/day. 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -17,6 +17,7 @@
   - **Progression**: Construction points (prosperity-gated building count). Bandit ultimatums. Scout fog reveal. Immigration at map edge. Graveyard.
   - **Festivals**: holdFestival costs 20 food + 10 gold, requires tavern, 10-day cooldown. +20 morale for 3 days. Player AI triggers when avg morale < 65. 19 tests.
   - **NPC Villages & Trust**: 4 NPC villages on maps >= 30x30. Trust system (stranger → associate → friend → protector → leader). Trust gained by killing enemies/wildlife near villages. Liberation at protector rank spawns brigands; clearing them liberates village (+30 renown). 45 tests.
+  - **Roads**: road building (1 stone, instant, no construction points). Doubles villager movement speed on road tiles. Passable for all entities. 21 tests.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -78,28 +79,27 @@
 - ✅ **Player-directed supply routes**: createSupplyRoute, cancelSupplyRoute, hauler role, physical transport between storehouses/outposts. 39 tests.
 - ✅ **Festivals**: holdFestival command, tavern+food+gold cost, +20 morale for 3 days, 10-day cooldown. Player AI triggers when avg morale < 65. 19 tests.
 - ✅ **NPC villages + trust system**: 4 villages on large maps, trust progression (stranger→associate→friend→protector→leader), trust from killing enemies/wildlife near villages, liberation combat (spawn brigands, defeat to liberate), renown reward. 45 tests.
+- ✅ **Roads**: 1 stone cost, instant construction, no construction point cost. Doubles movement speed (2 path steps per moveOneStep call). Passable for all entities. 21 tests.
 - ✅ 100-day stress test: player AI grows to 14 pop, 9 techs, prosperity 80, all clothed, 0 errors
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
 **Priority 1 — Core progression depth:**
 1. **No liberated village integration.** Villages can be liberated but don't contribute workers, buildings, or trade. Bellwright has liberated villages that become functional settlements connected via trade routes.
-2. **No road system.** Roads speed up travel between buildings, making layout strategic.
 
 **Priority 2 — Depth & polish:**
-3. **No Inn building.** Bellwright has Inn (upgraded tavern) that "significantly affects morale."
-4. **No job priorities UI.** Bellwright lets players set per-villager task priorities beyond just preferred building.
+2. **No Inn building.** Bellwright has Inn (upgraded tavern) that "significantly affects morale."
+3. **No job priorities UI.** Bellwright lets players set per-villager task priorities beyond just preferred building.
 
 ### Honest priority order for closing gaps:
 1. Liberated village integration (workers, buildings, trade boost)
-2. Roads (passable tiles that increase movement speed)
-3. Inn building (upgraded tavern)
-4. Job priorities UI
+2. Inn building (upgraded tavern)
+3. Job priorities UI
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
-- `src/tests/test-v2-*.ts` — 42 test files, 731 tests total
+- `src/tests/test-v2-*.ts` — 43 test files, 752 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
@@ -138,3 +138,4 @@
 - Supply routes: createSupplyRoute(villagerId, fromId, toId, resourceType). Villager becomes hauler with supply_traveling_to_source/dest states. Loads CARRY_CAPACITY from source buffer, walks to dest, deposits. cancelSupplyRoute releases hauler. Source/dest must be storehouse/outpost.
 - Festivals: holdFestival costs 20 food + 10 gold from storehouse. Requires constructed tavern. 10-day cooldown. Morale boost +20 for 3 days (FESTIVAL_DURATION). Tracked via lastFestivalDay in GameState.
 - NPC villages: 4 villages on maps >= 30x30 at edges (Thornfield/N, Millhaven/E, Ironhollow/S, Greenwater/W). Trust: stranger(0) → associate(100) → friend(500) → protector(1200) → leader(liberated). Trust +15 per bandit kill, +5 per hostile animal kill within 10 tiles. Liberation at protector rank spawns 4 brigands; clearing them → liberated + leader rank + 30 renown.
+- Roads: building type 'road', costs 1 stone, instant construction, no construction point cost, FREE_CONSTRUCTION. Passable for allies and enemies. moveOneStep takes 2 path steps when landing on road tile (double speed). Grid parameter added to moveOneStep (optional, backward compatible).
