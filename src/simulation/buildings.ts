@@ -39,6 +39,30 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
     }
   }
 
+  // Fishing hut must be adjacent to at least one water tile
+  if (type === 'fishing_hut') {
+    let hasWater = false;
+    for (let dy = 0; dy < bh && !hasWater; dy++) {
+      for (let dx = 0; dx < bw && !hasWater; dx++) {
+        const tx = x + dx;
+        const ty = y + dy;
+        const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+        for (const d of dirs) {
+          const nx = tx + d.dx;
+          const ny = ty + d.dy;
+          if (nx >= 0 && ny >= 0 && nx < state.width && ny < state.height && state.grid[ny][nx].terrain === 'water') {
+            hasWater = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!hasWater) {
+      console.log(`ERROR: Cannot place fishing_hut at (${x},${y}) — must be adjacent to water`);
+      return state;
+    }
+  }
+
   // Defensive structures (wall, fence, gate) skip the accessibility check —
   // their purpose is to restrict movement, and allies path through gates
   if (type === 'wall' || type === 'fence' || type === 'gate' || type === 'road') {

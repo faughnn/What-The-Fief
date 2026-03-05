@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 788 tests passing (46 test files). 100-day stress test: 14 pop, 4 deaths, 0 errors, 9 techs researched, prosperity 80. All villagers clothed.
+- **Status**: V2 spatial simulation. 807 tests passing (46 test files). 100-day stress test: 14 pop, 4 deaths, 0 errors, 9 techs researched, prosperity 80. All villagers clothed.
 - **What exists**:
   - **Core**: 120 ticks/day. 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -21,6 +21,7 @@
   - **Inn**: upgraded tavern (2x2, houses 4, +15 morale). Tavern → inn upgrade path. Works for festivals and morale visits. 16 tests.
   - **Liberated village integration**: Liberated villages send more frequent caravans (every 5 days vs 10) with more goods (15 vs 8). recruitFromVillage command (10 renown cost, requires housing). Ongoing renown stream (+2 per liberated village every 10 days). +5 prosperity per liberated village. 11 tests.
   - **Job priorities**: Per-villager job priority system (1-9 scale, 0=disabled). setJobPriority command. Auto-assign Pass -1 assigns villagers to their highest-priority building first. Disabled jobs block assignment. Coexists with preferredJob. 23 tests (6 new + 17 existing).
+  - **Fishing**: fishing_hut building (1x1, must be placed on grass adjacent to water). Produces fish (food type, satisfaction 1.5). Fisher role. Outdoor building (weather affected). Farming skill. Water adjacency enforced in placeBuilding. Player AI builds near rivers. 19 tests.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -86,16 +87,25 @@
 - ✅ **Inn**: tavern → inn upgrade. 2x2, houses 4 villagers, +15 morale. Festivals and morale visits work with inn (no tavern needed). 16 tests.
 - ✅ **Liberated village integration**: Enhanced caravans (5-day interval, 15 goods), recruitment (10 renown), renown stream (+2/village/10 days), prosperity boost (+5/village). 11 tests.
 - ✅ **Job priorities**: setJobPriority(villagerId, buildingType, priority) with 0-9 scale. Priority 0 disables, 1=highest. Auto-assign respects priorities before default order. Works alongside setPreferredJob. 23 tests.
+- ✅ **Fishing**: fishing_hut (1x1, grass adjacent to water). Fish resource (satisfaction 1.5). Fisher role. Outdoor, farming skill. Water adjacency enforced in placeBuilding. 19 tests.
 - ✅ 100-day stress test: player AI grows to 14 pop, 9 techs, prosperity 80, all clothed, 0 errors
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
-**Re-evaluating...** All previously identified gaps have been closed. Need to do a fresh Bellwright comparison to find remaining gaps.
+**Priority 1 — Missing systems:**
+1. **No delivery requests between outposts.** Bellwright lets players request specific resources from other settlements/outposts via a delivery UI. We have supply routes (player-directed hauling) but not the "request items FROM location" pattern.
+
+**Priority 2 — Depth:**
+2. **No physical armor items.** Bellwright has wearable armor equipment per villager. We only have armored_guards tech (+5 HP). Should have craftable armor items with durability (like weapons).
+
+### Honest priority order for closing gaps:
+1. Delivery requests (outpost-to-outpost resource requests)
+2. Physical armor items (craftable, equippable, durability)
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
-- `src/tests/test-v2-*.ts` — 46 test files, 788 tests total
+- `src/tests/test-v2-*.ts` — 46 test files, 807 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions

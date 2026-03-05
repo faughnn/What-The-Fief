@@ -214,7 +214,7 @@ export function processDailyChecks(ts: TickState): void {
     'woodcutter', 'lumber_mill', 'quarry', 'deep_quarry',
     'tanner', 'sawmill', 'smelter', 'advanced_smelter',
     'research_desk', 'hemp_field', 'ropemaker', 'fletcher', 'weaponsmith',
-    'foraging_hut', 'chicken_coop', 'livestock_barn', 'apiary',
+    'foraging_hut', 'fishing_hut', 'chicken_coop', 'livestock_barn', 'apiary',
   ];
 
   const pickBestIdle = (type: BuildingType, candidates: Villager[]): Villager => {

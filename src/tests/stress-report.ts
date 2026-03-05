@@ -96,6 +96,25 @@ function tryBuild(state: GameState, type: BuildingType, centerX: number, centerY
   return state;
 }
 
+function tryBuildNearWater(state: GameState, type: BuildingType): GameState {
+  if (!canAfford(state, type)) return state;
+  // Search territory for grass tiles adjacent to water
+  for (let y = 1; y < state.height - 1; y++) {
+    for (let x = 1; x < state.width - 1; x++) {
+      if (!state.territory[y][x] || !state.fog[y][x]) continue;
+      if (state.grid[y][x].terrain !== 'grass' || state.grid[y][x].building) continue;
+      // Check if adjacent to water
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      const nearWater = dirs.some(([dx,dy]) => state.grid[y+dy]?.[x+dx]?.terrain === 'water');
+      if (!nearWater) continue;
+      const prev = state.buildings.length;
+      const result = placeBuilding(state, type, x, y);
+      if (result.buildings.length > prev) return result;
+    }
+  }
+  return state;
+}
+
 function tryAssignIdle(state: GameState, buildingType: BuildingType): GameState {
   const idle = idleVillagers(state);
   if (idle.length === 0) return state;
@@ -179,6 +198,10 @@ function playerAI(state: GameState): GameState {
   // Bakery (flour→bread) — bread gives +10 morale. HIGH PRIORITY after mill.
   if (day >= 12 && countBuildings(state, 'bakery') === 0 && countBuildings(state, 'mill') > 0) {
     state = tryBuild(state, 'bakery', 17, 15);
+  }
+  // Fishing hut — early food diversity, must be near water
+  if (day >= 6 && countBuildings(state, 'fishing_hut') === 0) {
+    state = tryBuildNearWater(state, 'fishing_hut');
   }
   // Watchtower — build once we can afford it (wood:15 stone:10)
   if (day >= 15 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower')) {

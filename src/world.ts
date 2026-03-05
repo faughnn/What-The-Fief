@@ -24,7 +24,7 @@ export const WEATHER_OUTDOOR_MULT: Record<WeatherType, number> = {
 
 export const OUTDOOR_BUILDINGS: BuildingType[] = [
   'farm', 'woodcutter', 'quarry', 'herb_garden', 'flax_field', 'hemp_field',
-  'chicken_coop', 'apiary', 'livestock_barn', 'foraging_hut',
+  'chicken_coop', 'apiary', 'livestock_barn', 'foraging_hut', 'fishing_hut',
   'large_farm', 'deep_quarry',
 ];
 
@@ -63,7 +63,7 @@ export type BuildingType =
   | 'blacksmith' | 'toolmaker' | 'armorer'
   | 'town_hall' | 'wall' | 'fence'
   | 'research_desk'
-  | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace' | 'hunting_lodge' | 'foraging_hut'
+  | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace' | 'hunting_lodge' | 'foraging_hut' | 'fishing_hut'
   | 'gate'
   | 'watchtower'
   | 'tavern'
@@ -107,7 +107,7 @@ export interface Building {
 
 // --- Resources ---
 export type ResourceType =
-  | 'wood' | 'stone' | 'food' | 'wheat' | 'iron_ore' | 'herbs' | 'flax' | 'hemp'
+  | 'wood' | 'stone' | 'food' | 'wheat' | 'fish' | 'iron_ore' | 'herbs' | 'flax' | 'hemp'
   | 'planks' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
   | 'basic_tools' | 'sturdy_tools' | 'iron_tools'
   | 'sword' | 'bow'
@@ -118,6 +118,7 @@ export interface Resources {
   stone: number;
   food: number;
   wheat: number;
+  fish: number;
   iron_ore: number;
   herbs: number;
   flax: number;
@@ -139,7 +140,7 @@ export interface Resources {
 
 export function emptyResources(): Resources {
   return {
-    wood: 0, stone: 0, food: 0, wheat: 0, iron_ore: 0, herbs: 0, flax: 0, hemp: 0,
+    wood: 0, stone: 0, food: 0, wheat: 0, fish: 0, iron_ore: 0, herbs: 0, flax: 0, hemp: 0,
     planks: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
     basic_tools: 0, sturdy_tools: 0, iron_tools: 0,
     sword: 0, bow: 0,
@@ -149,7 +150,7 @@ export function emptyResources(): Resources {
 
 // All resource keys for iteration
 export const ALL_RESOURCES: ResourceType[] = [
-  'wood', 'stone', 'food', 'wheat', 'iron_ore', 'herbs', 'flax', 'hemp',
+  'wood', 'stone', 'food', 'wheat', 'fish', 'iron_ore', 'herbs', 'flax', 'hemp',
   'planks', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
   'basic_tools', 'sturdy_tools', 'iron_tools',
   'sword', 'bow',
@@ -284,6 +285,7 @@ export const SPOILAGE: Partial<Record<ResourceType, number>> = {
 // --- Food priority (best first) ---
 export const FOOD_PRIORITY: { resource: ResourceType; satisfaction: number }[] = [
   { resource: 'bread', satisfaction: 2 },
+  { resource: 'fish', satisfaction: 1.5 },
   { resource: 'flour', satisfaction: 1.5 },
   { resource: 'wheat', satisfaction: 1 },
   { resource: 'food', satisfaction: 1 },
@@ -465,6 +467,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 6 }, description: 'Gathers food and herbs from nearby forest',
     maxWorkers: 1, production: { output: 'food', amountPerWorker: 2, inputs: null }, mapChar: 'G',
   },
+  fishing_hut: {
+    type: 'fishing_hut', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 8 }, description: 'Catches fish from adjacent water',
+    maxWorkers: 1, production: { output: 'fish', amountPerWorker: 2, inputs: null }, mapChar: 'f',
+  },
   gate: {
     type: 'gate', width: 1, height: 1, allowedTerrain: ['grass'],
     cost: { wood: 5, stone: 2 }, description: 'Lets allies through, blocks enemies',
@@ -596,7 +603,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   research_desk: 'crafting',
   chicken_coop: 'farming',
   livestock_barn: 'farming',
-  apiary: 'herbalism', foraging_hut: 'herbalism',
+  apiary: 'herbalism', foraging_hut: 'herbalism', fishing_hut: 'farming',
   weaponsmith: 'crafting', fletcher: 'crafting',
   // T2 upgraded buildings inherit parent skills
   large_farm: 'farming', deep_quarry: 'mining',
@@ -625,7 +632,7 @@ export type VillagerRole =
   | 'weaponsmith_worker' | 'fletcher_worker'
   | 'scout' | 'guard' | 'researcher' | 'hunter'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
-  | 'hauler';
+  | 'fisher' | 'hauler';
 
 export type VillagerState =
   | 'sleeping'
@@ -823,7 +830,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   blacksmith: 45, toolmaker: 45, armorer: 50,
   town_hall: 100, wall: 100, fence: 30,
   research_desk: 30, chicken_coop: 25, livestock_barn: 40,
-  apiary: 20, marketplace: 60, hunting_lodge: 30, foraging_hut: 25, gate: 80,
+  apiary: 20, marketplace: 60, hunting_lodge: 30, foraging_hut: 25, fishing_hut: 30, gate: 80,
   watchtower: 70,
   tavern: 40,
   well: 50,
@@ -849,7 +856,7 @@ export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
   blacksmith: 80, toolmaker: 100, armorer: 120,
   town_hall: 240, wall: 20, fence: 10,
   research_desk: 60, chicken_coop: 45, livestock_barn: 75,
-  apiary: 35, marketplace: 120, hunting_lodge: 50, foraging_hut: 40, gate: 15,
+  apiary: 35, marketplace: 120, hunting_lodge: 50, foraging_hut: 40, fishing_hut: 45, gate: 15,
   watchtower: 90,
   tavern: 60,
   well: 40,
