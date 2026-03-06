@@ -656,7 +656,7 @@ export type VillagerRole =
   | 'weaponsmith_worker' | 'fletcher_worker' | 'leather_workshop_worker'
   | 'scout' | 'guard' | 'researcher' | 'hunter'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
-  | 'fisher' | 'hauler';
+  | 'fisher' | 'hauler' | 'militia';
 
 export type VillagerState =
   | 'sleeping'
@@ -745,6 +745,8 @@ export interface Villager {
   jobPriorities: Partial<Record<BuildingType, number>>; // 1=highest, 9=lowest, 0=disabled
   // Supply route assignment
   supplyRouteId: string | null; // ID of supply route this hauler is assigned to
+  // Call to Arms
+  previousRole: VillagerRole | null; // saved role for stand-down restoration
 }
 
 // --- Combat ---
@@ -904,6 +906,9 @@ export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }>
   sturdy: { attack: 5, defense: 4 },
   iron: { attack: 7, defense: 5 },
 };
+
+// Militia (Call to Arms) — weaker than guards, temporary combat role
+export const MILITIA_COMBAT = { attack: 2, defense: 0 };
 
 // --- Research ---
 // 3-tier tech tree matching Bellwright's progression. Each tech has a tier and optional prerequisites.
@@ -1074,6 +1079,8 @@ export interface GameState {
   nextRouteId: number;
   // Festivals
   lastFestivalDay: number;
+  // Call to Arms
+  callToArms: boolean;
 }
 
 // --- Supply Routes (player-directed hauling between storehouses/outposts) ---
@@ -1207,6 +1214,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     preferredJob: null,
     jobPriorities: {},
     supplyRouteId: null,
+    previousRole: null,
   };
 }
 
@@ -1316,5 +1324,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     supplyRoutes: [],
     nextRouteId: 1,
     lastFestivalDay: -100,
+    callToArms: false,
   };
 }

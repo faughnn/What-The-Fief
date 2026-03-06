@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 919 tests passing (49 test files). 100-day stress test: 21 pop, 5 deaths, 0 errors, 11 techs researched, prosperity 80. All villagers clothed.
+- **Status**: V2 spatial simulation. 940 tests passing (50 test files). 100-day stress test: 21 pop, 5 deaths, 0 errors, 11 techs researched, prosperity 80. All villagers clothed.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -25,6 +25,7 @@
   - **Fishing**: fishing_hut building (1x1, must be placed on grass adjacent to water). Produces fish (food type, satisfaction 1.5). Fisher role. Outdoor building (weather affected). Farming skill. Water adjacency enforced in placeBuilding. Player AI builds near rivers. 19 tests.
   - **Tech-gated buildings**: BUILDING_TECH_REQUIREMENTS gates advanced buildings behind research. Can't build smelter without metallurgy, can't build large_farm without crop_rotation, etc. placeBuilding enforces tech requirements. 50 tests.
   - **Enemy variety**: bandit_archer (7 HP, 2 atk, 0 def, range 3) and bandit_brute (18 HP, 5 atk, 3 def). Archers shoot at range without retaliation. Brutes are tanky melee. Raid composition scales with camp strength: archers at strength 3+, brutes at strength 5+. 22 tests.
+  - **Call to Arms**: callToArms/standDown commands. Workers become militia (2 atk, 0 def). Guards unaffected. Militia fight and move toward enemies. Auto-stand-down when enemies cleared. Previous roles restored. Idempotent. 21 tests.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -96,33 +97,34 @@
 - ✅ **Map**: 200x200 default. 20x20 starting territory. Territory expansion via town hall.
 - ✅ **Tech-gated buildings**: BUILDING_TECH_REQUIREMENTS gates 12 building types behind research. placeBuilding enforces requirements. 50 tests.
 - ✅ **Enemy variety**: bandit_archer (ranged, 7 HP, range 3), bandit_brute (tanky, 18 HP, 3 def). Archers shoot at range. Raid composition scales: archers at camp str 3+, brutes at str 5+. Forces diverse defense strategies. 22 tests.
+- ✅ **Call to Arms**: callToArms/standDown commands mobilize workers as militia (2 atk, 0 def). Guards unaffected. Militia move toward and fight enemies. Auto-stand-down when enemies cleared. Previous roles restored. 21 tests.
 - ✅ 100-day stress test: player AI grows to 21 pop, 11 techs, prosperity 80, all clothed, 0 errors
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
 **Priority 1 — Gameplay Depth:**
-1. **No Call to Arms mechanic.** Bellwright lets you mobilize all villagers for defense during raids. Our non-guard villagers just flee or get killed. Need a toggle that temporarily arms all villagers during emergencies.
-2. **No quest/objective system.** Bellwright has quest objectives driving gameplay progression. Our sim has no goals beyond "survive." Need at least milestone objectives.
-3. **Limited production chain depth.** Missing charcoal/kiln (fuel processing), stonemason, carpenter, distillery. Bellwright has deeper multi-step chains.
-4. **No villager rest quality.** Bellwright tracks housing comfort beyond just morale bonus. Manor vs tent should have stronger gameplay impact.
+1. **No quest/objective system.** Bellwright has quest objectives driving gameplay progression. Our sim has no goals beyond "survive." Need at least milestone objectives.
+2. **Limited production chain depth.** Missing charcoal/kiln (fuel processing), stonemason, carpenter, distillery. Bellwright has deeper multi-step chains.
+3. **No villager rest quality / comfort.** Bellwright tracks housing comfort beyond just morale bonus. Manor vs tent should have stronger gameplay impact.
+4. **No enemy loot drops.** Bellwright enemies drop equipment/resources when killed.
 
 **Priority 2 — Polish:**
-5. **Raid event messages don't mention enemy composition.** When archers/brutes appear, the event message should list them.
-6. **No enemy loot drops.** Bellwright enemies drop equipment/resources when killed.
+5. **Raid event messages don't mention enemy composition.** When archers/brutes appear, the event should list them.
+6. **Stress test player AI doesn't use callToArms.** Should mobilize militia during raids.
 
-Note: Tech-gated buildings, enemy variety (archers + brutes), and physical armor crafting are all implemented. Building placement constraints are minimal in actual Bellwright (only "not too close to NPC villages").
+Note: Tech-gated buildings, enemy variety, Call to Arms, and physical armor crafting are all implemented.
 
 ### Honest priority order for closing gaps:
-1. Call to Arms (emergency mobilization)
-2. Quest/objective system (milestone goals)
-3. Deeper production chains (charcoal, stonemason, etc.)
-4. Housing comfort system
+1. Quest/objective system (milestone goals)
+2. Deeper production chains (charcoal, stonemason, etc.)
+3. Housing comfort system
+4. Enemy loot drops
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 49 test files, 919 tests total
+- `src/tests/test-v2-*.ts` — 50 test files, 940 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions

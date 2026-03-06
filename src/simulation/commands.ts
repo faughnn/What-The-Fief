@@ -566,3 +566,42 @@ export function setJobPriority(state: GameState, villagerId: string, buildingTyp
     ),
   };
 }
+
+// --- Call to Arms: mobilize non-guard villagers as militia ---
+export function callToArms(state: GameState): GameState {
+  if (state.callToArms) {
+    // Already mobilized — don't overwrite previousRole
+    return state;
+  }
+  return {
+    ...state,
+    callToArms: true,
+    villagers: state.villagers.map(v => {
+      if (v.role === 'guard' || v.role === 'militia') return v;
+      return {
+        ...v,
+        previousRole: v.role,
+        role: 'militia' as VillagerRole,
+        state: 'idle',
+      };
+    }),
+  };
+}
+
+// --- Stand Down: restore militia to their previous roles ---
+export function standDown(state: GameState): GameState {
+  if (!state.callToArms) return state;
+  return {
+    ...state,
+    callToArms: false,
+    villagers: state.villagers.map(v => {
+      if (v.role !== 'militia') return v;
+      return {
+        ...v,
+        role: v.previousRole || ('idle' as VillagerRole),
+        previousRole: null,
+        state: 'idle',
+      };
+    }),
+  };
+}

@@ -1,6 +1,6 @@
 // simulation/index.ts — tick() orchestration and re-exports
 // V2 spatial simulation. Pure functions: old state in, new state out.
-// 120 ticks = 1 day. Villagers move 1 tile/tick. All interactions require physical presence.
+// TICKS_PER_DAY ticks = 1 day. Villagers move 1 tile/tick. All interactions require physical presence.
 
 import {
   GameState,
@@ -21,7 +21,7 @@ import { processFire } from './buildings.js';
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
 export { placeBuilding, claimTerritory, processFire } from './buildings.js';
-export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute, holdFestival, liberateVillage, recruitFromVillage, setJobPriority } from './commands.js';
+export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute, holdFestival, liberateVillage, recruitFromVillage, setJobPriority, callToArms, standDown } from './commands.js';
 
 // ================================================================
 // TICK — V2 spatial simulation
@@ -100,6 +100,7 @@ export function tick(state: GameState): GameState {
     supplyRoutes: state.supplyRoutes.map(r => ({ ...r })),
     nextRouteId: state.nextRouteId,
     lastFestivalDay: state.lastFestivalDay,
+    callToArms: state.callToArms,
     buildingMap: new Map(),
   };
   ts.buildingMap = buildBuildingMap(ts.buildings);
@@ -184,6 +185,7 @@ export function tick(state: GameState): GameState {
     supplyRoutes: ts.supplyRoutes,
     nextRouteId: ts.nextRouteId,
     lastFestivalDay: ts.lastFestivalDay,
+    callToArms: ts.callToArms,
   };
 
   const errors = validateState(newState);

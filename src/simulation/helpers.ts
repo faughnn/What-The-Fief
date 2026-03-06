@@ -70,6 +70,7 @@ export interface TickState {
   supplyRoutes: { id: string; fromBuildingId: string; toBuildingId: string; resourceType: string; active: boolean }[];
   nextRouteId: number;
   lastFestivalDay: number;
+  callToArms: boolean;
   // O(1) lookup maps — built once per tick, used instead of buildings.find/villagers.find
   buildingMap: Map<string, Building>;
 }

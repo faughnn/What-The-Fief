@@ -13,7 +13,7 @@ import {
   SIEGE_TOWER_THRESHOLD, WOLF_STRENGTH_OFFSET,
   ARCHER_RAID_THRESHOLD, BRUTE_RAID_THRESHOLD,
   TRUST_KILL_BANDIT, TRUST_VILLAGE_RADIUS, TRUST_THRESHOLDS, TrustRank,
-  LIBERATION_RENOWN_REWARD,
+  LIBERATION_RENOWN_REWARD, MILITIA_COMBAT,
 } from '../world.js';
 import { TickState, isAdjacent, hasTech, degradeWeapon, degradeArmor, addToBuffer, isStorehouse, destroyBuildingAndCreateRubble, buildBuildingMap } from './helpers.js';
 import { findPath, findPathEnemy } from './movement.js';
@@ -537,17 +537,64 @@ export function processRaidAndCombat(ts: TickState): void {
     }
   }
 
+  // --- MILITIA COMBAT (Call to Arms) ---
+  if (ts.callToArms) {
+    for (const v of ts.villagers) {
+      if (v.role !== 'militia' || v.hp <= 0) continue;
+
+      // Find nearest enemy
+      let nearestEnemy: EnemyEntity | null = null;
+      let nearestDist = Infinity;
+      for (const e of ts.enemies) {
+        if (e.hp <= 0) continue;
+        const dist = Math.abs(e.x - v.x) + Math.abs(e.y - v.y);
+        if (dist < nearestDist) { nearestDist = dist; nearestEnemy = e; }
+      }
+
+      if (!nearestEnemy) continue;
+
+      // Adjacent — fight
+      if (isAdjacent(v.x, v.y, nearestEnemy.x, nearestEnemy.y)) {
+        nearestEnemy.hp -= Math.max(1, MILITIA_COMBAT.attack - nearestEnemy.defense);
+        v.hp -= Math.max(1, nearestEnemy.attack - MILITIA_COMBAT.defense);
+        continue;
+      }
+
+      // Move toward enemy (within detect range 8)
+      if (nearestDist <= 8) {
+        const militiaPath = findPath(ts.grid, ts.width, ts.height, v.x, v.y, nearestEnemy.x, nearestEnemy.y);
+        if (militiaPath.length > 0) {
+          v.x = militiaPath[0].x;
+          v.y = militiaPath[0].y;
+        }
+      }
+    }
+
+    // Auto-stand-down: if no enemies remain, restore roles
+    const livingEnemies = ts.enemies.filter(e => e.hp > 0);
+    if (livingEnemies.length === 0) {
+      ts.callToArms = false;
+      for (const v of ts.villagers) {
+        if (v.role === 'militia') {
+          v.role = v.previousRole || 'idle';
+          v.previousRole = null;
+          v.state = 'idle';
+        }
+      }
+    }
+  }
+
   // Enemies attack adjacent non-guard villagers (after guards/walls/buildings)
   for (const e of ts.enemies) {
     if (e.hp <= 0) continue;
-    // Already fighting a guard? Skip
-    const fightingGuard = ts.villagers.some(v =>
-      v.role === 'guard' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
+    // Already fighting a guard or militia? Skip
+    const fightingCombatant = ts.villagers.some(v =>
+      (v.role === 'guard' || v.role === 'militia') && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
     );
-    if (fightingGuard) continue;
-    // Attack adjacent non-guard villager
+    if (fightingCombatant) continue;
+    // Attack adjacent non-combatant villager
     const adjacentVillager = ts.villagers.find(v =>
-      v.role !== 'guard' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
+      v.role !== 'guard' && v.role !== 'militia' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
     );
     if (adjacentVillager) {
       adjacentVillager.hp -= Math.max(1, e.attack);
