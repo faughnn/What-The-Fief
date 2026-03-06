@@ -454,7 +454,10 @@ function handleNonProductionWork(v: Villager, job: Building, ts: TickState): voi
   // Research desk
   if (job.type === 'research_desk' && ts.research.current) {
     v.workProgress++;
-    if (v.workProgress >= RESEARCH_TICKS_PER_POINT) {
+    // Library boost: reduce ticks per research point by 50% if constructed library exists
+    const hasLibrary = ts.buildings.some(b => b.type === 'library' && b.constructed);
+    const effectiveTicksPerPoint = hasLibrary ? Math.max(1, Math.round(RESEARCH_TICKS_PER_POINT * 0.67)) : RESEARCH_TICKS_PER_POINT;
+    if (v.workProgress >= effectiveTicksPerPoint) {
       ts.research.progress += 1;
       const tech = TECH_TREE[ts.research.current];
       if (ts.research.progress >= tech.cost) {

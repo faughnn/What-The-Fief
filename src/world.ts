@@ -141,7 +141,9 @@ export type BuildingType =
   // Roads
   | 'road'
   // Healing
-  | 'apothecary';
+  | 'apothecary'
+  // Research
+  | 'library';
 
 export interface Building {
   id: string;
@@ -788,6 +790,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 8, stone: 5, herbs: 3 }, description: 'Healer crafts bandages from herbs',
     maxWorkers: 1, production: { output: 'bandage', amountPerWorker: 2, inputs: { herbs: 1 } }, mapChar: '+',
   },
+  library: {
+    type: 'library', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 15, stone: 10, planks: 5 }, description: 'Boosts research speed when constructed',
+    maxWorkers: 0, production: null, mapChar: 'L',
+  },
 };
 
 // --- Skills ---
@@ -839,6 +846,9 @@ export const TOUGH_HP_BONUS = 5;
 // Night danger — enemies are more dangerous at night
 export const NIGHT_DANGER_ATK_BONUS = 2;   // +2 attack for all enemies at night
 export const NIGHT_DANGER_SPAWN_MULT = 1.5; // raids spawned at night have 50% more enemies
+
+// Library — passive research speed boost
+export const LIBRARY_RESEARCH_BONUS = 0.5; // +50% research speed when library is constructed
 
 // --- Villager ---
 export type VillagerRole =
@@ -1104,6 +1114,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   spike_trap: 10,
   forester: 30,
   apothecary: 35,
+  library: 50,
 };
 
 
@@ -1239,6 +1250,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   spike_trap: 'fortification',
   forester: 'advanced_farming',
   apothecary: 'medicine',
+  library: 'civil_engineering',
 };
 
 export interface ResearchState {
