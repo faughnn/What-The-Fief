@@ -14,7 +14,7 @@ import {
   CHURCH_MORALE_RANGE, DECORATION_RANGE,
   DISEASE_HP_LOSS_PER_DAY,
   GUARD_BASE_HP, GUARD_MORALE_HP_DIVISOR, ARMOR_BONUS_HP,
-  VILLAGER_BASE_HP, HP_REGEN_PER_DAY, MEDICINE_REGEN_BONUS,
+  VILLAGER_BASE_HP, HP_REGEN_PER_DAY, MEDICINE_REGEN_BONUS, TOUGH_HP_BONUS,
   FESTIVAL_MORALE_BOOST, FESTIVAL_DURATION,
   FRIENDSHIP_COWORK_THRESHOLD, FRIENDSHIP_MORALE_BONUS,
   FRIENDSHIP_GRIEF_DAYS, FRIENDSHIP_GRIEF_PENALTY, MAX_FRIENDS,
@@ -392,7 +392,9 @@ export function processDailyChecks(ts: TickState): void {
   for (const v of ts.villagers) {
     const isGlutton = v.traits.includes('glutton');
     const isFrugal = v.traits.includes('frugal');
-    const decay = isGlutton ? 2 : (isFrugal ? 0.5 : 1);
+    const isNeurotic = v.traits.includes('neurotic');
+    let decay = isGlutton ? 2 : (isFrugal ? 0.5 : 1);
+    if (isNeurotic) decay *= 1.25;
     v.food = Math.max(0, v.food - decay);
   }
 
@@ -469,11 +471,12 @@ export function processDailyChecks(ts: TickState): void {
 
   // HP regen (2 HP per day)
   for (const v of ts.villagers) {
+    const toughBonus = v.traits.includes('tough') ? TOUGH_HP_BONUS : 0;
     if (v.role === 'guard') {
       const armorBonus = hasTech(ts.research, 'armored_guards') ? ARMOR_BONUS_HP : 0;
-      v.maxHp = GUARD_BASE_HP + Math.floor(v.morale / GUARD_MORALE_HP_DIVISOR) + armorBonus;
+      v.maxHp = GUARD_BASE_HP + Math.floor(v.morale / GUARD_MORALE_HP_DIVISOR) + armorBonus + toughBonus;
     } else {
-      v.maxHp = VILLAGER_BASE_HP;
+      v.maxHp = VILLAGER_BASE_HP + toughBonus;
     }
     const regenBonus = hasTech(ts.research, 'medicine') ? MEDICINE_REGEN_BONUS : 0;
     if (v.hp < v.maxHp) v.hp = Math.min(v.maxHp, v.hp + HP_REGEN_PER_DAY + regenBonus);

@@ -814,10 +814,16 @@ export function skillMultiplier(level: number): number {
 
 // --- Traits ---
 export type Trait = 'strong' | 'lazy' | 'skilled_crafter' | 'fast_learner' | 'glutton' | 'frugal' | 'cheerful' | 'gloomy'
-  | 'brave' | 'coward' | 'resilient' | 'nimble';
+  | 'brave' | 'coward' | 'resilient' | 'nimble'
+  | 'stalwart' | 'marksman' | 'neurotic' | 'porter' | 'tough';
 
 export const ALL_TRAITS: Trait[] = ['strong', 'lazy', 'skilled_crafter', 'fast_learner', 'glutton', 'frugal', 'cheerful', 'gloomy',
-  'brave', 'coward', 'resilient', 'nimble'];
+  'brave', 'coward', 'resilient', 'nimble', 'stalwart', 'marksman', 'neurotic', 'porter', 'tough'];
+
+// Porter carry capacity bonus
+export const PORTER_CARRY_BONUS = 3;
+// Tough max HP bonus
+export const TOUGH_HP_BONUS = 5;
 
 // --- Villager ---
 export type VillagerRole =
@@ -1478,17 +1484,20 @@ export function createVillager(id: number, x: number, y: number): Villager {
   for (const s of ALL_SKILLS) {
     if (skills[s] > skillCaps[s]) skills[s] = skillCaps[s];
   }
+  const traits = rollTraits(id);
+  const baseHp = 10;
+  const maxHp = baseHp + (traits.includes('tough') ? TOUGH_HP_BONUS : 0);
   return {
     id: `v${id}`,
     name: VILLAGER_NAMES[(id - 1) % VILLAGER_NAMES.length],
     x, y, role: 'idle', jobBuildingId: null, homeBuildingId: null,
     state: 'idle', food: 8, homeless: 0,
-    skills, skillCaps, traits: rollTraits(id), morale: 50, lastAte: 'nothing',
+    skills, skillCaps, traits, morale: 50, lastAte: 'nothing',
     tool: 'none', toolDurability: 0,
     weapon: 'none', weaponDurability: 0,
     armor: 'none', armorDurability: 0,
     scoutDirection: null, scoutTicksLeft: 0,
-    hp: 10, maxHp: 10,
+    hp: maxHp, maxHp,
     // V2 fields
     path: [], pathIndex: 0,
     carrying: {}, carryTotal: 0,

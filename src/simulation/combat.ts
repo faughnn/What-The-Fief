@@ -8,6 +8,7 @@ function traitAttackBonus(v: { traits: string[] }): number {
   if (v.traits.includes('brave')) bonus += 2;
   if (v.traits.includes('coward')) bonus -= 2;
   if (v.traits.includes('nimble')) bonus += 1;
+  if (v.traits.includes('stalwart')) bonus += 3;
   return bonus;
 }
 
@@ -15,7 +16,15 @@ function traitDefenseBonus(v: { traits: string[] }): number {
   let bonus = 0;
   if (v.traits.includes('resilient')) bonus += 2;
   if (v.traits.includes('nimble')) bonus += 1;
+  if (v.traits.includes('stalwart')) bonus += 2;
+  if (v.traits.includes('marksman')) bonus -= 1;
   return bonus;
+}
+
+// Marksman trait: +50% ranged (bow) damage
+function marksmanRangedBonus(v: { traits: string[] }, baseDmg: number): number {
+  if (v.traits.includes('marksman')) return Math.floor(baseDmg * 0.5);
+  return 0;
 }
 
 import {
@@ -493,7 +502,8 @@ export function processRaidAndCombat(ts: TickState): void {
         // Ranged attack — flat damage, enemy can't retaliate
         // Bow-equipped tower guard gets bonus damage
         const bowBonus = v.weapon === 'bow' ? WEAPON_STATS.bow.attack : 0;
-        nearestEnemy.hp -= WATCHTOWER_DAMAGE + bowBonus;
+        const towerDmg = WATCHTOWER_DAMAGE + bowBonus;
+        nearestEnemy.hp -= towerDmg + marksmanRangedBonus(v, towerDmg);
         if (bowBonus > 0) degradeWeapon(v, ts.resources, ts.buildings);
       }
       continue;
@@ -519,7 +529,8 @@ export function processRaidAndCombat(ts: TickState): void {
 
     // Back-line guard with bow: prioritize ranged attacks, avoid closing to melee
     if (nearestEnemy && v.guardLine === 'back' && v.weapon === 'bow' && nearestDist <= WEAPON_STATS.bow.range && nearestDist > 1) {
-      nearestEnemy.hp -= Math.max(1, WEAPON_STATS.bow.attack + attackBonus + combatSkillAttackBonus(v) - nearestEnemy.defense);
+      const bowDmg = Math.max(1, WEAPON_STATS.bow.attack + attackBonus + combatSkillAttackBonus(v) - nearestEnemy.defense);
+      nearestEnemy.hp -= bowDmg + marksmanRangedBonus(v, bowDmg);
       degradeWeapon(v, ts.resources, ts.buildings);
       gainCombatXp(v, ts.buildings);
       continue;
@@ -527,7 +538,8 @@ export function processRaidAndCombat(ts: TickState): void {
 
     // Front-line bow guard: also shoot at range if able (same as before)
     if (nearestEnemy && v.guardLine === 'front' && v.weapon === 'bow' && nearestDist <= WEAPON_STATS.bow.range && nearestDist > 1) {
-      nearestEnemy.hp -= Math.max(1, WEAPON_STATS.bow.attack + attackBonus + combatSkillAttackBonus(v) - nearestEnemy.defense);
+      const bowDmg = Math.max(1, WEAPON_STATS.bow.attack + attackBonus + combatSkillAttackBonus(v) - nearestEnemy.defense);
+      nearestEnemy.hp -= bowDmg + marksmanRangedBonus(v, bowDmg);
       degradeWeapon(v, ts.resources, ts.buildings);
       gainCombatXp(v, ts.buildings);
       continue;

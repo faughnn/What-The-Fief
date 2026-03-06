@@ -17,7 +17,7 @@ import {
   hasBufferInputs, consumeBufferInputs, ticksPerUnit, productionMultiplier,
   autoEquipTool, degradeTool, autoEquipArmor, gainSkillXp, hasTech, techProductionBonus,
   findStorehouseAt, findNearestStorehouse, findNearestBuilding, findStorehouseWithResource, revealArea, isStorehouse,
-  deductFromBuffer, deductFromStorehouseAndGlobal,
+  deductFromBuffer, deductFromStorehouseAndGlobal, getCarryCapacity,
 } from './helpers.js';
 import { moveOneStep, atDestination, planPath, findPath } from './movement.js';
 
@@ -70,7 +70,7 @@ function startHauling(v: Villager, job: Building, buildings: Building[], grid: T
   for (const [res, amt] of Object.entries(job.localBuffer)) {
     if (!amt || amt <= 0) continue;
     if (inputKeys.has(res)) continue; // Don't haul inputs away from processing buildings
-    const toCarry = Math.min(amt, CARRY_CAPACITY - carried);
+    const toCarry = Math.min(amt, getCarryCapacity(v) - carried);
     if (toCarry <= 0) break;
     v.carrying[res as ResourceType] = toCarry;
     deductFromBuffer(job.localBuffer, res as ResourceType, toCarry);
@@ -215,7 +215,7 @@ function tryIdleTask(v: Villager, ts: TickState): boolean {
   for (const b of ts.buildings) {
     if (!b.constructed || isStorehouse(b.type) || b.type === 'rubble') continue;
     const total = bufferTotal(b.localBuffer);
-    if (total >= CARRY_CAPACITY && total > bestHaulAmt) {
+    if (total >= getCarryCapacity(v) && total > bestHaulAmt) {
       bestHaul = b;
       bestHaulAmt = total;
     }
@@ -417,7 +417,7 @@ function handleWorking(v: Villager, ts: TickState): void {
   }
 
   // Haul when output buffer has a full carry load (not just when completely full)
-  if (bufferOutputTotal(job.localBuffer, job.type) >= CARRY_CAPACITY) {
+  if (bufferOutputTotal(job.localBuffer, job.type) >= getCarryCapacity(v)) {
     startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
     return;
   }
@@ -436,7 +436,7 @@ function handleWorking(v: Villager, ts: TickState): void {
   const outputCount = template.production?.inputs
     ? bufferOutputTotal(job.localBuffer, job.type)
     : bufferTotal(job.localBuffer);
-  if (outputCount >= CARRY_CAPACITY) {
+  if (outputCount >= getCarryCapacity(v)) {
     startHauling(v, job, ts.buildings, ts.grid, ts.width, ts.height);
   }
 
@@ -542,7 +542,7 @@ function handlePickupFromStorehouse(v: Villager, ts: TickState): void {
       const needed = amt as number;
       const shAmt = pickupSH ? (pickupSH.localBuffer[res as ResourceType] || 0) : 0;
       const available = Math.min(needed * INPUT_PICKUP_MULTIPLIER, shAmt);
-      const canCarry = Math.min(available, CARRY_CAPACITY - v.carryTotal);
+      const canCarry = Math.min(available, getCarryCapacity(v) - v.carryTotal);
       if (canCarry > 0) {
         if (pickupSH) {
           deductFromStorehouseAndGlobal(pickupSH.localBuffer, ts.resources, res as ResourceType, canCarry);
@@ -696,7 +696,7 @@ function handleSupplyLoading(v: Villager, ts: TickState): void {
   if (route.resourceType === 'any') {
     for (const [res, amt] of Object.entries(source.localBuffer)) {
       if (!amt || amt <= 0) continue;
-      const toCarry = Math.min(amt, CARRY_CAPACITY - carried);
+      const toCarry = Math.min(amt, getCarryCapacity(v) - carried);
       if (toCarry <= 0) break;
       deductFromStorehouseAndGlobal(source.localBuffer, ts.resources, res as ResourceType, toCarry);
       v.carrying[res as ResourceType] = toCarry;
@@ -706,7 +706,7 @@ function handleSupplyLoading(v: Villager, ts: TickState): void {
     const res = route.resourceType as ResourceType;
     const available = source.localBuffer[res] || 0;
     if (available > 0) {
-      const toCarry = Math.min(available, CARRY_CAPACITY);
+      const toCarry = Math.min(available, getCarryCapacity(v));
       deductFromStorehouseAndGlobal(source.localBuffer, ts.resources, res, toCarry);
       v.carrying[res] = toCarry;
       carried = toCarry;

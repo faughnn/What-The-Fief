@@ -8,7 +8,7 @@ import {
 } from '../world.js';
 import {
   TickState, isAdjacent, addResource, addToBuffer,
-  getBuildingEntrance, findStorehouseAt, findNearestStorehouse,
+  getBuildingEntrance, findStorehouseAt, findNearestStorehouse, getCarryCapacity,
 } from './helpers.js';
 import { moveOneStep, atDestination, planPath } from './movement.js';
 
@@ -284,7 +284,7 @@ export function processAnimals(ts: TickState): void {
         // Pick up resources
         for (const [res, amt] of Object.entries(drop.resources)) {
           if (amt && amt > 0) {
-            const canCarry = Math.min(amt, CARRY_CAPACITY - v.carryTotal);
+            const canCarry = Math.min(amt, getCarryCapacity(v) - v.carryTotal);
             if (canCarry > 0) {
               v.carrying[res as ResourceType] = (v.carrying[res as ResourceType] || 0) + canCarry;
               v.carryTotal += canCarry;

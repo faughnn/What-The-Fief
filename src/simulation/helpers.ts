@@ -14,6 +14,7 @@ import {
   Season, WeatherType, HOUSING_INFO,
   BASE_STORAGE_CAP, STOREHOUSE_BONUS,
   CONSTRUCTION_TICKS, PRODUCTION_BASE_TICKS,
+  CARRY_CAPACITY, PORTER_CARRY_BONUS, TOUGH_HP_BONUS,
 } from '../world.js';
 
 // --- TickState: mutable working copy of game state during a tick ---
@@ -223,10 +224,20 @@ export function productionMultiplier(v: Villager, buildingType: BuildingType, re
   if (skill) mult *= skillMultiplier(v.skills[skill]);
   if (v.traits.includes('strong')) mult *= 1.2;
   if (v.traits.includes('lazy')) mult *= 0.8;
+  if (v.traits.includes('stalwart')) mult *= 0.5;
+  if (v.traits.includes('neurotic')) mult *= 1.5;
   if (v.morale >= 70) mult *= 1.1;
   else if (v.morale < 30) mult *= 0.8;
   mult *= TOOL_MULTIPLIER[v.tool];
   return mult;
+}
+
+export function getCarryCapacity(v: Villager): number {
+  return CARRY_CAPACITY + (v.traits.includes('porter') ? PORTER_CARRY_BONUS : 0);
+}
+
+export function getMaxHp(v: Villager): number {
+  return 100 + (v.traits.includes('tough') ? TOUGH_HP_BONUS : 0);
 }
 
 export function autoEquipTool(v: Villager, resources: Resources, durabilityBonus: number = 0, buildings?: Building[]): void {
