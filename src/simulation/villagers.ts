@@ -177,10 +177,36 @@ function startGoingHome(v: Villager, buildings: Building[], grid: Tile[][], widt
 // --- Idle task priorities (Bellwright-style) ---
 // When a villager has no job, they pick tasks in priority order:
 // 1. Haul resources from any building with a full/near-full buffer
-// 2. Build unconstructed buildings (construction sites)
-// 3. Clear rubble
-// 4. Repair damaged buildings
+// 2. Urgent repair: buildings below 50% HP (critical damage)
+// 3. Build unconstructed buildings (construction sites)
+// 4. Clear rubble
+// 5. Repair remaining damaged buildings (above 50% HP)
 // Returns true if a task was found.
+
+const URGENT_REPAIR_THRESHOLD = 0.5; // Below this HP ratio = urgent
+
+function findMostDamagedBuilding(ts: TickState, maxRatio: number): Building | null {
+  let mostDamaged: Building | null = null;
+  let worstRatio = maxRatio;
+  for (const b of ts.buildings) {
+    if (!b.constructed || b.type === 'rubble') continue;
+    const ratio = b.hp / b.maxHp;
+    if (ratio < maxRatio && ratio < worstRatio) {
+      mostDamaged = b;
+      worstRatio = ratio;
+    }
+  }
+  return mostDamaged;
+}
+
+function startRepair(v: Villager, target: Building, ts: TickState): boolean {
+  const entrance = getBuildingEntrance(target);
+  planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
+  v.state = 'traveling_to_build';
+  v.jobBuildingId = target.id;
+  return true;
+}
+
 function tryIdleTask(v: Villager, ts: TickState): boolean {
   // Priority 1: Haul from buildings with full buffers (>= CARRY_CAPACITY)
   // Only haul meaningful amounts — don't constantly distract from construction
@@ -202,7 +228,11 @@ function tryIdleTask(v: Villager, ts: TickState): boolean {
     return true;
   }
 
-  // Priority 2: Build unconstructed buildings
+  // Priority 2: Urgent repair — buildings below 50% HP
+  const urgentRepair = findMostDamagedBuilding(ts, URGENT_REPAIR_THRESHOLD);
+  if (urgentRepair) return startRepair(v, urgentRepair, ts);
+
+  // Priority 3: Build unconstructed buildings
   const site = ts.buildings.find(b => !b.constructed && b.type !== 'rubble' && b.assignedWorkers.length === 0);
   if (site) {
     const entrance = getBuildingEntrance(site);
@@ -212,7 +242,7 @@ function tryIdleTask(v: Villager, ts: TickState): boolean {
     return true;
   }
 
-  // Priority 3: Clear rubble
+  // Priority 4: Clear rubble
   const rubble = ts.buildings.find(b => b.type === 'rubble' && b.assignedWorkers.length === 0);
   if (rubble) {
     const entrance = getBuildingEntrance(rubble);
@@ -222,24 +252,9 @@ function tryIdleTask(v: Villager, ts: TickState): boolean {
     return true;
   }
 
-  // Priority 4: Repair damaged buildings
-  let mostDamaged: Building | null = null;
-  let worstRatio = 1;
-  for (const b of ts.buildings) {
-    if (!b.constructed || b.type === 'rubble') continue;
-    const ratio = b.hp / b.maxHp;
-    if (ratio < 1 && ratio < worstRatio) {
-      mostDamaged = b;
-      worstRatio = ratio;
-    }
-  }
-  if (mostDamaged) {
-    const entrance = getBuildingEntrance(mostDamaged);
-    planPath(v, ts.grid, ts.width, ts.height, entrance.x, entrance.y);
-    v.state = 'traveling_to_build'; // Reuse build travel — will repair on arrival
-    v.jobBuildingId = mostDamaged.id;
-    return true;
-  }
+  // Priority 5: Repair remaining damaged buildings (above 50% HP but below 100%)
+  const normalRepair = findMostDamagedBuilding(ts, 1);
+  if (normalRepair) return startRepair(v, normalRepair, ts);
 
   return false;
 }
