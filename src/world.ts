@@ -22,6 +22,21 @@ export const WEATHER_OUTDOOR_MULT: Record<WeatherType, number> = {
   clear: 1.0, rain: 0.8, storm: 0.5,
 };
 
+// --- Seasonal events (auto-trigger on season transitions) ---
+export interface SeasonalEvent {
+  name: string;
+  moraleBonus: number;
+  foodThreshold?: number; // only fires if food >= this
+  message: string;
+}
+
+export const SEASONAL_EVENTS: Record<Season, SeasonalEvent> = {
+  spring: { name: 'Spring Planting', moraleBonus: 10, message: 'Spring arrives! New growth brings hope to the settlement.' },
+  summer: { name: 'Summer Warmth', moraleBonus: 5, message: 'Summer begins — long days and warm weather lift spirits.' },
+  autumn: { name: 'Harvest Festival', moraleBonus: 15, foodThreshold: 50, message: 'The harvest festival celebrates the bounty of autumn!' },
+  winter: { name: 'Winter\'s Bite', moraleBonus: -5, message: 'Winter descends — the cold bites and supplies dwindle.' },
+};
+
 export const OUTDOOR_BUILDINGS: BuildingType[] = [
   'farm', 'woodcutter', 'quarry', 'herb_garden', 'flax_field', 'hemp_field',
   'chicken_coop', 'apiary', 'livestock_barn', 'foraging_hut', 'fishing_hut',

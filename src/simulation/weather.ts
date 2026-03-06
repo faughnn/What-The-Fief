@@ -1,10 +1,28 @@
 // weather.ts — Season/weather transitions and lightning strikes
 
-import { Season, SEASON_NAMES, DAYS_PER_YEAR, DAYS_PER_SEASON, LIGHTNING_STRIKE_CHANCE } from '../world.js';
+import { Season, SEASON_NAMES, DAYS_PER_YEAR, DAYS_PER_SEASON, LIGHTNING_STRIKE_CHANCE, SEASONAL_EVENTS } from '../world.js';
 import { TickState } from './helpers.js';
 
 export function processSeasonAndWeather(ts: TickState): void {
+  const prevSeason = ts.season;
   ts.season = SEASON_NAMES[Math.floor((ts.newDay % DAYS_PER_YEAR) / DAYS_PER_SEASON)];
+
+  // Seasonal event on transition
+  if (ts.season !== prevSeason) {
+    const event = SEASONAL_EVENTS[ts.season];
+    if (event) {
+      // Check food threshold if applicable
+      const totalFood = (ts.resources.food || 0) + (ts.resources.bread || 0) + (ts.resources.meat || 0) + (ts.resources.dried_food || 0);
+      if (!event.foodThreshold || totalFood >= event.foodThreshold) {
+        ts.events.push(event.message);
+        // Apply morale bonus/penalty to all villagers
+        for (const v of ts.villagers) {
+          v.morale = Math.max(0, Math.min(100, v.morale + event.moraleBonus));
+        }
+      }
+    }
+  }
+
   const weatherRng = ((ts.newDay * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff;
   const weatherThresholds: Record<Season, [number, number]> = {
     spring: [0.6, 0.9], summer: [0.7, 0.9], autumn: [0.4, 0.8], winter: [0.5, 0.8],
