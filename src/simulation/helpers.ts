@@ -6,13 +6,14 @@ import {
   skillMultiplier, ToolTier, TOOL_MULTIPLIER, TOOL_DURABILITY,
   TOOL_RESOURCE, TOOL_EQUIP_PRIORITY,
   WeaponType, WEAPON_STATS, WEAPON_DURABILITY, WEAPON_RESOURCE, WEAPON_EQUIP_PRIORITY,
+  ArmorType, ARMOR_STATS, ARMOR_DURABILITY, ARMOR_RESOURCE, ARMOR_EQUIP_PRIORITY,
   EnemyEntity, ActiveRaid,
   AnimalEntity, ResourceDrop, BanditCamp,
   TechId, ResearchState,
   MerchantState,
   Season, WeatherType, HOUSING_INFO,
   BASE_STORAGE_CAP, STOREHOUSE_BONUS,
-  CONSTRUCTION_TICKS,
+  CONSTRUCTION_TICKS, PRODUCTION_BASE_TICKS,
 } from '../world.js';
 
 // --- TickState: mutable working copy of game state during a tick ---
@@ -97,7 +98,7 @@ export const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   mill: 'miller', bakery: 'baker', tanner: 'tanner_worker',
   weaver: 'weaver_worker', ropemaker: 'ropemaker_worker',
   blacksmith: 'blacksmith_worker', toolmaker: 'toolmaker_worker', armorer: 'armorer_worker',
-  weaponsmith: 'weaponsmith_worker', fletcher: 'fletcher_worker',
+  weaponsmith: 'weaponsmith_worker', fletcher: 'fletcher_worker', leather_workshop: 'leather_workshop_worker',
   research_desk: 'researcher',
   chicken_coop: 'chicken_keeper', livestock_barn: 'rancher', apiary: 'beekeeper',
   hunting_lodge: 'hunter', foraging_hut: 'forager', fishing_hut: 'fisher',
@@ -204,7 +205,7 @@ export function deductFromStorehouseAndGlobal(
 export function ticksPerUnit(buildingType: BuildingType): number {
   const template = BUILDING_TEMPLATES[buildingType];
   if (!template.production) return Infinity;
-  return Math.max(1, Math.round(25 / template.production.amountPerWorker));
+  return Math.max(1, Math.round(PRODUCTION_BASE_TICKS / template.production.amountPerWorker));
 }
 
 export function productionMultiplier(v: Villager, buildingType: BuildingType, research: ResearchState, season: Season, weather: WeatherType): number {
@@ -269,6 +270,32 @@ export function degradeWeapon(v: Villager, resources: Resources, buildings?: Bui
   v.weaponDurability -= 1;
   if (v.weaponDurability <= 0) {
     autoEquipWeapon(v, resources, buildings);
+  }
+}
+
+export function autoEquipArmor(v: Villager, resources: Resources, buildings?: Building[]): void {
+  for (const atype of ARMOR_EQUIP_PRIORITY) {
+    const res = ARMOR_RESOURCE[atype];
+    if (resources[res] > 0) {
+      resources[res] -= 1;
+      if (buildings) {
+        const sh = findStorehouseWithResource(buildings, res);
+        if (sh) deductFromBuffer(sh.localBuffer, res, 1);
+      }
+      v.armor = atype;
+      v.armorDurability = ARMOR_DURABILITY[atype];
+      return;
+    }
+  }
+  v.armor = 'none';
+  v.armorDurability = 0;
+}
+
+export function degradeArmor(v: Villager, resources: Resources, buildings?: Building[]): void {
+  if (v.armor === 'none') return;
+  v.armorDurability -= 1;
+  if (v.armorDurability <= 0) {
+    autoEquipArmor(v, resources, buildings);
   }
 }
 

@@ -78,7 +78,7 @@ export type BuildingType =
   // Upgraded morale buildings
   | 'inn'
   // Weapon/armor production
-  | 'weaponsmith' | 'fletcher'
+  | 'weaponsmith' | 'fletcher' | 'leather_workshop'
   // Decoration / morale buildings
   | 'garden' | 'fountain' | 'statue'
   // Outpost
@@ -111,6 +111,7 @@ export type ResourceType =
   | 'planks' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
   | 'basic_tools' | 'sturdy_tools' | 'iron_tools'
   | 'sword' | 'bow'
+  | 'leather_armor' | 'iron_armor'
   | 'gold';
 
 export interface Resources {
@@ -135,6 +136,8 @@ export interface Resources {
   iron_tools: number;
   sword: number;
   bow: number;
+  leather_armor: number;
+  iron_armor: number;
   gold: number;
 }
 
@@ -144,6 +147,7 @@ export function emptyResources(): Resources {
     planks: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
     basic_tools: 0, sturdy_tools: 0, iron_tools: 0,
     sword: 0, bow: 0,
+    leather_armor: 0, iron_armor: 0,
     gold: 0,
   };
 }
@@ -154,6 +158,7 @@ export const ALL_RESOURCES: ResourceType[] = [
   'planks', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
   'basic_tools', 'sturdy_tools', 'iron_tools',
   'sword', 'bow',
+  'leather_armor', 'iron_armor',
   'gold',
 ];
 
@@ -195,13 +200,33 @@ export const WEAPON_RESOURCE: Record<Exclude<WeaponType, 'none'>, ResourceType> 
 
 export const WEAPON_EQUIP_PRIORITY: Exclude<WeaponType, 'none'>[] = ['sword', 'bow'];
 
+// --- Armor ---
+export type ArmorType = 'none' | 'leather_armor' | 'iron_armor';
+
+export const ARMOR_STATS: Record<ArmorType, { defense: number }> = {
+  none: { defense: 0 },
+  leather_armor: { defense: 2 },
+  iron_armor: { defense: 4 },
+};
+
+export const ARMOR_DURABILITY: Record<Exclude<ArmorType, 'none'>, number> = {
+  leather_armor: 30,
+  iron_armor: 50,
+};
+
+export const ARMOR_RESOURCE: Record<Exclude<ArmorType, 'none'>, ResourceType> = {
+  leather_armor: 'leather_armor',
+  iron_armor: 'iron_armor',
+};
+
+export const ARMOR_EQUIP_PRIORITY: Exclude<ArmorType, 'none'>[] = ['iron_armor', 'leather_armor'];
+
 // --- Storage ---
 export const BASE_STORAGE_CAP = 100;
 export const STOREHOUSE_BONUS = 50;
 
-// --- V2 Tick Constants ---
-export const TICKS_PER_DAY = 120;
-export const NIGHT_TICKS = 30;       // ticks 0-29 = night, 30-119 = day
+// --- V2 Tick Constants (re-exported from timing.ts) ---
+export { TICKS_PER_DAY, NIGHT_TICKS, HOME_DEPARTURE_TICK, DAYS_PER_SEASON, DAYS_PER_YEAR, RESEARCH_TICKS_PER_POINT, CONSTRUCTION_TICKS, FIRE_DAMAGE_PER_TICK, FIRE_SPREAD_CHANCE, DISEASE_SPREAD_CHANCE, LIGHTNING_STRIKE_CHANCE, INPUT_PICKUP_MULTIPLIER, PRODUCTION_BASE_TICKS, RENDER_TICKS_PER_SEC } from './timing.js';
 export const CARRY_CAPACITY = 5;
 // --- Construction Points ---
 export const INITIAL_CONSTRUCTION_POINTS = 20;
@@ -225,7 +250,6 @@ export const FESTIVAL_COOLDOWN = 10;   // days between festivals
 export const DEFAULT_BUFFER_CAP = 20;
 export const STOREHOUSE_BUFFER_CAP = 2000;
 export const OUTPOST_BUFFER_CAP = 100;
-export const HOME_DEPARTURE_TICK = 95; // villagers start heading home at this tick-in-day
 
 // --- Villager Food Thresholds ---
 export const FOOD_CAP = 10;             // max food a villager can have
@@ -244,14 +268,11 @@ export const TAVERN_COOLDOWN_DAYS = 3;      // days between tavern visits
 export const CLOTHING_DURABILITY = 10;      // days clothing lasts before wearing out
 
 // --- Disease ---
-export const DISEASE_SPREAD_CHANCE = 0.10;  // per-tick chance to spread to adjacent villager
 export const DISEASE_DURATION_BASE = 5;     // days sick without medicine
 export const DISEASE_DURATION_MEDICINE = 3; // days sick with medicine tech
 export const DISEASE_HP_LOSS_PER_DAY = 3;   // HP lost per day from sickness
 
 // --- Fire ---
-export const FIRE_DAMAGE_PER_TICK = 2;      // HP lost per tick from fire
-export const FIRE_SPREAD_CHANCE = 0.05;     // per-tick chance to spread to adjacent building
 export const WELL_FIRE_PROTECTION_RANGE = 3; // wells within this range prevent fire spread
 
 // --- Building Proximity ---
@@ -272,8 +293,6 @@ export const ARMOR_BONUS_HP = 5;            // armored_guards tech bonus
 export const VILLAGER_BASE_HP = 10;
 export const HP_REGEN_PER_DAY = 2;
 export const MEDICINE_REGEN_BONUS = 1;
-export const RESEARCH_TICKS_PER_POINT = 30; // ticks per research knowledge point
-export const INPUT_PICKUP_MULTIPLIER = 3;   // carry up to Nx the needed input amount
 
 // --- Spoilage rates (fraction lost per tick) ---
 export const SPOILAGE: Partial<Record<ResourceType, number>> = {
@@ -414,8 +433,8 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   },
   armorer: {
     type: 'armorer', width: 2, height: 2, allowedTerrain: ['grass'],
-    cost: { wood: 25, stone: 20 }, description: 'Forges iron tools and equipment',
-    maxWorkers: 1, production: { output: 'iron_tools', amountPerWorker: 1, inputs: { ingots: 3, leather: 1 } }, mapChar: 'A',
+    cost: { wood: 25, stone: 20 }, description: 'Forges iron armor from ingots and leather',
+    maxWorkers: 1, production: { output: 'iron_armor', amountPerWorker: 1, inputs: { ingots: 3, leather: 1 } }, mapChar: 'A',
   },
   town_hall: {
     type: 'town_hall', width: 3, height: 3, allowedTerrain: ['grass'],
@@ -559,6 +578,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 10, stone: 5 }, description: 'Crafts bows from wood and rope',
     maxWorkers: 1, production: { output: 'bow', amountPerWorker: 1, inputs: { wood: 2, rope: 1 } }, mapChar: 'f',
   },
+  leather_workshop: {
+    type: 'leather_workshop', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 12, stone: 8 }, description: 'Crafts leather armor from leather and linen',
+    maxWorkers: 1, production: { output: 'leather_armor', amountPerWorker: 1, inputs: { leather: 2, linen: 1 } }, mapChar: 'L',
+  },
   // --- Decoration / morale buildings ---
   garden: {
     type: 'garden', width: 1, height: 1, allowedTerrain: ['grass'],
@@ -604,7 +628,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   chicken_coop: 'farming',
   livestock_barn: 'farming',
   apiary: 'herbalism', foraging_hut: 'herbalism', fishing_hut: 'farming',
-  weaponsmith: 'crafting', fletcher: 'crafting',
+  weaponsmith: 'crafting', fletcher: 'crafting', leather_workshop: 'crafting',
   // T2 upgraded buildings inherit parent skills
   large_farm: 'farming', deep_quarry: 'mining',
   lumber_mill: 'crafting', advanced_smelter: 'crafting',
@@ -629,7 +653,7 @@ export type VillagerRole =
   | 'flaxer' | 'hemper' | 'miner' | 'sawyer' | 'smelter'
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
   | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker'
-  | 'weaponsmith_worker' | 'fletcher_worker'
+  | 'weaponsmith_worker' | 'fletcher_worker' | 'leather_workshop_worker'
   | 'scout' | 'guard' | 'researcher' | 'hunter'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
   | 'fisher' | 'hauler';
@@ -683,6 +707,8 @@ export interface Villager {
   toolDurability: number;
   weapon: WeaponType;
   weaponDurability: number;
+  armor: ArmorType;
+  armorDurability: number;
   scoutDirection: Direction | null;
   scoutTicksLeft: number;
   hp: number;
@@ -840,37 +866,12 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   large_farm: 60, lumber_mill: 50, deep_quarry: 60,
   advanced_smelter: 70, windmill: 50, kitchen: 45,
   large_storehouse: 60,
-  weaponsmith: 45, fletcher: 35,
+  weaponsmith: 45, fletcher: 35, leather_workshop: 35,
   garden: 20, fountain: 30, statue: 40,
   outpost: 40, road: 10,
   inn: 60,
 };
 
-// V2: Construction time (work ticks needed to complete a building)
-export const CONSTRUCTION_TICKS: Record<BuildingType, number> = {
-  tent: 30, house: 90, manor: 180,
-  farm: 60, woodcutter: 45, quarry: 90, storehouse: 90,
-  herb_garden: 40, flax_field: 40, hemp_field: 40, iron_mine: 120,
-  sawmill: 75, smelter: 100, mill: 60, bakery: 60,
-  tanner: 60, weaver: 60, ropemaker: 50,
-  blacksmith: 80, toolmaker: 100, armorer: 120,
-  town_hall: 240, wall: 20, fence: 10,
-  research_desk: 60, chicken_coop: 45, livestock_barn: 75,
-  apiary: 35, marketplace: 120, hunting_lodge: 50, foraging_hut: 40, fishing_hut: 45, gate: 15,
-  watchtower: 90,
-  tavern: 60,
-  well: 40,
-  church: 120,
-  graveyard: 30,
-  rubble: 30,
-  large_farm: 120, lumber_mill: 100, deep_quarry: 120,
-  advanced_smelter: 150, windmill: 100, kitchen: 90,
-  large_storehouse: 120,
-  weaponsmith: 90, fletcher: 60,
-  garden: 30, fountain: 40, statue: 50,
-  outpost: 60, road: 1,
-  inn: 120,
-};
 
 // V2: Building upgrade paths — from → { to, cost }
 export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cost: Partial<Resources> }>> = {
@@ -1135,6 +1136,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     skills: rollStartingSkills(id), traits: rollTraits(id), morale: 50, lastAte: 'nothing',
     tool: 'none', toolDurability: 0,
     weapon: 'none', weaponDurability: 0,
+    armor: 'none', armorDurability: 0,
     scoutDirection: null, scoutTicksLeft: 0,
     hp: 10, maxHp: 10,
     // V2 fields
@@ -1199,10 +1201,10 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     }
   }
 
-  // Territory: 5x5 around start
+  // Territory: 20x20 around start
   const territory: boolean[][] = Array.from({ length: height }, () => Array(width).fill(false));
-  for (let ty = Math.max(0, cy - 2); ty <= Math.min(height - 1, cy + 2); ty++) {
-    for (let tx = Math.max(0, cx - 2); tx <= Math.min(width - 1, cx + 2); tx++) {
+  for (let ty = Math.max(0, cy - 10); ty <= Math.min(height - 1, cy + 9); ty++) {
+    for (let tx = Math.max(0, cx - 10); tx <= Math.min(width - 1, cx + 9); tx++) {
       territory[ty][tx] = true;
     }
   }

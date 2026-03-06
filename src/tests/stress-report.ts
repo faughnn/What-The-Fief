@@ -217,6 +217,10 @@ function playerAI(state: GameState): GameState {
   if (day >= 25 && countBuildings(state, 'fletcher') === 0 && countBuildings(state, 'ropemaker') > 0) {
     state = tryBuild(state, 'fletcher', 13, 14);
   }
+  // Armor production: leather_workshop (leather + linen → leather_armor)
+  if (day >= 28 && countBuildings(state, 'leather_workshop') === 0 && countBuildings(state, 'tanner') > 0 && countBuildings(state, 'weaver') > 0) {
+    state = tryBuild(state, 'leather_workshop', 12, 14);
+  }
   // Church for morale (+10 to nearby villagers)
   if (day >= 30 && countBuildings(state, 'church') === 0 && canAfford(state, 'church')) {
     state = tryBuild(state, 'church', 14, 15);
