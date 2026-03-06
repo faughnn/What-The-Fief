@@ -724,9 +724,9 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
 };
 
 // --- Skills ---
-export type SkillType = 'farming' | 'mining' | 'crafting' | 'woodcutting' | 'cooking' | 'herbalism';
+export type SkillType = 'farming' | 'mining' | 'crafting' | 'woodcutting' | 'cooking' | 'herbalism' | 'combat';
 
-export const ALL_SKILLS: SkillType[] = ['farming', 'mining', 'crafting', 'woodcutting', 'cooking', 'herbalism'];
+export const ALL_SKILLS: SkillType[] = ['farming', 'mining', 'crafting', 'woodcutting', 'cooking', 'herbalism', 'combat'];
 
 export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   farm: 'farming', flax_field: 'farming', hemp_field: 'farming',
@@ -1329,7 +1329,7 @@ function seededRng(seed: number): () => number {
 }
 
 function emptySkills(): Record<SkillType, number> {
-  return { farming: 0, mining: 0, crafting: 0, woodcutting: 0, cooking: 0, herbalism: 0 };
+  return { farming: 0, mining: 0, crafting: 0, woodcutting: 0, cooking: 0, herbalism: 0, combat: 0 };
 }
 
 function rollStartingSkills(id: number): Record<SkillType, number> {
@@ -1337,7 +1337,7 @@ function rollStartingSkills(id: number): Record<SkillType, number> {
   const rng = seededRng(id * 3571);
   // Each villager gets 1-2 aptitudes with starting points (10-30)
   const numAptitudes = rng() < 0.4 ? 1 : 2;
-  const pool = [...ALL_SKILLS];
+  const pool = ALL_SKILLS.filter(s => s !== 'combat');
   for (let i = 0; i < numAptitudes && pool.length > 0; i++) {
     const idx = Math.floor(rng() * pool.length);
     const skill = pool[idx];

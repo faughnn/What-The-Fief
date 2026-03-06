@@ -315,6 +315,22 @@ export function gainSkillXp(v: Villager, buildingType: BuildingType): void {
   v.skills[skill] = Math.min(100, v.skills[skill] + xpGain);
 }
 
+// Combat XP: guards/militia gain 1 XP per combat tick (capped at 100)
+// Combat skill bonus: +1 attack per 25 skill, +1 defense per 50 skill
+export function gainCombatXp(v: Villager): void {
+  let xpGain = 1;
+  if (v.traits.includes('fast_learner')) xpGain = Math.ceil(xpGain * 1.5);
+  v.skills.combat = Math.min(100, v.skills.combat + xpGain);
+}
+
+export function combatSkillAttackBonus(v: Villager): number {
+  return Math.floor(v.skills.combat / 25);
+}
+
+export function combatSkillDefenseBonus(v: Villager): number {
+  return Math.floor(v.skills.combat / 50);
+}
+
 export function hasTech(research: ResearchState, tech: TechId): boolean {
   return research.completed.includes(tech);
 }
