@@ -19,7 +19,7 @@ function traitDefenseBonus(v: { traits: string[] }): number {
 }
 
 import {
-  Building, BuildingType, Villager, Tile,
+  Building, BuildingType, Villager, Tile, TERRAIN_DEFENSE_BONUS,
   EnemyEntity, EnemyType, ENEMY_TEMPLATES, GUARD_COMBAT,
   CONSTRUCTION_TICKS, BUILDING_MAX_HP, ALL_RESOURCES,
   WATCHTOWER_RANGE, WATCHTOWER_DAMAGE,
@@ -288,6 +288,9 @@ export function processRaidAndCombat(ts: TickState): void {
   const center = findSettlementCenter(ts.buildings);
   for (const e of ts.enemies) {
     if (e.hp <= 0) continue;
+
+    // Hill movement penalty: enemies on hills move at half speed
+    if (ts.grid[e.y]?.[e.x]?.terrain === 'hill' && ts.newTick % 2 === 1) continue;
 
     // Check if adjacent to a guard — if so, fight instead of moving
     const adjacentGuard = ts.villagers.find(v =>
@@ -558,7 +561,8 @@ export function processRaidAndCombat(ts: TickState): void {
         : GUARD_COMBAT[v.tool];
       nearestEnemy.hp -= Math.max(1, baseStats.attack + attackBonus + traitAttackBonus(v) + combatSkillAttackBonus(v) - nearestEnemy.defense);
       const armorDef = ARMOR_STATS[v.armor]?.defense || 0;
-      const guardDef = baseStats.defense + defenseBonus + armorDef + traitDefenseBonus(v) + combatSkillDefenseBonus(v);
+      const terrainDef = TERRAIN_DEFENSE_BONUS[ts.grid[v.y]?.[v.x]?.terrain || 'grass'];
+      const guardDef = baseStats.defense + defenseBonus + armorDef + traitDefenseBonus(v) + combatSkillDefenseBonus(v) + terrainDef;
       v.hp -= Math.max(1, nearestEnemy.attack - guardDef);
       if (v.weapon !== 'none') degradeWeapon(v, ts.resources, ts.buildings);
       if (v.armor !== 'none') degradeArmor(v, ts.resources, ts.buildings);

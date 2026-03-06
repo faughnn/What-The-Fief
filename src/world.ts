@@ -75,7 +75,17 @@ export const DECORATION_MORALE: Partial<Record<BuildingType, number>> = {
 };
 
 // --- Terrain ---
-export type Terrain = 'grass' | 'forest' | 'water' | 'stone';
+export type Terrain = 'grass' | 'forest' | 'water' | 'stone' | 'hill';
+
+// Terrain movement cost multiplier (1 = normal, 2 = half speed)
+export const TERRAIN_MOVE_COST: Record<Terrain, number> = {
+  grass: 1, forest: 1, water: Infinity, stone: 1, hill: 2,
+};
+
+// Defense bonus from terrain (guards on hills get bonus)
+export const TERRAIN_DEFENSE_BONUS: Record<Terrain, number> = {
+  grass: 0, forest: 1, water: 0, stone: 0, hill: 2,
+};
 
 // --- Tile ---
 export type Deposit = 'iron' | 'fertile' | 'herbs' | null;
@@ -536,12 +546,12 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     maxWorkers: 0, production: null, mapChar: 'T',
   },
   wall: {
-    type: 'wall', width: 1, height: 1, allowedTerrain: ['grass', 'stone'],
+    type: 'wall', width: 1, height: 1, allowedTerrain: ['grass', 'stone', 'hill'],
     cost: { stone: 3 }, description: 'Stone wall — blocks enemies',
     maxWorkers: 0, production: null, mapChar: '#',
   },
   fence: {
-    type: 'fence', width: 1, height: 1, allowedTerrain: ['grass'],
+    type: 'fence', width: 1, height: 1, allowedTerrain: ['grass', 'hill'],
     cost: { wood: 2 }, description: 'Wooden fence',
     maxWorkers: 0, production: null, mapChar: '=',
   },
@@ -586,12 +596,12 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     maxWorkers: 1, production: { output: 'fish', amountPerWorker: 2, inputs: null }, mapChar: 'f',
   },
   gate: {
-    type: 'gate', width: 1, height: 1, allowedTerrain: ['grass'],
+    type: 'gate', width: 1, height: 1, allowedTerrain: ['grass', 'hill'],
     cost: { wood: 5, stone: 2 }, description: 'Lets allies through, blocks enemies',
     maxWorkers: 0, production: null, mapChar: '=',
   },
   watchtower: {
-    type: 'watchtower', width: 1, height: 1, allowedTerrain: ['grass'],
+    type: 'watchtower', width: 1, height: 1, allowedTerrain: ['grass', 'hill'],
     cost: { wood: 15, stone: 10 }, description: 'Guards shoot enemies at range (5 tiles)',
     maxWorkers: 1, production: null, mapChar: 'T',
   },
@@ -730,7 +740,7 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     maxWorkers: 0, production: null, mapChar: '=',
   },
   reinforced_wall: {
-    type: 'reinforced_wall', width: 1, height: 1, allowedTerrain: ['grass', 'stone'],
+    type: 'reinforced_wall', width: 1, height: 1, allowedTerrain: ['grass', 'stone', 'hill'],
     cost: { stone: 5, ingots: 2 }, description: 'Reinforced stone wall — extra durable',
     maxWorkers: 0, production: null, mapChar: '#',
   },
@@ -745,7 +755,7 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     maxWorkers: 2, production: null, mapChar: 'G',
   },
   spike_trap: {
-    type: 'spike_trap', width: 1, height: 1, allowedTerrain: ['grass'],
+    type: 'spike_trap', width: 1, height: 1, allowedTerrain: ['grass', 'hill'],
     cost: { wood: 3, ingots: 1 }, description: 'Damages enemies that step on it',
     maxWorkers: 0, production: null, mapChar: '^',
   },
@@ -1519,6 +1529,8 @@ export function createWorld(width: number, height: number, seed: number = 42): G
         terrain = 'forest';
       } else if (rng() < 0.05) {
         terrain = 'stone';
+      } else if (rng() < 0.05) {
+        terrain = 'hill';
       }
       // Deposits
       let deposit: Deposit = null;
