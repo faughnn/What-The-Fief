@@ -359,6 +359,27 @@ function playerAI(state: GameState): GameState {
     }
   }
 
+  // --- BARRACKS: build once we have military_tactics and guards ---
+  if (day >= 25 && countBuildings(state, 'barracks') === 0 && canAfford(state, 'barracks') && canBuildTech(state, 'barracks')) {
+    state = tryBuild(state, 'barracks', 12, 14);
+  }
+
+  // --- WALL UPGRADES: upgrade fences to walls, walls to reinforced_walls ---
+  if (day >= 40 && hasTech(state, 'siege_engineering')) {
+    // Upgrade one wall to reinforced per day
+    const wall = state.buildings.find(b => b.type === 'wall' && b.constructed);
+    if (wall && canAfford(state, 'reinforced_wall')) {
+      state = upgradeBuilding(state, wall.id);
+    }
+  }
+  if (day >= 30) {
+    // Upgrade one fence to wall per day
+    const fence = state.buildings.find(b => b.type === 'fence' && b.constructed);
+    if (fence && (state.resources.stone || 0) >= 3) {
+      state = upgradeBuilding(state, fence.id);
+    }
+  }
+
   // --- ASSAULT BANDIT CAMPS: send guards to attack weak camps ---
   const allGuards = state.villagers.filter(v => v.role === 'guard' && v.hp > 0);
   if (allGuards.length >= 2 && state.enemies.length === 0 && state.banditCamps.length > 0) {
