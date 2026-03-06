@@ -1,0 +1,2242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ColonySim</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #f4f0e8;
+    --bg-dark: #e8e2d6;
+    --panel: #faf8f3;
+    --panel-alt: #f0ece2;
+    --text: #4a4538;
+    --text-muted: #8a8477;
+    --text-light: #b0a898;
+    --accent: #c17f59;
+    --accent-soft: #d4a882;
+    --accent-hover: #a86a48;
+    --danger: #c45c4a;
+    --danger-soft: rgba(196, 92, 74, 0.15);
+    --success: #6b9a6b;
+    --success-soft: rgba(107, 154, 107, 0.15);
+    --water: #8bb8c4;
+    --water-deep: #6da0b0;
+    --selected: rgba(193, 127, 89, 0.25);
+    --border: rgba(0,0,0,0.06);
+
+    /* terrain */
+    --grass: #c8d4a0;
+    --grass-alt: #bfcb96;
+    --forest: #7da068;
+    --forest-dark: #6b8c58;
+    --stone: #b0a898;
+    --stone-dark: #9a9488;
+
+    /* building categories */
+    --housing: #d4a06a;
+    --production: #8aaa6e;
+    --processing: #a0896e;
+    --military: #7888a0;
+    --storage: #b09a6e;
+    --utility: #9a8eb0;
+    --decoration: #c4a0b0;
+    --construction: #c8c0a8;
+
+    /* entities */
+    --villager: #f0ebe0;
+    --villager-stroke: #8a8070;
+    --enemy: #c45c4a;
+    --enemy-glow: rgba(196, 92, 74, 0.3);
+    --animal-passive: #c4b896;
+    --animal-hostile: #b07060;
+    --drop: #e0d080;
+    --merchant: #d4a040;
+    --caravan: #c09030;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  /* --- Top bar --- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    z-index: 10;
+    flex-shrink: 0;
+    min-height: 42px;
+  }
+
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .topbar h1 {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .topbar-stat {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text);
+  }
+
+  .topbar-stat .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .topbar-stat .label {
+    color: var(--text-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn {
+    background: var(--bg);
+    border: 1px solid var(--bg-dark);
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--bg-dark); }
+  .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.danger { color: var(--danger); }
+  .btn.small { padding: 2px 7px; font-size: 10px; }
+  .btn:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+
+  .speed-group {
+    display: flex;
+    gap: 1px;
+  }
+  .speed-group .btn {
+    border-radius: 0;
+    min-width: 28px;
+    text-align: center;
+  }
+  .speed-group .btn:first-child { border-radius: 5px 0 0 5px; }
+  .speed-group .btn:last-child { border-radius: 0 5px 5px 0; }
+
+  /* --- Main layout --- */
+  .main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* --- Canvas area --- */
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  /* --- Right side panel --- */
+  .sidepanel {
+    width: 240px;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .panel-section h3 {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .resource-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 10px;
+  }
+
+  .resource-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    padding: 1px 0;
+  }
+  .resource-item .name { color: var(--text-muted); }
+  .resource-item .value { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  .villager-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .villager-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    padding: 3px 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .villager-row:hover { background: var(--bg); }
+  .villager-row.selected { background: var(--selected); }
+
+  .villager-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .villager-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .villager-role {
+    color: var(--text-muted);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .event-log {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+
+  .event-line {
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.3;
+  }
+
+  /* --- Tooltip overlay --- */
+  .tooltip {
+    position: absolute;
+    background: var(--panel);
+    border: 1px solid var(--bg-dark);
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 11px;
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    max-width: 200px;
+    display: none;
+    white-space: pre-line;
+  }
+  .tooltip .tt-title { font-weight: 500; margin-bottom: 1px; }
+  .tooltip .tt-detail { color: var(--text-muted); font-size: 10px; }
+
+  /* --- Season badge --- */
+  .season-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 8px;
+    font-weight: 400;
+  }
+  .season-spring { background: #d8e8c0; color: #5a7040; }
+  .season-summer { background: #f0e0a0; color: #8a7030; }
+  .season-autumn { background: #e8c8a0; color: #8a6030; }
+  .season-winter { background: #d0dce8; color: #506878; }
+
+  /* --- Raid bar --- */
+  .raid-bar-wrap {
+    height: 3px;
+    background: var(--bg-dark);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .raid-bar-fill {
+    height: 100%;
+    background: var(--danger);
+    transition: width 0.3s;
+    border-radius: 2px;
+  }
+
+  /* --- Bottom build bar --- */
+  .buildbar {
+    display: flex;
+    align-items: stretch;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    min-height: 0;
+    overflow: hidden;
+    transition: min-height 0.2s;
+  }
+  .buildbar.open { min-height: 120px; }
+
+  .buildbar-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 6px 4px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    width: 90px;
+    flex-shrink: 0;
+  }
+
+  .cat-btn {
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.1s;
+    white-space: nowrap;
+  }
+  .cat-btn:hover { background: var(--bg); color: var(--text); }
+  .cat-btn.active { background: var(--accent); color: #fff; }
+
+  .buildbar-items {
+    flex: 1;
+    display: flex;
+    gap: 6px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .build-item {
+    background: var(--bg);
+    border: 1px solid var(--bg-dark);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.12s;
+    width: 120px;
+    flex-shrink: 0;
+  }
+  .build-item:hover { border-color: var(--accent-soft); background: #fff; }
+  .build-item.disabled { opacity: 0.4; cursor: default; }
+  .build-item .bi-name { font-size: 11px; font-weight: 500; margin-bottom: 2px; }
+  .build-item .bi-cost { font-size: 9px; color: var(--text-muted); }
+  .build-item .bi-desc { font-size: 9px; color: var(--text-light); margin-top: 2px; }
+
+  /* --- Detail panel (overlays right side when entity selected) --- */
+  .detail-panel {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 260px;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    z-index: 50;
+    overflow-y: auto;
+    padding: 14px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: -4px 0 12px rgba(0,0,0,0.04);
+  }
+  .detail-panel.open { display: flex; }
+
+  .detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .detail-title { font-size: 14px; font-weight: 500; }
+  .detail-subtitle { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-close {
+    background: none;
+    border: none;
+    font-size: 16px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  .detail-close:hover { color: var(--text); }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    padding: 2px 0;
+  }
+  .detail-row .dr-label { color: var(--text-muted); }
+  .detail-row .dr-value { font-weight: 500; }
+
+  .detail-section { margin-top: 4px; }
+  .detail-section h4 {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+
+  .detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .hp-bar-wrap {
+    height: 4px;
+    background: var(--bg-dark);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 2px;
+  }
+  .hp-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  .progress-bar-wrap {
+    height: 6px;
+    background: var(--bg-dark);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+
+  /* --- Research panel (overlay) --- */
+  .research-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(244, 240, 232, 0.95);
+    z-index: 200;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px;
+    overflow-y: auto;
+  }
+  .research-overlay.open { display: flex; }
+
+  .research-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 700px;
+    margin-bottom: 24px;
+  }
+  .research-header h2 { font-size: 16px; font-weight: 500; }
+
+  .tech-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    max-width: 700px;
+  }
+
+  .tech-tier-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .tech-tier-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .tech-card {
+    background: var(--bg);
+    border: 1.5px solid var(--bg-dark);
+    border-radius: 6px;
+    padding: 10px 14px;
+    width: 200px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .tech-card:hover { border-color: var(--accent-soft); }
+  .tech-card.completed { background: var(--success-soft); border-color: var(--success); }
+  .tech-card.in-progress { background: #fdf6e8; border-color: #d4a040; }
+  .tech-card.locked { opacity: 0.4; cursor: default; }
+  .tech-card .tc-name { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+  .tech-card .tc-desc { font-size: 10px; color: var(--text-muted); }
+  .tech-card .tc-cost { font-size: 9px; color: var(--text-light); margin-top: 4px; }
+  .tech-card .tc-progress {
+    margin-top: 4px;
+  }
+
+  /* --- Notifications --- */
+  .notifications {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .notif {
+    background: var(--panel);
+    border: 1px solid var(--bg-dark);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 11px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    animation: notifIn 0.3s ease, notifOut 0.3s ease 3.7s forwards;
+    pointer-events: auto;
+  }
+  .notif.danger { border-color: var(--danger); color: var(--danger); }
+  .notif.success { border-color: var(--success); color: var(--success); }
+
+  @keyframes notifIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes notifOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  /* --- Territory claim mode indicator --- */
+  .mode-indicator {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #fff;
+    padding: 5px 16px;
+    border-radius: 20px;
+    font-size: 11px;
+    z-index: 60;
+    display: none;
+    gap: 8px;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  }
+  .mode-indicator.visible { display: flex; }
+
+  /* --- Loading screen --- */
+  .loading {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    z-index: 2000;
+  }
+  .loading.hidden { display: none; }
+  .loading h2 { font-weight: 400; font-size: 16px; color: var(--text-muted); }
+  .loading p { font-size: 12px; color: var(--text-muted); }
+
+  /* --- File drop zone --- */
+  .drop-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(244,240,232,0.92);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    font-size: 18px;
+    color: var(--text-muted);
+  }
+  .drop-overlay.visible { display: flex; }
+
+  /* --- Assign picker dropdown --- */
+  .assign-picker {
+    position: absolute;
+    background: var(--panel);
+    border: 1px solid var(--bg-dark);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 300;
+    max-height: 200px;
+    overflow-y: auto;
+    min-width: 180px;
+    display: none;
+    padding: 4px;
+  }
+  .assign-picker.open { display: block; }
+  .assign-picker-item {
+    padding: 5px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 3px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .assign-picker-item:hover { background: var(--bg); }
+  .assign-picker-item .api-role { color: var(--text-muted); font-size: 9px; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--bg-dark); border-radius: 2px; }
+
+  /* --- Minimap --- */
+  .minimap {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    border: 1px solid var(--bg-dark);
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    z-index: 40;
+    cursor: pointer;
+    image-rendering: pixelated;
+  }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <h2>ColonySim</h2>
+  <p>A colony grows from a single tent</p>
+  <div style="display:flex;gap:8px;margin-top:12px;">
+    <button class="btn" id="btnNewGame" style="padding:8px 20px;font-size:12px;">New Game</button>
+    <button class="btn" id="btnLoadLoading" style="padding:8px 20px;font-size:12px;">Load JSON</button>
+  </div>
+</div>
+
+<div class="drop-overlay" id="dropOverlay">Drop gamestate.json here</div>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <h1>ColonySim</h1>
+    <div class="topbar-stat">
+      <span class="label">Day</span>
+      <span id="statDay">0</span>
+    </div>
+    <div class="topbar-stat">
+      <span class="label">Tick</span>
+      <span id="statTick">0</span>
+    </div>
+    <div id="seasonBadge" class="season-badge season-spring">Spring</div>
+    <div class="topbar-stat">
+      <span class="dot" style="background:var(--water)"></span>
+      <span id="statWeather">Clear</span>
+    </div>
+    <div class="topbar-stat">
+      <span class="dot" style="background:var(--success)"></span>
+      <span id="statPop">0</span>
+      <span class="label">pop</span>
+    </div>
+    <div class="topbar-stat">
+      <span class="dot" style="background:var(--accent)"></span>
+      <span id="statProsperity">0</span>
+      <span class="label">prosperity</span>
+    </div>
+    <div class="topbar-stat">
+      <span class="dot" style="background:var(--storage)"></span>
+      <span id="statCP">0</span>
+      <span class="label">CP</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="speed-group">
+      <button class="btn" data-speed="0">||</button>
+      <button class="btn active" data-speed="1">1x</button>
+      <button class="btn" data-speed="5">5x</button>
+      <button class="btn" data-speed="20">20x</button>
+    </div>
+    <button class="btn" id="btnResearch">Research</button>
+    <button class="btn" id="btnTerritory">Claim</button>
+    <button class="btn" id="btnSave">Save</button>
+    <button class="btn" id="btnLoad">Load</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="gameCanvas"></canvas>
+    <div class="tooltip" id="tooltip">
+      <div class="tt-title"></div>
+      <div class="tt-detail"></div>
+    </div>
+    <div class="notifications" id="notifications"></div>
+    <div class="mode-indicator" id="modeIndicator">
+      <span id="modeText"></span>
+      <button class="btn small" id="modeCancel">ESC</button>
+    </div>
+    <canvas class="minimap" id="minimap" width="120" height="100"></canvas>
+  </div>
+
+  <div class="sidepanel" id="sidepanel">
+    <div class="panel-section">
+      <h3>Resources</h3>
+      <div class="resource-grid" id="resourceGrid"></div>
+    </div>
+    <div class="panel-section">
+      <h3>Raid Threat</h3>
+      <div class="raid-bar-wrap">
+        <div class="raid-bar-fill" id="raidBar" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="panel-section">
+      <h3>Villagers</h3>
+      <div class="villager-list" id="villagerList"></div>
+    </div>
+    <div class="panel-section">
+      <h3>Events</h3>
+      <div class="event-log" id="eventLog"></div>
+    </div>
+  </div>
+
+  <div class="detail-panel" id="detailPanel"></div>
+  <div class="assign-picker" id="assignPicker"></div>
+</div>
+
+<!-- Build bar at bottom -->
+<div class="buildbar" id="buildbar">
+  <div class="buildbar-categories" id="buildCategories"></div>
+  <div class="buildbar-items" id="buildItems"></div>
+</div>
+
+<!-- Research overlay -->
+<div class="research-overlay" id="researchOverlay">
+  <div class="research-header">
+    <h2>Research</h2>
+    <button class="btn" id="closeResearch">Close</button>
+  </div>
+  <div class="tech-grid" id="techGrid"></div>
+</div>
+
+<input type="file" id="fileInput" accept=".json" style="display:none">
+
+<script type="module">
+// ============================================================
+// ColonySim — Interactive Browser Client
+// ============================================================
+import {
+  createWorld, tick, BUILDING_TEMPLATES, TECH_TREE, ALL_TECHS, TRADE_PRICES,
+  UPGRADE_PATHS, TICKS_PER_DAY, NIGHT_TICKS, ALL_RESOURCES, BUILDING_MAX_HP,
+  CONSTRUCTION_TICKS, HOUSING_INFO,
+  placeBuilding, claimTerritory, assignVillager, setResearch, setGuard,
+  setPatrol, sendScout, upgradeBuilding, setPreferredJob,
+  buyResource, sellResource, payTribute, setFormation,
+  createSupplyRoute, cancelSupplyRoute,
+} from './dist/colonysim.js';
+
+const TILE = 20;
+const HALF = TILE / 2;
+
+// ============================================================
+// Color palette
+// ============================================================
+const COLORS = {
+  grass: '#c8d4a0', grassAlt: '#bfcb96',
+  forest: '#7da068', forestDark: '#6b8c58',
+  water: '#8bb8c4', waterDeep: '#6da0b0',
+  stone: '#b0a898', stoneDark: '#9a9488',
+  iron: '#8a7a70', fertile: '#a0b870', herbs: '#80b890',
+  fog: '#d8d4c8', fogEdge: '#c8c4b8',
+  territory: 'rgba(200, 180, 120, 0.08)',
+  housing: '#d4a06a', housingDark: '#b8884e',
+  production: '#8aaa6e', prodDark: '#6e9052',
+  processing: '#a0896e', procDark: '#887058',
+  military: '#7888a0', milDark: '#607088',
+  storage: '#b09a6e', storeDark: '#988258',
+  utility: '#9a8eb0', utilDark: '#827698',
+  decoration: '#c4a0b0', decoDark: '#a88898',
+  construction: '#c8c0a8', constrDark: '#b0a890',
+  villager: '#f0ebe0', villagerOut: '#8a8070',
+  enemy: '#c45c4a', enemyGlow: 'rgba(196, 92, 74, 0.25)',
+  animalPass: '#c4b896', animalHost: '#b07060',
+  drop: '#e0d080', dropOut: '#b0a860',
+  merchant: '#d4a040', caravan: '#c09030',
+  night: 'rgba(30, 30, 60, 0.18)',
+  select: 'rgba(193, 127, 89, 0.4)',
+  placement: 'rgba(107, 154, 107, 0.35)',
+  placementBad: 'rgba(196, 92, 74, 0.35)',
+  claimable: 'rgba(200, 180, 120, 0.3)',
+};
+
+const BUILDING_CATEGORY = {
+  tent: 'housing', house: 'housing', manor: 'housing',
+  farm: 'production', large_farm: 'production', woodcutter: 'production', quarry: 'production',
+  deep_quarry: 'production', herb_garden: 'production', flax_field: 'production',
+  hemp_field: 'production', iron_mine: 'production', chicken_coop: 'production',
+  livestock_barn: 'production', apiary: 'production', foraging_hut: 'production',
+  hunting_lodge: 'production',
+  sawmill: 'processing', lumber_mill: 'processing', smelter: 'processing',
+  advanced_smelter: 'processing', mill: 'processing', windmill: 'processing',
+  bakery: 'processing', kitchen: 'processing', tanner: 'processing',
+  weaver: 'processing', ropemaker: 'processing',
+  blacksmith: 'processing', toolmaker: 'processing', armorer: 'processing',
+  weaponsmith: 'processing', fletcher: 'processing',
+  wall: 'military', fence: 'military', gate: 'military', watchtower: 'military',
+  storehouse: 'storage', large_storehouse: 'storage', outpost: 'storage',
+  town_hall: 'utility', research_desk: 'utility', marketplace: 'utility',
+  tavern: 'utility', well: 'utility', church: 'utility', graveyard: 'utility',
+  garden: 'decoration', fountain: 'decoration', statue: 'decoration',
+  rubble: 'construction',
+};
+
+const CATEGORY_COLORS = {
+  housing: [COLORS.housing, COLORS.housingDark],
+  production: [COLORS.production, COLORS.prodDark],
+  processing: [COLORS.processing, COLORS.procDark],
+  military: [COLORS.military, COLORS.milDark],
+  storage: [COLORS.storage, COLORS.storeDark],
+  utility: [COLORS.utility, COLORS.utilDark],
+  decoration: [COLORS.decoration, COLORS.decoDark],
+  construction: [COLORS.construction, COLORS.constrDark],
+};
+
+const STATE_COLORS = {
+  sleeping: '#9090a0', working: '#6b9a6b', constructing: '#b09a6e',
+  eating: '#d4a06a', hunting: '#a07060', idle: '#c8c0a8',
+  assaulting_camp: '#c45c4a',
+};
+
+const CATEGORY_LABELS = {
+  housing: 'Housing', production: 'Production', processing: 'Processing',
+  military: 'Military', storage: 'Storage', utility: 'Utility', decoration: 'Decoration',
+};
+
+// ============================================================
+// State
+// ============================================================
+let gameState = null;
+let camera = { x: 0, y: 0, zoom: 1 };
+let hoveredTile = null;
+let selectedEntity = null; // { type: 'villager'|'building'|'enemy'|'animal', id: string }
+let animFrame = 0;
+let speed = 1;
+let tickAccumulator = 0;
+let lastFrameTime = 0;
+
+// Interaction modes
+let mode = 'normal'; // 'normal', 'placing', 'claiming'
+let placingType = null; // BuildingType when placing
+let placingValid = false;
+
+// Track previous events for notifications
+let prevEventCount = 0;
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvasWrap');
+const tooltip = document.getElementById('tooltip');
+const miniCanvas = document.getElementById('minimap');
+const miniCtx = miniCanvas.getContext('2d');
+
+// ============================================================
+// Camera / Input
+// ============================================================
+let isDragging = false;
+let dragStart = { x: 0, y: 0 };
+let camStart = { x: 0, y: 0 };
+let dragMoved = false;
+
+wrap.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  isDragging = true;
+  dragMoved = false;
+  dragStart = { x: e.clientX, y: e.clientY };
+  camStart = { x: camera.x, y: camera.y };
+  wrap.style.cursor = 'grabbing';
+});
+
+window.addEventListener('mousemove', e => {
+  if (isDragging) {
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+    camera.x = camStart.x + dx / camera.zoom;
+    camera.y = camStart.y + dy / camera.zoom;
+    return;
+  }
+  if (!gameState) return;
+  updateHover(e);
+});
+
+window.addEventListener('mouseup', e => {
+  if (isDragging && !dragMoved && e.button === 0) {
+    handleClick(e);
+  }
+  isDragging = false;
+  wrap.style.cursor = 'default';
+});
+
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const worldX = (mx / camera.zoom) - camera.x;
+  const worldY = (my / camera.zoom) - camera.y;
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  camera.zoom = Math.max(0.3, Math.min(5, camera.zoom * delta));
+  camera.x = (mx / camera.zoom) - worldX;
+  camera.y = (my / camera.zoom) - worldY;
+}, { passive: false });
+
+// Right-click / ESC to deselect
+wrap.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  cancelMode();
+});
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { cancelMode(); return; }
+  if (!gameState) return;
+  if (e.key === ' ' || e.key === 'p') { e.preventDefault(); toggleSpeed(speed === 0 ? 1 : 0); return; }
+  if (e.key === '1') { toggleSpeed(1); return; }
+  if (e.key === '2') { toggleSpeed(5); return; }
+  if (e.key === '3') { toggleSpeed(20); return; }
+  if (e.key === 'b') { toggleBuildBar(); return; }
+  if (e.key === 'r') { toggleResearch(); return; }
+  if (e.key === 't') { enterClaimMode(); return; }
+});
+
+function cancelMode() {
+  if (mode === 'placing' || mode === 'claiming') {
+    mode = 'normal';
+    placingType = null;
+    document.getElementById('modeIndicator').classList.remove('visible');
+    return;
+  }
+  selectedEntity = null;
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('assignPicker').classList.remove('open');
+}
+
+function toggleSpeed(s) {
+  speed = s;
+  document.querySelectorAll('[data-speed]').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.speed) === speed);
+  });
+}
+
+// ============================================================
+// Click handling
+// ============================================================
+function handleClick(e) {
+  if (!gameState) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const wx = Math.floor(((mx / camera.zoom) - camera.x) / TILE);
+  const wy = Math.floor(((my / camera.zoom) - camera.y) / TILE);
+  if (wx < 0 || wx >= gameState.width || wy < 0 || wy >= gameState.height) return;
+
+  // Close assign picker on any click outside
+  document.getElementById('assignPicker').classList.remove('open');
+
+  if (mode === 'placing' && placingType) {
+    attemptPlace(wx, wy);
+    return;
+  }
+
+  if (mode === 'claiming') {
+    attemptClaim(wx, wy);
+    return;
+  }
+
+  // Normal mode — select entity
+  selectAt(wx, wy);
+}
+
+function selectAt(wx, wy) {
+  const gs = gameState;
+  if (!gs.fog[wy][wx]) return;
+
+  // Villager first (they're on top)
+  const v = gs.villagers.find(v => v.x === wx && v.y === wy);
+  if (v) { selectEntity('villager', v.id); return; }
+
+  // Enemy
+  const en = gs.enemies.find(e => e.x === wx && e.y === wy);
+  if (en) { selectEntity('enemy', en.id); return; }
+
+  // Animal
+  const an = gs.animals.find(a => a.x === wx && a.y === wy);
+  if (an) { selectEntity('animal', an.id); return; }
+
+  // Building (check all tiles of building)
+  const tile = gs.grid[wy][wx];
+  if (tile.building) { selectEntity('building', tile.building.id); return; }
+
+  // Nothing — deselect
+  selectedEntity = null;
+  document.getElementById('detailPanel').classList.remove('open');
+}
+
+function selectEntity(type, id) {
+  selectedEntity = { type, id };
+  updateDetailPanel();
+}
+
+// ============================================================
+// Placement
+// ============================================================
+function attemptPlace(wx, wy) {
+  if (!gameState || !placingType) return;
+  const template = BUILDING_TEMPLATES[placingType];
+  if (!canPlace(wx, wy, template)) {
+    notify('Cannot place here', 'danger');
+    return;
+  }
+  const result = placeBuilding(gameState, placingType, wx, wy);
+  if (result !== gameState) {
+    gameState = result;
+    rebuildGridBuildings();
+    notify(`Placed ${formatType(placingType)}`, 'success');
+    updateBuildItems(); // refresh affordability
+  }
+  // Stay in placement mode for walls/fences, exit for others
+  if (placingType !== 'wall' && placingType !== 'fence') {
+    mode = 'normal';
+    placingType = null;
+    document.getElementById('modeIndicator').classList.remove('visible');
+  }
+}
+
+function canPlace(wx, wy, template) {
+  const gs = gameState;
+  const w = template.width;
+  const h = template.height;
+  for (let dy = 0; dy < h; dy++) {
+    for (let dx = 0; dx < w; dx++) {
+      const tx = wx + dx;
+      const ty = wy + dy;
+      if (tx >= gs.width || ty >= gs.height || tx < 0 || ty < 0) return false;
+      if (!gs.fog[ty][tx] || !gs.territory[ty][tx]) return false;
+      const tile = gs.grid[ty][tx];
+      if (tile.building) return false;
+      if (tile.terrain === 'water') return false;
+      if (!template.allowedTerrain.includes(tile.terrain)) return false;
+    }
+  }
+  // Check cost
+  for (const [res, amount] of Object.entries(template.cost)) {
+    if ((gs.resources[res] || 0) < amount) return false;
+  }
+  // Check construction points
+  if (gs.constructionPoints <= 0 && !['rubble'].includes(placingType)) return false;
+  return true;
+}
+
+function attemptClaim(wx, wy) {
+  if (!gameState) return;
+  const result = claimTerritory(gameState, wx, wy);
+  if (result !== gameState) {
+    gameState = result;
+    notify('Territory claimed', 'success');
+  } else {
+    notify('Cannot claim here', 'danger');
+  }
+}
+
+// ============================================================
+// Hover / Tooltip
+// ============================================================
+function updateHover(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const wx = Math.floor(((mx / camera.zoom) - camera.x) / TILE);
+  const wy = Math.floor(((my / camera.zoom) - camera.y) / TILE);
+
+  if (wx >= 0 && wx < gameState.width && wy >= 0 && wy < gameState.height) {
+    hoveredTile = { x: wx, y: wy };
+    if (mode === 'placing') {
+      const template = BUILDING_TEMPLATES[placingType];
+      placingValid = canPlace(wx, wy, template);
+    }
+    updateTooltip(wx, wy, e.clientX, e.clientY);
+  } else {
+    hoveredTile = null;
+    tooltip.style.display = 'none';
+  }
+}
+
+function updateTooltip(tx, ty, mx, my) {
+  const gs = gameState;
+  const tile = gs.grid[ty][tx];
+  const ttTitle = tooltip.querySelector('.tt-title');
+  const ttDetail = tooltip.querySelector('.tt-detail');
+
+  if (!gs.fog[ty][tx]) {
+    tooltip.style.display = 'none';
+    return;
+  }
+
+  const villagersHere = gs.villagers.filter(v => v.x === tx && v.y === ty);
+  const enemiesHere = gs.enemies.filter(e => e.x === tx && e.y === ty);
+  const animalsHere = gs.animals.filter(a => a.x === tx && a.y === ty);
+  const dropsHere = gs.resourceDrops.filter(d => d.x === tx && d.y === ty);
+
+  let title = '';
+  let detail = '';
+
+  if (villagersHere.length) {
+    const v = villagersHere[0];
+    title = v.name;
+    detail = `${formatRole(v.role)} — ${formatState(v.state)}\nHP: ${v.hp}/${v.maxHp}  Food: ${Math.round(v.food)}`;
+  } else if (enemiesHere.length) {
+    const en = enemiesHere[0];
+    title = formatType(en.type);
+    detail = `HP: ${en.hp}/${en.maxHp}  ATK: ${en.attack}`;
+  } else if (tile.building) {
+    const b = tile.building;
+    title = formatType(b.type);
+    detail = b.constructed
+      ? `HP: ${b.hp}/${b.maxHp}  Workers: ${b.assignedWorkers.length}`
+      : `Building... ${Math.round(b.constructionProgress / b.constructionRequired * 100)}%`;
+    const bufEntries = Object.entries(b.localBuffer).filter(([,v]) => v > 0);
+    if (bufEntries.length) detail += '\n' + bufEntries.map(([k,v]) => `${formatType(k)}: ${v}`).join(', ');
+  } else if (animalsHere.length) {
+    const a = animalsHere[0];
+    title = formatType(a.type);
+    detail = `HP: ${a.hp}/${a.maxHp}`;
+  } else if (dropsHere.length) {
+    title = 'Resource Drop';
+    detail = Object.entries(dropsHere[0].resources).map(([k,v]) => `${formatType(k)}: ${v}`).join(', ');
+  } else {
+    title = formatType(tile.terrain);
+    detail = tile.deposit ? `Deposit: ${formatType(tile.deposit)}` : '';
+  }
+
+  if (!title) { tooltip.style.display = 'none'; return; }
+
+  ttTitle.textContent = title;
+  ttDetail.textContent = detail;
+  tooltip.style.display = 'block';
+
+  const ttr = tooltip.getBoundingClientRect();
+  let left = mx + 12;
+  let top = my - 8;
+  if (left + ttr.width > window.innerWidth - 10) left = mx - ttr.width - 12;
+  if (top + ttr.height > window.innerHeight - 10) top = my - ttr.height + 8;
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+}
+
+function formatType(s) { return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
+function formatRole(r) { return r === 'idle' ? 'Idle' : formatType(r.replace('_worker', '')); }
+function formatState(s) { return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
+
+// ============================================================
+// Rendering
+// ============================================================
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function render(timestamp) {
+  animFrame++;
+
+  // Tick the simulation
+  if (gameState && speed > 0) {
+    const dt = timestamp - lastFrameTime;
+    // Target: 4 ticks/sec at 1x speed = 250ms per tick (~17min per day, RimWorld pacing)
+    tickAccumulator += dt * speed;
+    const tickInterval = 250;
+    let ticksThisFrame = 0;
+    const maxTicksPerFrame = speed <= 1 ? 1 : speed * 2;
+    while (tickAccumulator >= tickInterval && ticksThisFrame < maxTicksPerFrame) {
+      gameState = tick(gameState);
+      rebuildGridBuildings();
+      tickAccumulator -= tickInterval;
+      ticksThisFrame++;
+    }
+    if (tickAccumulator > tickInterval * 3) tickAccumulator = 0; // prevent spiral
+  }
+  lastFrameTime = timestamp;
+
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = COLORS.fog;
+  ctx.fillRect(0, 0, w, h);
+
+  if (!gameState) {
+    requestAnimationFrame(render);
+    return;
+  }
+
+  ctx.save();
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(camera.x, camera.y);
+
+  drawTerrain();
+  drawTerritory();
+  drawBuildings();
+  drawResourceDrops();
+  drawAnimals();
+  drawEnemies();
+  drawVillagers();
+  drawCaravans();
+  drawFog();
+  drawPlacementPreview();
+  drawClaimableOverlay();
+  drawSelection();
+  drawHover();
+  drawNight();
+
+  ctx.restore();
+
+  updatePanel();
+
+  requestAnimationFrame(render);
+}
+
+function drawTerrain() {
+  const gs = gameState;
+  for (let y = 0; y < gs.height; y++) {
+    for (let x = 0; x < gs.width; x++) {
+      if (!gs.fog[y][x]) continue;
+      const tile = gs.grid[y][x];
+      const px = x * TILE;
+      const py = y * TILE;
+      switch (tile.terrain) {
+        case 'grass':
+          ctx.fillStyle = (x + y) % 2 === 0 ? COLORS.grass : COLORS.grassAlt;
+          ctx.fillRect(px, py, TILE, TILE);
+          break;
+        case 'forest':
+          ctx.fillStyle = COLORS.grass;
+          ctx.fillRect(px, py, TILE, TILE);
+          ctx.fillStyle = (x + y) % 3 === 0 ? COLORS.forest : COLORS.forestDark;
+          ctx.beginPath();
+          ctx.arc(px + HALF, py + HALF, HALF * 0.7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#8a7a60';
+          ctx.fillRect(px + HALF - 1.5, py + HALF + 2, 3, 5);
+          break;
+        case 'water':
+          ctx.fillStyle = (animFrame + x + y) % 30 < 15 ? COLORS.water : COLORS.waterDeep;
+          ctx.fillRect(px, py, TILE, TILE);
+          break;
+        case 'stone':
+          ctx.fillStyle = (x + y) % 2 === 0 ? COLORS.stone : COLORS.stoneDark;
+          ctx.fillRect(px, py, TILE, TILE);
+          break;
+      }
+      if (tile.deposit) {
+        const dc = tile.deposit === 'iron' ? COLORS.iron : tile.deposit === 'fertile' ? COLORS.fertile : COLORS.herbs;
+        ctx.fillStyle = dc;
+        ctx.beginPath();
+        ctx.moveTo(px + HALF, py + 3);
+        ctx.lineTo(px + HALF + 4, py + HALF);
+        ctx.lineTo(px + HALF, py + TILE - 3);
+        ctx.lineTo(px + HALF - 4, py + HALF);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+}
+
+function drawTerritory() {
+  const gs = gameState;
+  ctx.fillStyle = COLORS.territory;
+  for (let y = 0; y < gs.height; y++) {
+    for (let x = 0; x < gs.width; x++) {
+      if (gs.territory[y][x] && gs.fog[y][x]) {
+        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      }
+    }
+  }
+}
+
+function drawBuildings() {
+  const gs = gameState;
+  for (const b of gs.buildings) {
+    if (!gs.fog[b.y]?.[b.x]) continue;
+    const px = b.x * TILE;
+    const py = b.y * TILE;
+    const bw = b.width * TILE;
+    const bh = b.height * TILE;
+    const cat = BUILDING_CATEGORY[b.type] || 'utility';
+    const [fill, stroke] = CATEGORY_COLORS[cat] || CATEGORY_COLORS.utility;
+
+    if (!b.constructed) {
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(px + 2, py + 2, bw - 4, bh - 4);
+      ctx.setLineDash([]);
+      const pct = b.constructionProgress / b.constructionRequired;
+      ctx.fillStyle = COLORS.construction;
+      ctx.fillRect(px + 3, py + bh - 5, (bw - 6) * pct, 3);
+      continue;
+    }
+
+    ctx.fillStyle = fill;
+    roundRect(ctx, px + 1, py + 1, bw - 2, bh - 2, 3);
+    ctx.fill();
+    ctx.fillStyle = stroke;
+    ctx.fillRect(px + 2, py + bh - 4, bw - 4, 2);
+
+    drawBuildingIcon(b, px, py, bw, bh, stroke);
+
+    if (b.onFire) {
+      ctx.fillStyle = 'rgba(220, 80, 30, ' + (0.4 + 0.2 * Math.sin(animFrame * 0.2)) + ')';
+      ctx.fillRect(px, py, bw, bh);
+    }
+    if (b.hp < b.maxHp) {
+      const hpPct = b.hp / b.maxHp;
+      ctx.fillStyle = hpPct > 0.5 ? 'rgba(200,180,50,0.3)' : 'rgba(196,92,74,0.3)';
+      ctx.fillRect(px, py, bw, bh * (1 - hpPct));
+    }
+  }
+}
+
+function drawBuildingIcon(b, px, py, bw, bh, color) {
+  const cx = px + bw / 2;
+  const cy = py + bh / 2;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.2;
+  switch (b.type) {
+    case 'house': case 'tent': case 'manor':
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 5); ctx.lineTo(cx + 5, cy + 1); ctx.lineTo(cx - 5, cy + 1);
+      ctx.closePath(); ctx.fill();
+      ctx.fillRect(cx - 3, cy + 1, 6, 4);
+      break;
+    case 'farm': case 'large_farm':
+      for (let i = -3; i <= 3; i += 3) {
+        ctx.beginPath(); ctx.moveTo(cx + i, cy + 4); ctx.lineTo(cx + i, cy - 3); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx + i, cy - 4, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+      break;
+    case 'wall': case 'fence':
+      if (b.type === 'wall') ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 6);
+      else ctx.strokeRect(px + 4, py + 4, TILE - 8, TILE - 8);
+      break;
+    case 'gate':
+      ctx.strokeRect(px + 4, py + 4, TILE - 8, TILE - 8);
+      ctx.beginPath(); ctx.moveTo(px + 4, cy); ctx.lineTo(px + TILE - 4, cy); ctx.stroke();
+      break;
+    case 'watchtower':
+      ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI * 2); ctx.fill();
+      break;
+    case 'storehouse': case 'large_storehouse': case 'outpost':
+      ctx.strokeRect(cx - 5, cy - 3, 10, 7);
+      ctx.beginPath(); ctx.moveTo(cx - 5, cy); ctx.lineTo(cx + 5, cy); ctx.stroke();
+      break;
+    case 'town_hall':
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 6); ctx.lineTo(cx + 4, cy + 4); ctx.lineTo(cx - 4, cy + 4);
+      ctx.closePath(); ctx.fill();
+      break;
+    default:
+      ctx.fillRect(cx - 3, cy - 3, 6, 6);
+      break;
+  }
+}
+
+function drawVillagers() {
+  const gs = gameState;
+  for (const v of gs.villagers) {
+    if (!gs.fog[v.y]?.[v.x]) continue;
+    const px = v.x * TILE + HALF;
+    const py = v.y * TILE + HALF;
+    const isMoving = v.state.includes('traveling') || v.state === 'hunting' || v.state === 'scouting';
+    const bob = isMoving ? Math.sin(animFrame * 0.3 + v.x * 3) * 1.5 : 0;
+    const stateCol = STATE_COLORS[v.state] || COLORS.villagerOut;
+
+    ctx.fillStyle = stateCol;
+    ctx.beginPath(); ctx.arc(px, py + bob, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = COLORS.villager;
+    ctx.beginPath(); ctx.arc(px, py + bob, 3.2, 0, Math.PI * 2); ctx.fill();
+
+    if (v.carryTotal > 0) {
+      ctx.fillStyle = COLORS.drop;
+      ctx.beginPath(); ctx.arc(px, py + bob + 6, 2, 0, Math.PI * 2); ctx.fill();
+    }
+    if (v.role === 'guard') {
+      ctx.strokeStyle = COLORS.milDark;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(px + 4, py + bob - 5); ctx.lineTo(px + 7, py + bob - 8); ctx.stroke();
+    }
+    if (v.sick) {
+      ctx.fillStyle = 'rgba(100, 180, 100, 0.35)';
+      ctx.beginPath(); ctx.arc(px, py + bob, 5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+function drawEnemies() {
+  const gs = gameState;
+  for (const e of gs.enemies) {
+    if (!gs.fog[e.y]?.[e.x]) continue;
+    const px = e.x * TILE + HALF;
+    const py = e.y * TILE + HALF;
+    ctx.fillStyle = COLORS.enemyGlow;
+    ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = COLORS.enemy;
+    ctx.beginPath();
+    ctx.moveTo(px, py - 5); ctx.lineTo(px + 4, py); ctx.lineTo(px, py + 5); ctx.lineTo(px - 4, py);
+    ctx.closePath(); ctx.fill();
+    if (e.siege && e.siege !== 'none') {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+}
+
+function drawAnimals() {
+  const gs = gameState;
+  for (const a of gs.animals) {
+    if (!gs.fog[a.y]?.[a.x]) continue;
+    const px = a.x * TILE + HALF;
+    const py = a.y * TILE + HALF;
+    ctx.fillStyle = a.behavior === 'passive' ? COLORS.animalPass : COLORS.animalHost;
+    ctx.beginPath();
+    ctx.moveTo(px, py - 4); ctx.lineTo(px + 3.5, py + 3); ctx.lineTo(px - 3.5, py + 3);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+function drawResourceDrops() {
+  const gs = gameState;
+  for (const d of gs.resourceDrops) {
+    if (!gs.fog[d.y]?.[d.x]) continue;
+    const px = d.x * TILE + HALF;
+    const py = d.y * TILE + HALF;
+    const pulse = 2.5 + Math.sin(animFrame * 0.1) * 0.8;
+    ctx.fillStyle = COLORS.drop;
+    ctx.strokeStyle = COLORS.dropOut;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(px, py, pulse, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+}
+
+function drawCaravans() {
+  const gs = gameState;
+  if (gs.merchant) {
+    const m = gs.merchant;
+    if (gs.fog[m.y]?.[m.x]) {
+      const px = m.x * TILE + HALF;
+      const py = m.y * TILE + HALF;
+      ctx.fillStyle = COLORS.merchant;
+      roundRect(ctx, px - 5, py - 4, 10, 8, 2); ctx.fill();
+    }
+  }
+  for (const c of gs.caravans) {
+    if (!gs.fog[c.y]?.[c.x]) continue;
+    const px = c.x * TILE + HALF;
+    const py = c.y * TILE + HALF;
+    ctx.fillStyle = COLORS.caravan;
+    roundRect(ctx, px - 4, py - 3, 8, 6, 2); ctx.fill();
+  }
+}
+
+function drawFog() {
+  const gs = gameState;
+  ctx.fillStyle = COLORS.fog;
+  for (let y = 0; y < gs.height; y++) {
+    for (let x = 0; x < gs.width; x++) {
+      if (!gs.fog[y][x]) ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+    }
+  }
+  ctx.fillStyle = COLORS.fogEdge;
+  for (let y = 0; y < gs.height; y++) {
+    for (let x = 0; x < gs.width; x++) {
+      if (gs.fog[y][x]) {
+        if (y > 0 && !gs.fog[y-1][x]) ctx.fillRect(x * TILE, y * TILE, TILE, 2);
+        if (y < gs.height-1 && !gs.fog[y+1][x]) ctx.fillRect(x * TILE, (y+1) * TILE - 2, TILE, 2);
+        if (x > 0 && !gs.fog[y][x-1]) ctx.fillRect(x * TILE, y * TILE, 2, TILE);
+        if (x < gs.width-1 && !gs.fog[y][x+1]) ctx.fillRect((x+1) * TILE - 2, y * TILE, 2, TILE);
+      }
+    }
+  }
+}
+
+function drawPlacementPreview() {
+  if (mode !== 'placing' || !hoveredTile || !placingType) return;
+  const template = BUILDING_TEMPLATES[placingType];
+  const w = template.width;
+  const h = template.height;
+  ctx.fillStyle = placingValid ? COLORS.placement : COLORS.placementBad;
+  ctx.fillRect(hoveredTile.x * TILE, hoveredTile.y * TILE, w * TILE, h * TILE);
+  ctx.strokeStyle = placingValid ? '#6b9a6b' : '#c45c4a';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(hoveredTile.x * TILE + 0.5, hoveredTile.y * TILE + 0.5, w * TILE - 1, h * TILE - 1);
+}
+
+function drawClaimableOverlay() {
+  if (mode !== 'claiming') return;
+  const gs = gameState;
+  ctx.fillStyle = COLORS.claimable;
+  for (let y = 0; y < gs.height; y++) {
+    for (let x = 0; x < gs.width; x++) {
+      if (!gs.territory[y][x] && gs.fog[y][x]) {
+        // Check if adjacent to existing territory
+        let adj = false;
+        if (y > 0 && gs.territory[y-1][x]) adj = true;
+        if (y < gs.height-1 && gs.territory[y+1][x]) adj = true;
+        if (x > 0 && gs.territory[y][x-1]) adj = true;
+        if (x < gs.width-1 && gs.territory[y][x+1]) adj = true;
+        if (adj) ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      }
+    }
+  }
+}
+
+function drawSelection() {
+  if (!selectedEntity || !gameState) return;
+  const gs = gameState;
+  let x, y, w = 1, h = 1;
+  if (selectedEntity.type === 'villager') {
+    const v = gs.villagers.find(v => v.id === selectedEntity.id);
+    if (!v) return;
+    x = v.x; y = v.y;
+  } else if (selectedEntity.type === 'building') {
+    const b = gs.buildings.find(b => b.id === selectedEntity.id);
+    if (!b) return;
+    x = b.x; y = b.y; w = b.width; h = b.height;
+  } else if (selectedEntity.type === 'enemy') {
+    const e = gs.enemies.find(e => e.id === selectedEntity.id);
+    if (!e) return;
+    x = e.x; y = e.y;
+  } else if (selectedEntity.type === 'animal') {
+    const a = gs.animals.find(a => a.id === selectedEntity.id);
+    if (!a) return;
+    x = a.x; y = a.y;
+  }
+  if (x === undefined) return;
+  ctx.strokeStyle = COLORS.select;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x * TILE - 1, y * TILE - 1, w * TILE + 2, h * TILE + 2);
+}
+
+function drawHover() {
+  if (!hoveredTile || mode === 'placing') return;
+  ctx.strokeStyle = 'rgba(180, 160, 120, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(hoveredTile.x * TILE, hoveredTile.y * TILE, TILE, TILE);
+}
+
+function drawNight() {
+  if (!gameState) return;
+  const dayTick = gameState.tick % 120;
+  if (dayTick < 30) {
+    const intensity = dayTick < 5 ? 0.18 : dayTick < 25 ? 0.18 : 0.18 * (1 - (dayTick - 25) / 5);
+    ctx.fillStyle = `rgba(30, 30, 60, ${intensity})`;
+    ctx.fillRect(-1000, -1000, gameState.width * TILE + 2000, gameState.height * TILE + 2000);
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ============================================================
+// Minimap
+// ============================================================
+let minimapDirty = 0;
+function drawMinimap() {
+  if (!gameState) return;
+  minimapDirty++;
+  if (minimapDirty % 30 !== 0) return; // update every ~30 frames
+  const gs = gameState;
+  const mw = 120;
+  const mh = Math.round((gs.height / gs.width) * mw);
+  miniCanvas.width = mw;
+  miniCanvas.height = mh;
+  const sx = mw / gs.width;
+  const sy = mh / gs.height;
+
+  miniCtx.fillStyle = COLORS.fog;
+  miniCtx.fillRect(0, 0, mw, mh);
+
+  for (let y = 0; y < gs.height; y++) {
+    for (let x = 0; x < gs.width; x++) {
+      if (!gs.fog[y][x]) continue;
+      const tile = gs.grid[y][x];
+      let c = COLORS.grass;
+      if (tile.terrain === 'water') c = COLORS.water;
+      else if (tile.terrain === 'forest') c = COLORS.forest;
+      else if (tile.terrain === 'stone') c = COLORS.stone;
+      if (tile.building) {
+        const cat = BUILDING_CATEGORY[tile.building.type] || 'utility';
+        c = CATEGORY_COLORS[cat][0];
+      }
+      miniCtx.fillStyle = c;
+      miniCtx.fillRect(x * sx, y * sy, Math.ceil(sx), Math.ceil(sy));
+    }
+  }
+  // Villagers as white dots
+  miniCtx.fillStyle = '#fff';
+  for (const v of gs.villagers) {
+    miniCtx.fillRect(v.x * sx, v.y * sy, 2, 2);
+  }
+  // Enemies as red dots
+  miniCtx.fillStyle = COLORS.enemy;
+  for (const e of gs.enemies) {
+    miniCtx.fillRect(e.x * sx, e.y * sy, 2, 2);
+  }
+  // Camera viewport
+  const vw = wrap.clientWidth / (camera.zoom * TILE);
+  const vh = wrap.clientHeight / (camera.zoom * TILE);
+  const vx = -camera.x / TILE;
+  const vy = -camera.y / TILE;
+  miniCtx.strokeStyle = 'rgba(193, 127, 89, 0.7)';
+  miniCtx.lineWidth = 1;
+  miniCtx.strokeRect(vx * sx, vy * sy, vw * sx, vh * sy);
+}
+
+// Click minimap to move camera
+miniCanvas.addEventListener('click', e => {
+  if (!gameState) return;
+  const rect = miniCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const sx = miniCanvas.width / gameState.width;
+  const sy = miniCanvas.height / gameState.height;
+  const tx = mx / sx;
+  const ty = my / sy;
+  camera.x = -(tx * TILE) + wrap.clientWidth / (2 * camera.zoom);
+  camera.y = -(ty * TILE) + wrap.clientHeight / (2 * camera.zoom);
+});
+
+// ============================================================
+// Side panel updates
+// ============================================================
+let panelDirty = 4; // start at 4 so first call (5 % 5 === 0) passes the gate
+function updatePanel() {
+  if (!gameState) return;
+  panelDirty++;
+  if (panelDirty % 5 !== 0) return;
+
+  const gs = gameState;
+
+  document.getElementById('statDay').textContent = gs.day;
+  document.getElementById('statTick').textContent = gs.tick % TICKS_PER_DAY;
+  document.getElementById('statPop').textContent = gs.villagers.length;
+  document.getElementById('statProsperity').textContent = Math.round(gs.prosperity);
+  document.getElementById('statCP').textContent = gs.constructionPoints;
+
+  const badge = document.getElementById('seasonBadge');
+  badge.textContent = formatType(gs.season);
+  badge.className = 'season-badge season-' + gs.season;
+  document.getElementById('statWeather').textContent = formatType(gs.weather);
+
+  // Resources
+  const grid = document.getElementById('resourceGrid');
+  const displayResources = ['food', 'wheat', 'bread', 'wood', 'stone', 'planks', 'iron_ore', 'ingots', 'herbs', 'gold'];
+  grid.innerHTML = displayResources.map(r => {
+    const v = gs.resources[r] || 0;
+    return `<div class="resource-item"><span class="name">${formatType(r)}</span><span class="value">${Math.round(v)}</span></div>`;
+  }).join('');
+
+  // Raid bar
+  document.getElementById('raidBar').style.width = Math.min(100, gs.raidBar || 0) + '%';
+
+  // Villagers
+  const list = document.getElementById('villagerList');
+  list.innerHTML = gs.villagers.slice(0, 24).map(v => {
+    const stateCol = STATE_COLORS[v.state] || '#8a8070';
+    const sel = selectedEntity?.type === 'villager' && selectedEntity.id === v.id ? ' selected' : '';
+    return `<div class="villager-row${sel}" data-vid="${v.id}">
+      <div class="villager-dot" style="background:${stateCol}"></div>
+      <span class="villager-name">${v.name}</span>
+      <span class="villager-role">${formatRole(v.role)}</span>
+    </div>`;
+  }).join('');
+
+  // Click villager rows - handled by delegation below
+
+  // Events — detect new ones for notifications
+  const events = gs.events || [];
+  if (events.length > prevEventCount) {
+    for (let i = prevEventCount; i < events.length; i++) {
+      const ev = events[i];
+      const isDanger = ev.toLowerCase().includes('raid') || ev.toLowerCase().includes('died') || ev.toLowerCase().includes('destroyed');
+      notify(ev, isDanger ? 'danger' : '');
+    }
+  }
+  prevEventCount = events.length;
+
+  const log = document.getElementById('eventLog');
+  log.innerHTML = events.slice(-8).reverse().map(e =>
+    `<div class="event-line">${e}</div>`
+  ).join('');
+
+  // Update detail panel if open
+  if (selectedEntity) updateDetailPanel();
+
+  // Minimap
+  drawMinimap();
+}
+
+// ============================================================
+// Detail Panel
+// ============================================================
+function updateDetailPanel() {
+  if (!selectedEntity || !gameState) return;
+  const gs = gameState;
+  const panel = document.getElementById('detailPanel');
+  let html = '';
+
+  if (selectedEntity.type === 'villager') {
+    const v = gs.villagers.find(v => v.id === selectedEntity.id);
+    if (!v) { panel.classList.remove('open'); selectedEntity = null; return; }
+    const hpPct = v.hp / v.maxHp * 100;
+    const hpColor = hpPct > 50 ? '#6b9a6b' : hpPct > 25 ? '#d4a040' : '#c45c4a';
+    html = `
+      <div class="detail-header">
+        <div>
+          <div class="detail-title">${v.name}</div>
+          <div class="detail-subtitle">${formatRole(v.role)} — ${formatState(v.state)}</div>
+        </div>
+        <button class="detail-close" onclick="window._cancelMode()">&times;</button>
+      </div>
+      <div class="hp-bar-wrap"><div class="hp-bar-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
+      <div class="detail-row"><span class="dr-label">HP</span><span class="dr-value">${v.hp}/${v.maxHp}</span></div>
+      <div class="detail-row"><span class="dr-label">Food</span><span class="dr-value">${Math.round(v.food * 10) / 10}</span></div>
+      <div class="detail-row"><span class="dr-label">Morale</span><span class="dr-value">${Math.round(v.morale)}</span></div>
+      <div class="detail-row"><span class="dr-label">Tool</span><span class="dr-value">${formatType(v.tool)}</span></div>
+      <div class="detail-row"><span class="dr-label">Weapon</span><span class="dr-value">${formatType(v.weapon || 'none')}</span></div>
+      <div class="detail-row"><span class="dr-label">Position</span><span class="dr-value">(${v.x}, ${v.y})</span></div>
+      ${v.sick ? '<div class="detail-row"><span class="dr-label">Status</span><span class="dr-value" style="color:var(--danger)">Sick</span></div>' : ''}
+      <div class="detail-section">
+        <h4>Skills</h4>
+        ${Object.entries(v.skills).map(([k, val]) => `<div class="detail-row"><span class="dr-label">${formatType(k)}</span><span class="dr-value">${val}</span></div>`).join('')}
+      </div>
+      ${v.traits.length ? `<div class="detail-row"><span class="dr-label">Traits</span><span class="dr-value">${v.traits.map(formatType).join(', ')}</span></div>` : ''}
+      <div class="detail-section">
+        <h4>Commands</h4>
+        <div class="detail-actions">
+          ${v.role !== 'guard' ? `<button class="btn small" onclick="window._setGuard('${v.id}')">Set Guard</button>` : ''}
+          <button class="btn small" onclick="window._showAssignPicker('${v.id}')">Assign Job</button>
+          ${v.role === 'guard' ? `<button class="btn small" onclick="window._sendScout('${v.id}')">Scout</button>` : ''}
+        </div>
+      </div>
+    `;
+  } else if (selectedEntity.type === 'building') {
+    const b = gs.buildings.find(b => b.id === selectedEntity.id);
+    if (!b) { panel.classList.remove('open'); selectedEntity = null; return; }
+    const template = BUILDING_TEMPLATES[b.type];
+    const hpPct = b.hp / b.maxHp * 100;
+    const hpColor = hpPct > 50 ? '#6b9a6b' : hpPct > 25 ? '#d4a040' : '#c45c4a';
+    const workers = b.assignedWorkers.map(wid => gs.villagers.find(v => v.id === wid)).filter(Boolean);
+    const upgradePath = UPGRADE_PATHS[b.type];
+
+    html = `
+      <div class="detail-header">
+        <div>
+          <div class="detail-title">${formatType(b.type)}</div>
+          <div class="detail-subtitle">${b.constructed ? 'Constructed' : `Building ${Math.round(b.constructionProgress / b.constructionRequired * 100)}%`}</div>
+        </div>
+        <button class="detail-close" onclick="window._cancelMode()">&times;</button>
+      </div>
+      <div class="hp-bar-wrap"><div class="hp-bar-fill" style="width:${hpPct}%;background:${hpColor}"></div></div>
+      <div class="detail-row"><span class="dr-label">HP</span><span class="dr-value">${b.hp}/${b.maxHp}</span></div>
+      <div class="detail-row"><span class="dr-label">Position</span><span class="dr-value">(${b.x}, ${b.y})</span></div>
+      ${template.production ? `
+        <div class="detail-row"><span class="dr-label">Produces</span><span class="dr-value">${formatType(template.production.output)}</span></div>
+        ${template.production.inputs ? `<div class="detail-row"><span class="dr-label">Requires</span><span class="dr-value">${Object.entries(template.production.inputs).map(([k,v]) => `${v} ${formatType(k)}`).join(', ')}</span></div>` : ''}
+      ` : ''}
+      ${b.constructed ? `
+        <div class="detail-section">
+          <h4>Local Buffer</h4>
+          ${Object.entries(b.localBuffer).filter(([,v]) => v > 0).map(([k,v]) => `<div class="detail-row"><span class="dr-label">${formatType(k)}</span><span class="dr-value">${v}/${b.bufferCapacity}</span></div>`).join('') || '<div style="font-size:10px;color:var(--text-light)">Empty</div>'}
+        </div>
+        ${template.maxWorkers > 0 ? `
+          <div class="detail-section">
+            <h4>Workers (${workers.length}/${template.maxWorkers})</h4>
+            ${workers.map(w => `<div class="detail-row"><span class="dr-label">${w.name}</span><span class="dr-value">${formatState(w.state)}</span></div>`).join('')}
+            ${workers.length < template.maxWorkers ? `<button class="btn small" onclick="window._showAssignToBuilding('${b.id}')">Assign Worker</button>` : ''}
+          </div>
+        ` : ''}
+        ${upgradePath ? `
+          <div class="detail-section">
+            <h4>Upgrade</h4>
+            <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px">${formatType(upgradePath.to)} — ${Object.entries(upgradePath.cost).map(([k,v]) => `${v} ${formatType(k)}`).join(', ')}</div>
+            <button class="btn small" onclick="window._upgrade('${b.id}')">Upgrade</button>
+          </div>
+        ` : ''}
+      ` : ''}
+    `;
+  } else if (selectedEntity.type === 'enemy') {
+    const e = gs.enemies.find(e => e.id === selectedEntity.id);
+    if (!e) { panel.classList.remove('open'); selectedEntity = null; return; }
+    html = `
+      <div class="detail-header">
+        <div>
+          <div class="detail-title">${formatType(e.type)}</div>
+          <div class="detail-subtitle">Enemy</div>
+        </div>
+        <button class="detail-close" onclick="window._cancelMode()">&times;</button>
+      </div>
+      <div class="detail-row"><span class="dr-label">HP</span><span class="dr-value">${e.hp}/${e.maxHp}</span></div>
+      <div class="detail-row"><span class="dr-label">Attack</span><span class="dr-value">${e.attack}</span></div>
+      <div class="detail-row"><span class="dr-label">Defense</span><span class="dr-value">${e.defense}</span></div>
+      <div class="detail-row"><span class="dr-label">Position</span><span class="dr-value">(${e.x}, ${e.y})</span></div>
+      ${e.siege && e.siege !== 'none' ? `<div class="detail-row"><span class="dr-label">Siege</span><span class="dr-value">${formatType(e.siege)}</span></div>` : ''}
+    `;
+  } else if (selectedEntity.type === 'animal') {
+    const a = gs.animals.find(a => a.id === selectedEntity.id);
+    if (!a) { panel.classList.remove('open'); selectedEntity = null; return; }
+    html = `
+      <div class="detail-header">
+        <div>
+          <div class="detail-title">${formatType(a.type)}</div>
+          <div class="detail-subtitle">${formatType(a.behavior)}</div>
+        </div>
+        <button class="detail-close" onclick="window._cancelMode()">&times;</button>
+      </div>
+      <div class="detail-row"><span class="dr-label">HP</span><span class="dr-value">${a.hp}/${a.maxHp}</span></div>
+      <div class="detail-row"><span class="dr-label">Position</span><span class="dr-value">(${a.x}, ${a.y})</span></div>
+    `;
+  }
+
+  panel.innerHTML = html;
+  panel.classList.add('open');
+}
+
+// ============================================================
+// Build bar
+// ============================================================
+function initBuildBar() {
+  const catContainer = document.getElementById('buildCategories');
+  const categories = Object.keys(CATEGORY_LABELS);
+
+  catContainer.innerHTML = categories.map(cat =>
+    `<button class="cat-btn" data-cat="${cat}">${CATEGORY_LABELS[cat]}</button>`
+  ).join('');
+
+  catContainer.querySelectorAll('.cat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      catContainer.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      showBuildItems(btn.dataset.cat);
+      document.getElementById('buildbar').classList.add('open');
+    });
+  });
+
+  // Start with housing open
+  showBuildItems('housing');
+  document.getElementById('buildbar').classList.add('open');
+  catContainer.querySelector('[data-cat="housing"]')?.classList.add('active');
+}
+
+function showBuildItems(category) {
+  const container = document.getElementById('buildItems');
+  const types = Object.entries(BUILDING_TEMPLATES).filter(([type]) => {
+    return BUILDING_CATEGORY[type] === category && type !== 'rubble';
+  });
+
+  container.innerHTML = types.map(([type, template]) => {
+    const costStr = Object.entries(template.cost).map(([k, v]) => `${v} ${formatType(k)}`).join(', ');
+    const canAfford = gameState ? Object.entries(template.cost).every(([k, v]) => (gameState.resources[k] || 0) >= v) : false;
+    const hasCP = gameState ? gameState.constructionPoints > 0 : false;
+    const disabled = (!canAfford || !hasCP) ? ' disabled' : '';
+    const desc = template.description || '';
+    return `<div class="build-item${disabled}" data-type="${type}">
+      <div class="bi-name">${formatType(type)}</div>
+      <div class="bi-cost">${costStr || 'Free'}</div>
+      ${desc ? `<div class="bi-desc">${desc}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  container.querySelectorAll('.build-item:not(.disabled)').forEach(item => {
+    item.addEventListener('click', () => enterPlacementMode(item.dataset.type));
+  });
+}
+
+function updateBuildItems() {
+  const activeBtn = document.querySelector('.cat-btn.active');
+  if (activeBtn) showBuildItems(activeBtn.dataset.cat);
+}
+
+function enterPlacementMode(type) {
+  mode = 'placing';
+  placingType = type;
+  const indicator = document.getElementById('modeIndicator');
+  document.getElementById('modeText').textContent = `Placing ${formatType(type)} — click to build`;
+  indicator.classList.add('visible');
+}
+
+function toggleBuildBar() {
+  document.getElementById('buildbar').classList.toggle('open');
+}
+
+// ============================================================
+// Research panel
+// ============================================================
+function toggleResearch() {
+  document.getElementById('researchOverlay').classList.toggle('open');
+  if (document.getElementById('researchOverlay').classList.contains('open')) {
+    renderResearch();
+  }
+}
+
+function renderResearch() {
+  if (!gameState) return;
+  const gs = gameState;
+  const grid = document.getElementById('techGrid');
+
+  const tiers = [1, 2, 3];
+  grid.innerHTML = tiers.map(tier => {
+    const techs = ALL_TECHS.filter(t => TECH_TREE[t].tier === tier);
+    return `
+      <div class="tech-tier-label">Tier ${tier}</div>
+      <div class="tech-tier-items">
+        ${techs.map(techId => {
+          const tech = TECH_TREE[techId];
+          const completed = gs.research.completed.includes(techId);
+          const inProgress = gs.research.current === techId;
+          const prereqsMet = tech.prerequisites.every(p => gs.research.completed.includes(p));
+          const locked = !completed && !prereqsMet;
+          const cls = completed ? 'completed' : inProgress ? 'in-progress' : locked ? 'locked' : '';
+
+          let progressHtml = '';
+          if (inProgress) {
+            const pct = Math.round(gs.research.progress / tech.cost * 100);
+            progressHtml = `<div class="tc-progress"><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div></div>`;
+          }
+
+          return `<div class="tech-card ${cls}" data-tech="${techId}">
+            <div class="tc-name">${tech.name}</div>
+            <div class="tc-desc">${tech.description}</div>
+            <div class="tc-cost">${completed ? 'Completed' : `Cost: ${tech.cost}`}${tech.prerequisites.length ? ` | Requires: ${tech.prerequisites.map(p => TECH_TREE[p].name).join(', ')}` : ''}</div>
+            ${progressHtml}
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  }).join('');
+
+  // Click handlers for tech cards
+  grid.querySelectorAll('.tech-card:not(.completed):not(.locked)').forEach(card => {
+    card.addEventListener('click', () => {
+      const techId = card.dataset.tech;
+      gameState = setResearch(gameState, techId);
+      renderResearch();
+      notify(`Researching: ${TECH_TREE[techId].name}`, 'success');
+    });
+  });
+}
+
+// ============================================================
+// Territory claim mode
+// ============================================================
+function enterClaimMode() {
+  mode = 'claiming';
+  const indicator = document.getElementById('modeIndicator');
+  document.getElementById('modeText').textContent = 'Click tiles to claim territory';
+  indicator.classList.add('visible');
+}
+
+// ============================================================
+// Notifications
+// ============================================================
+function notify(msg, type = '') {
+  const container = document.getElementById('notifications');
+  const el = document.createElement('div');
+  el.className = 'notif' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ============================================================
+// Command helpers (exposed to window for onclick)
+// ============================================================
+window._cancelMode = cancelMode;
+
+window._setGuard = (vid) => {
+  gameState = setGuard(gameState, vid);
+  notify('Guard assigned', 'success');
+};
+
+window._sendScout = (vid) => {
+  const dirs = ['n', 's', 'e', 'w'];
+  const dir = dirs[Math.floor(Math.random() * 4)];
+  gameState = sendScout(gameState, vid, dir);
+  notify(`Scout sent ${dir.toUpperCase()}`, 'success');
+};
+
+window._upgrade = (bid) => {
+  const prev = gameState;
+  gameState = upgradeBuilding(gameState, bid);
+  if (gameState !== prev) {
+    rebuildGridBuildings();
+    notify('Upgrade started', 'success');
+  } else {
+    notify('Cannot upgrade', 'danger');
+  }
+};
+
+window._showAssignPicker = (vid) => {
+  if (!gameState) return;
+  const picker = document.getElementById('assignPicker');
+  const buildings = gameState.buildings.filter(b => {
+    const t = BUILDING_TEMPLATES[b.type];
+    return t.maxWorkers > 0 && b.assignedWorkers.length < t.maxWorkers && b.constructed;
+  });
+  picker.innerHTML = buildings.map(b => {
+    const t = BUILDING_TEMPLATES[b.type];
+    return `<div class="assign-picker-item" data-bid="${b.id}">
+      <span>${formatType(b.type)}</span>
+      <span class="api-role">${b.assignedWorkers.length}/${t.maxWorkers}</span>
+    </div>`;
+  }).join('') || '<div style="padding:8px;font-size:11px;color:var(--text-muted)">No buildings with open slots</div>';
+
+  picker.querySelectorAll('.assign-picker-item').forEach(item => {
+    item.addEventListener('click', () => {
+      gameState = assignVillager(gameState, vid, item.dataset.bid);
+      picker.classList.remove('open');
+      notify('Worker assigned', 'success');
+    });
+  });
+
+  // Position near detail panel
+  picker.style.right = '270px';
+  picker.style.top = '100px';
+  picker.classList.add('open');
+};
+
+window._showAssignToBuilding = (bid) => {
+  if (!gameState) return;
+  const picker = document.getElementById('assignPicker');
+  const idleVillagers = gameState.villagers.filter(v => v.role === 'idle' || !v.jobBuildingId);
+  picker.innerHTML = idleVillagers.map(v =>
+    `<div class="assign-picker-item" data-vid="${v.id}">
+      <span>${v.name}</span>
+      <span class="api-role">${formatRole(v.role)}</span>
+    </div>`
+  ).join('') || '<div style="padding:8px;font-size:11px;color:var(--text-muted)">No idle villagers</div>';
+
+  picker.querySelectorAll('.assign-picker-item').forEach(item => {
+    item.addEventListener('click', () => {
+      gameState = assignVillager(gameState, item.dataset.vid, bid);
+      picker.classList.remove('open');
+      notify('Worker assigned', 'success');
+    });
+  });
+
+  picker.style.right = '270px';
+  picker.style.top = '100px';
+  picker.classList.add('open');
+};
+
+// ============================================================
+// Save / Load
+// ============================================================
+document.getElementById('btnSave').addEventListener('click', () => {
+  if (!gameState) return;
+  const json = JSON.stringify(gameState, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `colonysim-day${gameState.day}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  notify('Game saved', 'success');
+});
+
+document.getElementById('btnLoad').addEventListener('click', () => {
+  document.getElementById('fileInput').click();
+});
+
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const state = JSON.parse(ev.target.result);
+      loadState(state);
+      notify('Game loaded', 'success');
+    } catch (err) {
+      notify('Invalid JSON: ' + err.message, 'danger');
+    }
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('btnLoadLoading').addEventListener('click', () => {
+  document.getElementById('fileInput').click();
+});
+
+// Drag and drop
+document.addEventListener('dragover', e => {
+  e.preventDefault();
+  document.getElementById('dropOverlay').classList.add('visible');
+});
+document.addEventListener('dragleave', e => {
+  if (e.relatedTarget === null) document.getElementById('dropOverlay').classList.remove('visible');
+});
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  document.getElementById('dropOverlay').classList.remove('visible');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try { loadState(JSON.parse(ev.target.result)); } catch (err) { notify('Invalid JSON: ' + err.message, 'danger'); }
+  };
+  reader.readAsText(file);
+});
+
+// ============================================================
+// Loading / Init
+// ============================================================
+function loadState(state) {
+  gameState = state;
+  rebuildGridBuildings();
+  prevEventCount = (state.events || []).length;
+  camera.x = wrap.clientWidth / (2 * camera.zoom) - (state.width * TILE / 2);
+  camera.y = wrap.clientHeight / (2 * camera.zoom) - (state.height * TILE / 2);
+  document.getElementById('loading').classList.add('hidden');
+  initBuildBar();
+  updatePanel();
+}
+
+function rebuildGridBuildings() {
+  const gs = gameState;
+  for (let y = 0; y < gs.height; y++) {
+    for (let x = 0; x < gs.width; x++) {
+      gs.grid[y][x].building = null;
+    }
+  }
+  for (const b of gs.buildings) {
+    for (let dy = 0; dy < b.height; dy++) {
+      for (let dx = 0; dx < b.width; dx++) {
+        const ty = b.y + dy;
+        const tx = b.x + dx;
+        if (ty >= 0 && ty < gs.height && tx >= 0 && tx < gs.width) {
+          gs.grid[ty][tx].building = b;
+        }
+      }
+    }
+  }
+}
+
+// New Game
+document.getElementById('btnNewGame').addEventListener('click', () => {
+  const state = createWorld(200, 200);
+  loadState(state);
+  notify('New colony founded — place a storehouse!', 'success');
+});
+
+// Speed buttons
+document.querySelectorAll('[data-speed]').forEach(btn => {
+  btn.addEventListener('click', () => toggleSpeed(parseInt(btn.dataset.speed)));
+});
+
+// Research button
+document.getElementById('btnResearch').addEventListener('click', toggleResearch);
+document.getElementById('closeResearch').addEventListener('click', toggleResearch);
+
+// Territory button
+document.getElementById('btnTerritory').addEventListener('click', enterClaimMode);
+
+// Mode cancel button
+document.getElementById('modeCancel').addEventListener('click', cancelMode);
+
+// Villager list - event delegation
+document.getElementById('villagerList').addEventListener('click', e => {
+  const row = e.target.closest('.villager-row');
+  if (row && row.dataset.vid) selectEntity('villager', row.dataset.vid);
+});
+
+// ============================================================
+// Boot
+// ============================================================
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
