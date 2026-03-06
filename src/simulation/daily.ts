@@ -161,6 +161,16 @@ export function processDailyChecks(ts: TickState): void {
     v.homeless = v.homeBuildingId ? 0 : v.homeless + 1;
   }
 
+  // Building maintenance decay — 1 HP every 5 days for constructed buildings
+  // Exempt: walls, fences, gates, rubble, roads, unconstructed
+  const DECAY_EXEMPT: Set<string> = new Set(['wall', 'fence', 'gate', 'rubble', 'road']);
+  if (ts.newDay % 5 === 0) {
+    for (const b of ts.buildings) {
+      if (!b.constructed || DECAY_EXEMPT.has(b.type) || b.hp <= 0) continue;
+      b.hp = Math.max(1, b.hp - 1); // Never decay below 1 HP (rubble happens only from combat)
+    }
+  }
+
   // Spoilage — applies to storehouse buffers and global pool
   // Food cellar halves spoilage rate when constructed
   const hasFoodCellar = ts.buildings.some(b => b.type === 'food_cellar' && b.constructed);
