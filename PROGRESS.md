@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1270 tests passing (66 test files). 100-day stress test: 15 pop, 3 deaths, 0 errors, 11 techs researched, prosperity 90.
+- **Status**: V2 spatial simulation. 1291 tests passing (68 test files). 100-day stress test: 15 pop, 2 deaths, 0 errors, 10 techs researched, prosperity 80.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -13,6 +13,9 @@
   - **Combat skill leveling**: Guards/militia gain combat XP from fighting. +1 atk per 25 skill, +1 def per 50 skill. Fast learner boosts XP gain. 15 tests.
   - **Wall upgrades**: fence → wall → reinforced_wall. Reinforced wall (200 HP, requires siege_engineering + ingots). All defensive structures get siege_engineering +50% HP bonus. 13 tests.
   - **Storm movement penalty**: Storms halve villager travel speed (skip movement on odd ticks). Rain has no penalty. 3 tests.
+  - **24/7 guard patrol**: Guards now patrol at all hours (removed night patrol restriction).
+  - **Barracks**: Military housing (2x2, houses 4, +5 morale, comfort 2). Guards housed in barracks gain 2x combat XP. Requires military_tactics. 14 tests.
+  - **Training ground**: Military building (2x1, holds 2 guards). Guards gain 2 combat XP daily. Fast learner bonus. Assigning villagers makes them guards. Requires fortification. 7 tests.
   - **Bandit camps**: Persistent camps spawn at edges every 25 days. Raids originate from camps. Guards can assault/clear for gold+renown. Max 3 active.
   - **Environment**: Wildlife + hunting + self-defense. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth. Fire/disaster + wells. Disease + herb healing. Lightning.
   - **Morale**: Food variety (+5/+10). Tavern/recreation. Church (+10 nearby). Family bonds/grief. Decoration buildings (garden/fountain/statue). Festivals (+20 for 3 days).
@@ -146,11 +149,14 @@
 10. ~~Storm movement penalty~~ ✅ Done — storms halve villager travel speed. 3 tests.
 
 ### Remaining gaps:
-11. Guard night patrol (guards stop patrolling at night — should be 24/7)
-12. More housing variety (Bellwright has 6+ tiers, we have 3)
+11. ~~Guard night patrol~~ ✅ Fixed — guards now patrol 24/7
+12. More housing variety (Bellwright has 6+ tiers, we have tent/house/manor/inn/barracks)
 13. Forester building (renewable wood from tree planting)
-14. Smoking rack (food preservation variant)
-15. Barracks/staging ground (military rally point)
+14. ~~Barracks/staging ground~~ ✅ Done — barracks (military housing, 2x combat XP) + training ground (passive combat XP)
+15. Trap building (passive defense like Bellwright's trapper camp)
+16. Market pricing variance (supply/demand affecting trade prices)
+17. Villager relationships beyond family (friendships affect morale)
+18. Terrain variety (hills slow movement, forests provide wood cover)
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
