@@ -53,6 +53,8 @@ export function tick(state: GameState): GameState {
       patrolRoute: [...v.patrolRoute],
       recentMeals: [...v.recentMeals],
       family: [...v.family],
+      friends: [...v.friends],
+      coworkDays: { ...v.coworkDays },
     })),
     resources: { ...state.resources },
     buildings: state.buildings.map(b => ({

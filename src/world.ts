@@ -352,6 +352,13 @@ export const TAVERN_MORALE_THRESHOLD = 60;  // visit tavern only when morale < t
 export const TAVERN_MORALE_BOOST = 15;      // morale gained per tavern visit
 export const TAVERN_COOLDOWN_DAYS = 3;      // days between tavern visits
 
+// --- Friendships ---
+export const FRIENDSHIP_COWORK_THRESHOLD = 10; // days working together to become friends
+export const FRIENDSHIP_MORALE_BONUS = 3;      // morale bonus per living friend
+export const FRIENDSHIP_GRIEF_DAYS = 3;        // days of grief when friend dies
+export const FRIENDSHIP_GRIEF_PENALTY = 5;     // morale penalty during friend grief
+export const MAX_FRIENDS = 2;                  // max friends per villager
+
 // --- Clothing ---
 export const CLOTHING_DURABILITY = 10;      // days clothing lasts before wearing out
 
@@ -918,6 +925,9 @@ export interface Villager {
   previousRole: VillagerRole | null; // saved role for stand-down restoration
   // Expedition
   expeditionId: string | null;
+  // Friendships
+  friends: string[]; // IDs of friends (max 2)
+  coworkDays: Record<string, number>; // villagerId → days worked together
 }
 
 // --- Combat ---
@@ -1502,6 +1512,8 @@ export function createVillager(id: number, x: number, y: number): Villager {
     supplyRouteId: null,
     previousRole: null,
     expeditionId: null,
+    friends: [],
+    coworkDays: {},
   };
 }
 

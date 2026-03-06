@@ -16,6 +16,8 @@ import {
   GUARD_BASE_HP, GUARD_MORALE_HP_DIVISOR, ARMOR_BONUS_HP,
   VILLAGER_BASE_HP, HP_REGEN_PER_DAY, MEDICINE_REGEN_BONUS,
   FESTIVAL_MORALE_BOOST, FESTIVAL_DURATION,
+  FRIENDSHIP_COWORK_THRESHOLD, FRIENDSHIP_MORALE_BONUS,
+  FRIENDSHIP_GRIEF_DAYS, FRIENDSHIP_GRIEF_PENALTY, MAX_FRIENDS,
 } from '../world.js';
 import {
   TickState, findHome, autoEquipTool, autoEquipWeapon, autoEquipArmor, getBuildingEntrance,
@@ -28,7 +30,7 @@ import { planPath } from './movement.js';
 const NEW_SETTLEMENT_OPTIMISM_DAYS = 40;
 const NEW_SETTLEMENT_OPTIMISM_MAX = 20;
 
-function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean, churchNearby: boolean, decorationBonus: number, day: number, festivalActive: boolean): number {
+function calculateMorale(v: Villager, housingMorale: number, season: Season, weather: WeatherType, familyNearby: boolean, churchNearby: boolean, decorationBonus: number, day: number, festivalActive: boolean, friendsAlive: number): number {
   let morale = 50;
   morale += housingMorale;
   switch (v.lastAte) {
@@ -49,6 +51,8 @@ function calculateMorale(v: Villager, housingMorale: number, season: Season, wea
   if (v.grief > 0) morale -= 15;
   // Family proximity bonus
   if (familyNearby) morale += 10;
+  // Friendship bonus
+  morale += friendsAlive * FRIENDSHIP_MORALE_BONUS;
   // Church bonus (passed in)
   if (churchNearby) morale += 10;
   // Decoration bonus (garden, fountain, statue near home)
@@ -148,7 +152,9 @@ export function processDailyChecks(ts: TickState): void {
       const totalComfort = Math.min(baseComfort + furnitureBonus, 4);
       comfortBonus = COMFORT_MORALE[totalComfort] ?? COMFORT_MORALE[3] ?? 10;
     }
-    v.morale = calculateMorale(v, housingMorale + comfortBonus, ts.season, ts.weather, familyNearby, churchNearby, decorationBonus, ts.newDay, festivalActive);
+    // Count living friends
+    const friendsAlive = v.friends.filter(fid => ts.villagers.some(other => other.id === fid)).length;
+    v.morale = calculateMorale(v, housingMorale + comfortBonus, ts.season, ts.weather, familyNearby, churchNearby, decorationBonus, ts.newDay, festivalActive, friendsAlive);
   }
 
   // Reset lastAte AFTER morale calculation — so yesterday's meals influence today's morale
@@ -346,6 +352,35 @@ export function processDailyChecks(ts: TickState): void {
       if (maxW === 0 || b.assignedWorkers.length >= maxW) continue;
       while (b.assignedWorkers.length < maxW) {
         if (!assignOneIdle(b, type)) break;
+      }
+    }
+  }
+
+  // Friendship formation — track cowork days and form friendships
+  // Build a map of building → assigned workers
+  const coworkerMap = new Map<string, string[]>();
+  for (const b of ts.buildings) {
+    if (!b.constructed || b.assignedWorkers.length < 2) continue;
+    coworkerMap.set(b.id, [...b.assignedWorkers]);
+  }
+  for (const [, workerIds] of coworkerMap) {
+    for (let i = 0; i < workerIds.length; i++) {
+      for (let j = i + 1; j < workerIds.length; j++) {
+        const v1 = ts.villagers.find(v => v.id === workerIds[i]);
+        const v2 = ts.villagers.find(v => v.id === workerIds[j]);
+        if (!v1 || !v2) continue;
+        // Increment cowork days
+        v1.coworkDays[v2.id] = (v1.coworkDays[v2.id] || 0) + 1;
+        v2.coworkDays[v1.id] = (v2.coworkDays[v1.id] || 0) + 1;
+        // Form friendship at threshold
+        if (v1.coworkDays[v2.id] >= FRIENDSHIP_COWORK_THRESHOLD) {
+          if (v1.friends.length < MAX_FRIENDS && !v1.friends.includes(v2.id)) {
+            v1.friends.push(v2.id);
+          }
+          if (v2.friends.length < MAX_FRIENDS && !v2.friends.includes(v1.id)) {
+            v2.friends.push(v1.id);
+          }
+        }
       }
     }
   }
