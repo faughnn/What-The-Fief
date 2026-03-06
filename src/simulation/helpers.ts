@@ -314,7 +314,8 @@ export function gainSkillXp(v: Villager, buildingType: BuildingType): void {
   let xpGain = 1;
   if (v.traits.includes('fast_learner')) xpGain = Math.ceil(xpGain * 1.5);
   if (skill === 'crafting' && v.traits.includes('skilled_crafter')) xpGain = Math.ceil(xpGain * 1.5);
-  v.skills[skill] = Math.min(100, v.skills[skill] + xpGain);
+  const cap = v.skillCaps?.[skill] ?? 100;
+  v.skills[skill] = Math.min(cap, v.skills[skill] + xpGain);
 }
 
 // Combat XP: guards/militia gain 1 XP per combat tick (capped at 100)
@@ -327,7 +328,8 @@ export function gainCombatXp(v: Villager, buildings?: Building[]): void {
     const home = buildings.find(b => b.id === v.homeBuildingId);
     if (home?.type === 'barracks') xpGain *= 2;
   }
-  v.skills.combat = Math.min(100, v.skills.combat + xpGain);
+  const cap = v.skillCaps?.combat ?? 100;
+  v.skills.combat = Math.min(cap, v.skills.combat + xpGain);
 }
 
 export function combatSkillAttackBonus(v: Villager): number {

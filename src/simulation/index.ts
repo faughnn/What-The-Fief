@@ -45,6 +45,7 @@ export function tick(state: GameState): GameState {
     villagers: state.villagers.map(v => ({
       ...v,
       skills: { ...v.skills },
+      skillCaps: { ...v.skillCaps },
       traits: [...v.traits],
       path: [...v.path],
       carrying: { ...v.carrying },

@@ -868,6 +868,7 @@ export interface Villager {
   food: number;
   homeless: number;
   skills: Record<SkillType, number>;
+  skillCaps: Record<SkillType, number>; // max potential per skill (40-100)
   traits: Trait[];
   morale: number;
   lastAte: FoodEaten;
@@ -1437,6 +1438,15 @@ function rollStartingSkills(id: number): Record<SkillType, number> {
   return skills;
 }
 
+function rollSkillCaps(id: number): Record<SkillType, number> {
+  const caps = emptySkills();
+  const rng = seededRng(id * 4729);
+  for (const s of ALL_SKILLS) {
+    caps[s] = 40 + Math.floor(rng() * 61); // 40-100
+  }
+  return caps;
+}
+
 function rollTraits(id: number): Trait[] {
   // Deterministic trait assignment based on villager ID
   const rng = seededRng(id * 7919);
@@ -1452,12 +1462,18 @@ function rollTraits(id: number): Trait[] {
 }
 
 export function createVillager(id: number, x: number, y: number): Villager {
+  const skillCaps = rollSkillCaps(id);
+  const skills = rollStartingSkills(id);
+  // Clamp starting skills to caps
+  for (const s of ALL_SKILLS) {
+    if (skills[s] > skillCaps[s]) skills[s] = skillCaps[s];
+  }
   return {
     id: `v${id}`,
     name: VILLAGER_NAMES[(id - 1) % VILLAGER_NAMES.length],
     x, y, role: 'idle', jobBuildingId: null, homeBuildingId: null,
     state: 'idle', food: 8, homeless: 0,
-    skills: rollStartingSkills(id), traits: rollTraits(id), morale: 50, lastAte: 'nothing',
+    skills, skillCaps, traits: rollTraits(id), morale: 50, lastAte: 'nothing',
     tool: 'none', toolDurability: 0,
     weapon: 'none', weaponDurability: 0,
     armor: 'none', armorDurability: 0,

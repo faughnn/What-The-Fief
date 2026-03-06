@@ -169,7 +169,8 @@ export function processDailyChecks(ts: TickState): void {
       if (guard) {
         let xp = 2;
         if (guard.traits.includes('fast_learner')) xp = Math.ceil(xp * 1.5);
-        guard.skills.combat = Math.min(100, guard.skills.combat + xp);
+        const combatCap = guard.skillCaps?.combat ?? 100;
+        guard.skills.combat = Math.min(combatCap, guard.skills.combat + xp);
       }
     }
   }
