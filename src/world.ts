@@ -123,7 +123,7 @@ export type BuildingType =
   // Upgraded defenses
   | 'reinforced_wall'
   // Military
-  | 'barracks' | 'training_ground'
+  | 'barracks' | 'training_ground' | 'spike_trap'
   // Roads
   | 'road';
 
@@ -742,6 +742,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 10, stone: 5 }, description: 'Guards train here — passive combat XP gain',
     maxWorkers: 2, production: null, mapChar: 'G',
   },
+  spike_trap: {
+    type: 'spike_trap', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 3, ingots: 1 }, description: 'Damages enemies that step on it',
+    maxWorkers: 0, production: null, mapChar: '^',
+  },
 };
 
 // --- Skills ---
@@ -1038,6 +1043,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   reinforced_wall: 200,
   barracks: 80,
   training_ground: 40,
+  spike_trap: 10,
 };
 
 
@@ -1169,6 +1175,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   reinforced_wall: 'siege_engineering',
   barracks: 'military_tactics',
   training_ground: 'fortification',
+  spike_trap: 'fortification',
 };
 
 export interface ResearchState {

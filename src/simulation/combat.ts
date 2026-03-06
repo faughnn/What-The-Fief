@@ -371,6 +371,24 @@ export function processRaidAndCombat(ts: TickState): void {
     }
   }
 
+  // --- SPIKE TRAP DAMAGE: enemies on spike_trap tiles take damage ---
+  const SPIKE_TRAP_DAMAGE = 5;
+  const SPIKE_TRAP_DURABILITY_LOSS = 2;
+  for (const e of ts.enemies) {
+    if (e.hp <= 0) continue;
+    const tile = ts.grid[e.y]?.[e.x];
+    if (tile?.building?.type === 'spike_trap') {
+      const trap = ts.buildingMap.get(tile.building.id);
+      if (trap && trap.constructed && trap.hp > 0) {
+        e.hp -= SPIKE_TRAP_DAMAGE;
+        trap.hp -= SPIKE_TRAP_DURABILITY_LOSS;
+        if (trap.hp <= 0) {
+          destroyBuildingAndCreateRubble(trap, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
+        }
+      }
+    }
+  }
+
   // --- GUARD ASSAULT CAMP: guards ordered to attack a bandit camp ---
   for (const v of ts.villagers) {
     if (v.role !== 'guard' || v.hp <= 0 || !v.assaultTargetId) continue;
