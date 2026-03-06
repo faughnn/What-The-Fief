@@ -49,6 +49,7 @@ export const HOUSING_INFO: Partial<Record<BuildingType, { capacity: number; mora
   house: { capacity: 2, morale: 10 },
   manor: { capacity: 4, morale: 20 },
   inn: { capacity: 4, morale: 15 },
+  barracks: { capacity: 4, morale: 5 },
 };
 
 // --- Housing comfort levels ---
@@ -57,6 +58,7 @@ export const HOUSING_COMFORT: Partial<Record<BuildingType, number>> = {
   house: 2,
   manor: 3,
   inn: 2,
+  barracks: 2,
 };
 
 // Morale bonus from comfort: comfort 1 = +0, 2 = +5, 3+ = +10
@@ -120,6 +122,8 @@ export type BuildingType =
   | 'food_cellar'
   // Upgraded defenses
   | 'reinforced_wall'
+  // Military
+  | 'barracks'
   // Roads
   | 'road';
 
@@ -728,6 +732,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { stone: 5, ingots: 2 }, description: 'Reinforced stone wall — extra durable',
     maxWorkers: 0, production: null, mapChar: '#',
   },
+  barracks: {
+    type: 'barracks', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { wood: 20, stone: 15, planks: 10 }, description: 'Military housing — guards gain 2x combat XP',
+    maxWorkers: 0, production: null, mapChar: 'B',
+  },
 };
 
 // --- Skills ---
@@ -1021,6 +1030,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   outpost: 40, road: 10,
   inn: 60,
   reinforced_wall: 200,
+  barracks: 80,
 };
 
 
@@ -1150,6 +1160,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   kitchen: 'architecture',
   inn: 'architecture',
   reinforced_wall: 'siege_engineering',
+  barracks: 'military_tactics',
 };
 
 export interface ResearchState {

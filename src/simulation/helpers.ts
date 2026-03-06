@@ -317,9 +317,14 @@ export function gainSkillXp(v: Villager, buildingType: BuildingType): void {
 
 // Combat XP: guards/militia gain 1 XP per combat tick (capped at 100)
 // Combat skill bonus: +1 attack per 25 skill, +1 defense per 50 skill
-export function gainCombatXp(v: Villager): void {
+// Barracks bonus: guards housed in barracks gain 2x XP
+export function gainCombatXp(v: Villager, buildings?: Building[]): void {
   let xpGain = 1;
   if (v.traits.includes('fast_learner')) xpGain = Math.ceil(xpGain * 1.5);
+  if (buildings && v.homeBuildingId) {
+    const home = buildings.find(b => b.id === v.homeBuildingId);
+    if (home?.type === 'barracks') xpGain *= 2;
+  }
   v.skills.combat = Math.min(100, v.skills.combat + xpGain);
 }
 

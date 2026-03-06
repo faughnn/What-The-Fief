@@ -392,7 +392,7 @@ export function processRaidAndCombat(ts: TickState): void {
       v.state = 'assaulting_camp';
       // Camp fights back — guards near the camp take damage
       v.hp -= Math.max(1, Math.floor(camp.strength * 1.5) - traitDefenseBonus(v) - combatSkillDefenseBonus(v));
-      gainCombatXp(v);
+      gainCombatXp(v, ts.buildings);
       continue;
     }
     // Not adjacent — pathfind toward camp
@@ -500,7 +500,7 @@ export function processRaidAndCombat(ts: TickState): void {
     if (nearestEnemy && v.guardLine === 'back' && v.weapon === 'bow' && nearestDist <= WEAPON_STATS.bow.range && nearestDist > 1) {
       nearestEnemy.hp -= Math.max(1, WEAPON_STATS.bow.attack + attackBonus + combatSkillAttackBonus(v) - nearestEnemy.defense);
       degradeWeapon(v, ts.resources, ts.buildings);
-      gainCombatXp(v);
+      gainCombatXp(v, ts.buildings);
       continue;
     }
 
@@ -508,7 +508,7 @@ export function processRaidAndCombat(ts: TickState): void {
     if (nearestEnemy && v.guardLine === 'front' && v.weapon === 'bow' && nearestDist <= WEAPON_STATS.bow.range && nearestDist > 1) {
       nearestEnemy.hp -= Math.max(1, WEAPON_STATS.bow.attack + attackBonus + combatSkillAttackBonus(v) - nearestEnemy.defense);
       degradeWeapon(v, ts.resources, ts.buildings);
-      gainCombatXp(v);
+      gainCombatXp(v, ts.buildings);
       continue;
     }
 
@@ -544,7 +544,7 @@ export function processRaidAndCombat(ts: TickState): void {
       v.hp -= Math.max(1, nearestEnemy.attack - guardDef);
       if (v.weapon !== 'none') degradeWeapon(v, ts.resources, ts.buildings);
       if (v.armor !== 'none') degradeArmor(v, ts.resources, ts.buildings);
-      gainCombatXp(v);
+      gainCombatXp(v, ts.buildings);
       continue;
     }
 
@@ -598,7 +598,7 @@ export function processRaidAndCombat(ts: TickState): void {
       if (isAdjacent(v.x, v.y, nearestEnemy.x, nearestEnemy.y)) {
         nearestEnemy.hp -= Math.max(1, MILITIA_COMBAT.attack + traitAttackBonus(v) + combatSkillAttackBonus(v) - nearestEnemy.defense);
         v.hp -= Math.max(1, nearestEnemy.attack - MILITIA_COMBAT.defense - traitDefenseBonus(v) - combatSkillDefenseBonus(v));
-        gainCombatXp(v);
+        gainCombatXp(v, ts.buildings);
         continue;
       }
 
@@ -638,7 +638,7 @@ export function processRaidAndCombat(ts: TickState): void {
       const vAtk = 3 + atkBonus + traitAttackBonus(v) + combatSkillAttackBonus(v);
       e.hp -= Math.max(1, vAtk - e.defense);
       v.hp -= Math.max(1, e.attack - defBonus - traitDefenseBonus(v) - combatSkillDefenseBonus(v));
-      gainCombatXp(v);
+      gainCombatXp(v, ts.buildings);
       break; // fight one enemy per tick
     }
   }
