@@ -836,6 +836,10 @@ export const PORTER_CARRY_BONUS = 3;
 // Tough max HP bonus
 export const TOUGH_HP_BONUS = 5;
 
+// Night danger — enemies are more dangerous at night
+export const NIGHT_DANGER_ATK_BONUS = 2;   // +2 attack for all enemies at night
+export const NIGHT_DANGER_SPAWN_MULT = 1.5; // raids spawned at night have 50% more enemies
+
 // --- Villager ---
 export type VillagerRole =
   | 'idle' | 'farmer' | 'woodcutter' | 'quarrier' | 'herbalist'

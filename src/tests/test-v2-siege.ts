@@ -123,7 +123,10 @@ heading('Normal Enemy vs Wall (Comparison)');
     )),
   };
 
-  const wallHpBefore = state.buildings[0].hp;
+  // Advance to daytime to avoid night attack bonus
+  state = advance(state, NIGHT_TICKS + 1);
+
+  const wallHpBefore = state.buildings.find(b => b.type === 'wall')!.hp;
 
   // Normal bandit (attack=3, no siege)
   const bandit: EnemyEntity = {

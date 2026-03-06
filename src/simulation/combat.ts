@@ -42,9 +42,15 @@ import {
   TRUST_KILL_BANDIT, TRUST_VILLAGE_RADIUS, TRUST_THRESHOLDS, TrustRank,
   LIBERATION_RENOWN_REWARD, MILITIA_COMBAT,
   ENEMY_LOOT,
+  NIGHT_DANGER_ATK_BONUS,
 } from '../world.js';
 import { TickState, isAdjacent, hasTech, degradeWeapon, degradeArmor, addToBuffer, addResource, isStorehouse, destroyBuildingAndCreateRubble, buildBuildingMap, gainCombatXp, combatSkillAttackBonus, combatSkillDefenseBonus } from './helpers.js';
 import { findPath, findPathEnemy } from './movement.js';
+
+// Night danger: enemies get attack bonus at night
+function nightAttack(e: { attack: number }, isNight: boolean): number {
+  return e.attack + (isNight ? NIGHT_DANGER_ATK_BONUS : 0);
+}
 
 // --- Find settlement center (average building position) ---
 function findSettlementCenter(buildings: Building[]): { x: number; y: number } {
@@ -325,7 +331,7 @@ export function processRaidAndCombat(ts: TickState): void {
       }
       if (rangedTarget) {
         // Shoot — deal attack damage at range, no retaliation
-        rangedTarget.hp -= Math.max(1, e.attack);
+        rangedTarget.hp -= Math.max(1, nightAttack(e, ts.isNight));
         continue;
       }
       // No target in range — fall through to normal movement
@@ -345,7 +351,7 @@ export function processRaidAndCombat(ts: TickState): void {
     const adjTarget = findAdjacentTarget(e.x, e.y, ts.grid, ts.width, ts.height, ts.buildingMap);
     if (adjTarget && (adjTarget.type === 'wall' || adjTarget.type === 'reinforced_wall' || adjTarget.type === 'fence' || adjTarget.type === 'gate')) {
       // Battering ram deals 5 damage to structures
-      const siegeDmg = e.siege === 'battering_ram' ? 5 : Math.max(1, e.attack);
+      const siegeDmg = e.siege === 'battering_ram' ? 5 : Math.max(1, nightAttack(e, ts.isNight));
       adjTarget.hp -= siegeDmg;
       if (adjTarget.hp <= 0) {
         destroyBuildingAndCreateRubble(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
@@ -360,7 +366,7 @@ export function processRaidAndCombat(ts: TickState): void {
       e.y = path[0].y;
     } else if (adjTarget) {
       // Can't reach center — attack nearest adjacent building
-      adjTarget.hp -= Math.max(1, e.attack);
+      adjTarget.hp -= Math.max(1, nightAttack(e, ts.isNight));
       if (adjTarget.hp <= 0) {
         destroyBuildingAndCreateRubble(adjTarget, ts.buildings, ts.grid, ts.villagers, ts.width, ts.height, nextBldIdRef);
       }
@@ -575,7 +581,7 @@ export function processRaidAndCombat(ts: TickState): void {
       const armorDef = ARMOR_STATS[v.armor]?.defense || 0;
       const terrainDef = TERRAIN_DEFENSE_BONUS[ts.grid[v.y]?.[v.x]?.terrain || 'grass'];
       const guardDef = baseStats.defense + defenseBonus + armorDef + traitDefenseBonus(v) + combatSkillDefenseBonus(v) + terrainDef;
-      v.hp -= Math.max(1, nearestEnemy.attack - guardDef);
+      v.hp -= Math.max(1, nightAttack(nearestEnemy, ts.isNight) - guardDef);
       if (v.weapon !== 'none') degradeWeapon(v, ts.resources, ts.buildings);
       if (v.armor !== 'none') degradeArmor(v, ts.resources, ts.buildings);
       gainCombatXp(v, ts.buildings);
@@ -631,7 +637,7 @@ export function processRaidAndCombat(ts: TickState): void {
       // Adjacent — fight
       if (isAdjacent(v.x, v.y, nearestEnemy.x, nearestEnemy.y)) {
         nearestEnemy.hp -= Math.max(1, MILITIA_COMBAT.attack + traitAttackBonus(v) + combatSkillAttackBonus(v) - nearestEnemy.defense);
-        v.hp -= Math.max(1, nearestEnemy.attack - MILITIA_COMBAT.defense - traitDefenseBonus(v) - combatSkillDefenseBonus(v));
+        v.hp -= Math.max(1, nightAttack(nearestEnemy, ts.isNight) - MILITIA_COMBAT.defense - traitDefenseBonus(v) - combatSkillDefenseBonus(v));
         gainCombatXp(v, ts.buildings);
         continue;
       }
@@ -671,7 +677,7 @@ export function processRaidAndCombat(ts: TickState): void {
       const defBonus = v.armor !== 'none' ? (ARMOR_STATS[v.armor]?.defense || 0) : 0;
       const vAtk = 3 + atkBonus + traitAttackBonus(v) + combatSkillAttackBonus(v);
       e.hp -= Math.max(1, vAtk - e.defense);
-      v.hp -= Math.max(1, e.attack - defBonus - traitDefenseBonus(v) - combatSkillDefenseBonus(v));
+      v.hp -= Math.max(1, nightAttack(e, ts.isNight) - defBonus - traitDefenseBonus(v) - combatSkillDefenseBonus(v));
       gainCombatXp(v, ts.buildings);
       break; // fight one enemy per tick
     }
@@ -690,7 +696,7 @@ export function processRaidAndCombat(ts: TickState): void {
       v.role !== 'guard' && v.role !== 'militia' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
     );
     if (adjacentVillager) {
-      adjacentVillager.hp -= Math.max(1, e.attack);
+      adjacentVillager.hp -= Math.max(1, nightAttack(e, ts.isNight));
     }
   }
 
