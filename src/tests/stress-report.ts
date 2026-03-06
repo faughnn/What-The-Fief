@@ -6,7 +6,7 @@ import {
   TICKS_PER_DAY, BUILDING_TEMPLATES, FOOD_PRIORITY, BUILDING_TECH_REQUIREMENTS,
 } from '../world.js';
 import {
-  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp, setFormation, holdFestival, callToArms, standDown,
+  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp, setFormation, holdFestival, callToArms, standDown, sendExpedition,
 } from '../simulation.js';
 
 // ================================================================
@@ -226,6 +226,18 @@ function playerAI(state: GameState): GameState {
   if (day >= 25 && countBuildings(state, 'fletcher') === 0 && countBuildings(state, 'ropemaker') > 0 && canBuildTech(state, 'fletcher')) {
     state = tryBuild(state, 'fletcher', 13, 14);
   }
+  // Butchery — converts food→meat+leather. Build when we have excess food.
+  if (day >= 12 && countBuildings(state, 'butchery') === 0 && food >= 40 && canBuildTech(state, 'butchery') && canAfford(state, 'butchery')) {
+    state = tryBuild(state, 'butchery', 12, 15);
+  }
+  // Drying rack — converts meat→dried_food (longer shelf life)
+  if (day >= 18 && countBuildings(state, 'drying_rack') === 0 && countBuildings(state, 'butchery') > 0 && canBuildTech(state, 'drying_rack') && canAfford(state, 'drying_rack')) {
+    state = tryBuild(state, 'drying_rack', 12, 14);
+  }
+  // Compost pile — converts food waste→fertilizer (boosts farm output)
+  if (day >= 15 && countBuildings(state, 'compost_pile') === 0 && canBuildTech(state, 'compost_pile') && canAfford(state, 'compost_pile')) {
+    state = tryBuild(state, 'compost_pile', 12, 16);
+  }
   // Coal burner — needed for charcoal (smelter fuel). Build when metallurgy available.
   if (day >= 20 && countBuildings(state, 'coal_burner') === 0 && canBuildTech(state, 'coal_burner') && canAfford(state, 'coal_burner')) {
     state = tryBuild(state, 'coal_burner', 12, 17);
@@ -402,6 +414,19 @@ function playerAI(state: GameState): GameState {
     if (state.villagers.filter(v => v.role === 'guard').length < 2) {
       const { payTribute } = require('../simulation.js');
       state = payTribute(state);
+    }
+  }
+
+  // --- EXPEDITIONS: explore POIs with guards when safe ---
+  if (state.enemies.length === 0 && state.expeditions.length === 0 && day >= 30) {
+    const unexploredPOIs = state.pointsOfInterest.filter(p => !p.explored && !p.guardEnemies);
+    // Only send guards (combat-capable) to safe POIs (no guard enemies)
+    const guards = state.villagers.filter(v =>
+      v.role === 'guard' && v.hp >= v.maxHp && v.state !== 'on_expedition' && !v.assaultTargetId
+    );
+    if (unexploredPOIs.length > 0 && guards.length >= 2) {
+      const target = unexploredPOIs[0];
+      state = sendExpedition(state, [guards[0].id, guards[1].id], target.x, target.y);
     }
   }
 
