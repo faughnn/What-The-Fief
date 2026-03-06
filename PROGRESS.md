@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1083 tests passing (54 test files). 100-day stress test: 20 pop, 5 deaths, 0 errors, 11 techs researched, prosperity 80.
+- **Status**: V2 spatial simulation. 1270 tests passing (66 test files). 100-day stress test: 15 pop, 3 deaths, 0 errors, 11 techs researched, prosperity 90.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -9,6 +9,10 @@
   - **Weapons**: Sword (atk 6, def 2, melee) and bow (atk 2, range 4, ranged). Guards auto-equip. Weaponsmith + fletcher. Durability degrades per combat tick.
   - **Armor**: Craftable armor items (leather_armor def 2, iron_armor def 4). Leather_workshop (leather+linen→leather_armor). Armorer (ingots+leather→iron_armor). Guards auto-equip best available. Durability degrades in combat. 40 tests.
   - **Guard formations**: Charge (infinite detect), hold (3-tile), patrol (10-tile). Front line (melee) and back line (ranged).
+  - **Combat traits**: brave (+2 atk), coward (-2 atk), resilient (+2 def), nimble (+1 atk +1 def). Applied to all combat (guard, militia, expedition, camp assault). 6 tests.
+  - **Combat skill leveling**: Guards/militia gain combat XP from fighting. +1 atk per 25 skill, +1 def per 50 skill. Fast learner boosts XP gain. 15 tests.
+  - **Wall upgrades**: fence → wall → reinforced_wall. Reinforced wall (200 HP, requires siege_engineering + ingots). All defensive structures get siege_engineering +50% HP bonus. 13 tests.
+  - **Storm movement penalty**: Storms halve villager travel speed (skip movement on odd ticks). Rain has no penalty. 3 tests.
   - **Bandit camps**: Persistent camps spawn at edges every 25 days. Raids originate from camps. Guards can assault/clear for gold+renown. Max 3 active.
   - **Environment**: Wildlife + hunting + self-defense. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth. Fire/disaster + wells. Disease + herb healing. Lightning.
   - **Morale**: Food variety (+5/+10). Tavern/recreation. Church (+10 nearby). Family bonds/grief. Decoration buildings (garden/fountain/statue). Festivals (+20 for 3 days).
@@ -107,26 +111,46 @@
 - ✅ **Housing comfort**: tent=1, house=2, manor=3. Comfort morale: +0/+5/+10. Furniture adds +1 comfort.
 - ✅ **Enemy loot drops**: bandits→gold, brutes→3 gold, wolves→leather, boars→food. Deposited to storehouse.
 - ✅ **Data-driven quests**: 12 milestone quests auto-complete with renown+gold rewards.
-- ✅ 100-day stress test: player AI grows to 20 pop, 11 techs, prosperity 80, all clothed, 0 errors
+- ✅ **Expedition/exploration**: sendExpedition sends squads to explore map. POIs (ruins, resource_cache, animal_den, abandoned_camp, herb_grove) generated outside territory. Squads walk 1 tile/tick, reveal fog, discover POIs, fight guards, collect rewards. recallExpedition. Skip sleep. 65 tests.
+- ✅ **Water resource**: well (produces water, fire prevention), water_collector (passive). Kitchen requires flour+water→bread. 20 tests.
+- ✅ **Food processing chain**: butchery (food→meat+leather byproduct, 2.5 satisfaction), compost_pile (food→fertilizer), drying_rack (food→dried_food, 4x slower spoilage). ProductionRule.byproduct support. 31 tests.
+- ✅ **Seasonal events**: Auto-trigger on season transitions. Spring planting (+10 morale), summer warmth (+5), autumn harvest festival (+15 with food≥50), winter's bite (-5). 16 tests.
+- ✅ **Fertilizer farm boost**: compost pile → fertilizer → farm +50% output. Consumes 1 fertilizer per production cycle. 3 tests.
+- ✅ **Building repair priority**: urgent repair (< 50% HP) before construction. Normal repair (50-100%) after rubble clearing. 3 tests.
+- ✅ 100-day stress test: 60x60 map, player AI grows to 19 pop, 4 deaths, 11 techs, prosperity 80, 0 errors. Builds food processing chain (butchery, compost, drying rack). Sends safe expeditions.
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
 **Priority 1 — Gameplay Depth:**
-1. **No expedition/exploration system.** Bellwright has player-led squads that explore the map, find resources, and encounter events. Our scouts reveal fog but there's no squad expedition mechanic.
-2. **No villager needs beyond food.** Bellwright has water/drink needs. Currently villagers only need food.
-3. **Limited crafting variety.** Missing distillery, dye workshop, pottery. Bellwright has more crafting diversity.
-4. **No seasonal events.** Bellwright has harvest festivals, winter feasts, etc. beyond our basic festival command.
+1. ~~No expedition/exploration system.~~ ✅ Done — sendExpedition, POIs, squad movement, fog reveal, combat, rewards, recallExpedition. 65 tests.
+2. ~~No villager needs beyond food.~~ Research shows Bellwright does NOT have thirst. Water is a crafting resource. Food system could be deeper (raw vs cooked, food spoilage, food cellar).
+3. ~~Limited crafting variety.~~ ✅ Done — butchery (meat+leather), compost pile (fertilizer), drying rack (dried_food). Water resource chain added.
+4. ~~No seasonal events.~~ ✅ Done — SEASONAL_EVENTS auto-trigger on transitions. Spring +10, summer +5, autumn harvest fest +15 (needs food≥50), winter -5.
 
 **Priority 2 — Polish:**
-5. **Raid event messages don't mention enemy composition.** When archers/brutes appear, the event should list them.
-6. **Stress test player AI doesn't use callToArms.** Should mobilize militia during raids.
-7. **No building repair priority.** Damaged buildings should attract idle workers more urgently.
+5. ~~Raid event messages don't mention enemy composition.~~ ✅ Done.
+6. ~~Stress test player AI doesn't use callToArms.~~ ✅ Done.
+7. ~~No building repair priority.~~ ✅ Done — Urgent repair (< 50% HP) now priority 2 (after hauling, before construction). Normal repair stays priority 5.
+8. ~~Stress test player AI doesn't send expeditions.~~ ✅ Done — builds butchery/compost/drying_rack, sends guards on safe expeditions.
 
 ### Honest priority order for closing gaps:
-1. Raid event detail messages + stress test callToArms (quick polish)
-2. Expedition/exploration system
-3. Water/drink needs
-4. More crafting variety
+1. ~~Fertilizer farm boost~~ ✅ Done
+2. ~~Building repair priority~~ ✅ Done
+3. ~~Stress test player AI~~ ✅ Done — food processing, expeditions, 60x60 map
+4. ~~Food cellar building~~ ✅ Done — halves all spoilage rates when constructed. Requires basic_cooking. 5 tests.
+5. ~~Villager trait effects~~ ✅ Done — brave (+2 atk), coward (-2 atk), resilient (+2 def), nimble (+1 atk +1 def). Applied to guard, militia, expedition, and camp assault combat. 6 tests.
+6. ~~Building maintenance/decay~~ ✅ Done — 1 HP per 5 days. Walls/fences/gates/roads exempt. Never below 1 HP. 6 tests.
+7. ~~Stockpile/wall progression~~ ✅ Done — fence → wall → reinforced_wall upgrade path. 200 HP reinforced walls require siege_engineering.
+8. Death event messages ✅ Done — cause of death: combat, disease, assault, cold
+9. ~~Combat skill leveling~~ ✅ Done — guards/militia gain combat XP, +1 atk/25 skill, +1 def/50 skill. 15 tests.
+10. ~~Storm movement penalty~~ ✅ Done — storms halve villager travel speed. 3 tests.
+
+### Remaining gaps:
+11. Guard night patrol (guards stop patrolling at night — should be 24/7)
+12. More housing variety (Bellwright has 6+ tiers, we have 3)
+13. Forester building (renewable wood from tree planting)
+14. Smoking rack (food preservation variant)
+15. Barracks/staging ground (military rally point)
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
