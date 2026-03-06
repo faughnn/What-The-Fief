@@ -193,6 +193,9 @@ export function processDailyChecks(ts: TickState): void {
         other.family = other.family.filter(id => id !== d.id);
       }
     }
+    // Determine cause of death
+    const cause = d.sick ? 'disease' : d.state === 'assaulting_camp' ? 'assault' : 'combat';
+    ts.events.push(`${d.name} has died (${cause}).`);
     // Record in graveyard
     ts.graveyard.push({ name: d.name, day: ts.newDay });
   }
@@ -437,6 +440,7 @@ export function processDailyChecks(ts: TickState): void {
           other.family = other.family.filter(id => id !== d.id);
         }
       }
+      ts.events.push(`${d.name} has died (cold).`);
       ts.graveyard.push({ name: d.name, day: ts.newDay });
     }
     ts.villagers = ts.villagers.filter(v => v.hp > 0);
