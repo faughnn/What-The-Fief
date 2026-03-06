@@ -1,10 +1,10 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1291 tests passing (68 test files). 100-day stress test: 15 pop, 2 deaths, 0 errors, 10 techs researched, prosperity 80.
+- **Status**: V2 spatial simulation. 1449 tests passing (78 test files). 100-day stress test: 13 pop, 2 deaths, 0 errors, 9 techs researched, prosperity 90.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
-  - **Building upgrades**: tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
+  - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
   - **Combat**: Spatial combat (enemies march from camps/edges, walls/fences block, guards intercept/patrol, melee, watchtower ranged 5-tile). Siege equipment (battering rams, siege towers).
   - **Weapons**: Sword (atk 6, def 2, melee) and bow (atk 2, range 4, ranged). Guards auto-equip. Weaponsmith + fletcher. Durability degrades per combat tick.
   - **Armor**: Craftable armor items (leather_armor def 2, iron_armor def 4). Leather_workshop (leather+linen→leather_armor). Armorer (ingots+leather→iron_armor). Guards auto-equip best available. Durability degrades in combat. 40 tests.
@@ -16,6 +16,7 @@
   - **24/7 guard patrol**: Guards now patrol at all hours (removed night patrol restriction).
   - **Barracks**: Military housing (2x2, houses 4, +5 morale, comfort 2). Guards housed in barracks gain 2x combat XP. Requires military_tactics. 14 tests.
   - **Training ground**: Military building (2x1, holds 2 guards). Guards gain 2 combat XP daily. Fast learner bonus. Assigning villagers makes them guards. Requires fortification. 7 tests.
+  - **Spike trap**: Passive defense (1x1, 10 HP). Enemies stepping on trap take 5 damage/tick, trap loses 2 HP per trigger. Destroyed after enough uses. Passable by all entities. Requires fortification + 3 wood + 1 ingot. 17 tests.
   - **Bandit camps**: Persistent camps spawn at edges every 25 days. Raids originate from camps. Guards can assault/clear for gold+renown. Max 3 active.
   - **Environment**: Wildlife + hunting + self-defense. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth. Fire/disaster + wells. Disease + herb healing. Lightning.
   - **Morale**: Food variety (+5/+10). Tavern/recreation. Church (+10 nearby). Family bonds/grief. Decoration buildings (garden/fountain/statue). Festivals (+20 for 3 days).
@@ -30,6 +31,9 @@
   - **Liberated village integration**: Liberated villages send more frequent caravans (every 5 days vs 10) with more goods (15 vs 8). recruitFromVillage command (10 renown cost, requires housing). Ongoing renown stream (+2 per liberated village every 10 days). +5 prosperity per liberated village. 11 tests.
   - **Job priorities**: Per-villager job priority system (1-9 scale, 0=disabled). setJobPriority command. Auto-assign Pass -1 assigns villagers to their highest-priority building first. Disabled jobs block assignment. Coexists with preferredJob. 23 tests (6 new + 17 existing).
   - **Fishing**: fishing_hut building (1x1, must be placed on grass adjacent to water). Produces fish (food type, satisfaction 1.5). Fisher role. Outdoor building (weather affected). Farming skill. Water adjacency enforced in placeBuilding. Player AI builds near rivers. 19 tests.
+  - **Forester**: Renewable wood production (1x1, 2 workers, 1 wood/worker vs woodcutter's 2). Requires advanced_farming. Outdoor, uses woodcutting skill. 17 tests.
+  - **Dynamic market pricing**: Supply/demand adjusts trade prices ±30%. Surplus (>50) lowers prices, scarcity (<10) raises them. getDynamicPrice() replaces static TRADE_PRICES in buy/sell. 16 tests.
+  - **Hill terrain**: New terrain type (5% map coverage). Hills slow movement 50% for both allies and enemies. Guards on hills get +2 defense, forest gives +1. Watchtowers and defensive structures can be placed on hills. 15 tests.
   - **Tech-gated buildings**: BUILDING_TECH_REQUIREMENTS gates advanced buildings behind research. Can't build smelter without metallurgy, can't build large_farm without crop_rotation, etc. placeBuilding enforces tech requirements. 50 tests.
   - **Enemy variety**: bandit_archer (7 HP, 2 atk, 0 def, range 3) and bandit_brute (18 HP, 5 atk, 3 def). Archers shoot at range without retaliation. Brutes are tanky melee. Raid composition scales with camp strength: archers at strength 3+, brutes at strength 5+. 22 tests.
   - **Call to Arms**: callToArms/standDown commands. Workers become militia (2 atk, 0 def). Guards unaffected. Militia fight and move toward enemies. Auto-stand-down when enemies cleared. Previous roles restored. Idempotent. 21 tests.
@@ -114,6 +118,12 @@
 - ✅ **Housing comfort**: tent=1, house=2, manor=3. Comfort morale: +0/+5/+10. Furniture adds +1 comfort.
 - ✅ **Enemy loot drops**: bandits→gold, brutes→3 gold, wolves→leather, boars→food. Deposited to storehouse.
 - ✅ **Data-driven quests**: 12 milestone quests auto-complete with renown+gold rewards.
+- ✅ **Cottage housing tier**: tent→cottage→house→manor (4-tier housing). Cottage costs 3 wood to upgrade from tent. 19 tests.
+- ✅ **Villager skill caps**: Each villager has deterministic per-skill max potential (40-100). Generated via seeded RNG from villager ID. Skills cannot exceed caps. Varied caps encourage specialization. 8 tests.
+- ✅ **Villager friendships**: Coworkers track shared work days. After 10 days at same building, become friends (max 2). +3 morale per living friend. Symmetric. 9 tests.
+- ✅ **Expanded traits (17 total)**: Original 12 + stalwart (+3 atk, +2 def, -50% production), marksman (+50% ranged dmg, -1 melee def), neurotic (+50% production, +25% hunger), porter (+3 carry capacity), tough (+5 max HP). 24 tests.
+- ✅ **Apothecary building**: herbs→bandages crafting. Healer role (herbalism skill). Bandages provide +2 HP/day regen and speed disease recovery. Requires medicine tech. 18 tests.
+- ✅ **Night danger**: All enemies get +2 attack during night ticks. Makes nighttime raids significantly more dangerous. Encourages wall building and guard patrols. 10 tests.
 - ✅ **Expedition/exploration**: sendExpedition sends squads to explore map. POIs (ruins, resource_cache, animal_den, abandoned_camp, herb_grove) generated outside territory. Squads walk 1 tile/tick, reveal fog, discover POIs, fight guards, collect rewards. recallExpedition. Skip sleep. 65 tests.
 - ✅ **Water resource**: well (produces water, fire prevention), water_collector (passive). Kitchen requires flour+water→bread. 20 tests.
 - ✅ **Food processing chain**: butchery (food→meat+leather byproduct, 2.5 satisfaction), compost_pile (food→fertilizer), drying_rack (food→dried_food, 4x slower spoilage). ProductionRule.byproduct support. 31 tests.
@@ -150,19 +160,30 @@
 
 ### Remaining gaps:
 11. ~~Guard night patrol~~ ✅ Fixed — guards now patrol 24/7
-12. More housing variety (Bellwright has 6+ tiers, we have tent/house/manor/inn/barracks)
-13. Forester building (renewable wood from tree planting)
+12. ~~More housing variety~~ ✅ Cottage added — tent→cottage→house→manor (4-tier housing). 19 tests.
+13. ~~Forester building~~ ✅ Done — forester (1 wood/worker, renewable, requires advanced_farming). 17 tests.
 14. ~~Barracks/staging ground~~ ✅ Done — barracks (military housing, 2x combat XP) + training ground (passive combat XP)
-15. Trap building (passive defense like Bellwright's trapper camp)
-16. Market pricing variance (supply/demand affecting trade prices)
-17. Villager relationships beyond family (friendships affect morale)
-18. Terrain variety (hills slow movement, forests provide wood cover)
+15. ~~Trap building~~ ✅ Done — spike_trap (5 dmg/tick to enemies, 2 HP loss per trigger, requires fortification). 17 tests.
+16. ~~Market pricing variance~~ ✅ Done — getDynamicPrice with ±30% supply/demand modifier. 16 tests.
+17. ~~Villager relationships beyond family~~ ✅ Done — skill caps (40-100 per skill, deterministic per ID) + friendships (coworker bonding, +3 morale). 17 tests.
+18. ~~Terrain variety~~ ✅ Done — hill terrain (50% movement penalty, +2 defense, defensive structures allowed). Forest +1 defense. 15 tests.
+19. ~~Expanded traits~~ ✅ Done — 17 total traits (12 original + 5 new: stalwart, marksman, neurotic, porter, tough). Bellwright-inspired combat, production, hauling, and HP effects. 24 tests.
+20. ~~Apothecary/healer~~ ✅ Done — apothecary building (herbs→bandages), healer role, +2 HP/day regen with bandages, faster disease recovery. 18 tests.
+21. ~~Night danger~~ ✅ Done — enemies get +2 attack at night. Makes nighttime raids more dangerous. 10 tests.
+
+### New gaps identified:
+22. Building tier progression (foraging camp→hut→lodge, mining camp→hut, logging camp)
+23. Library building (research speed boost)
+24. Weapon rack / armory storage building
+25. Smoking rack (alternative food preservation)
+26. More quest variety (defend, escort, trade missions)
+27. Villager aging and natural death
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 54 test files, 1083 tests total
+- `src/tests/test-v2-*.ts` — 78 test files, 1449 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
