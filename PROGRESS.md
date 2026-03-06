@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 940 tests passing (50 test files). 100-day stress test: 21 pop, 5 deaths, 0 errors, 11 techs researched, prosperity 80. All villagers clothed.
+- **Status**: V2 spatial simulation. 1008 tests passing (51 test files). 100-day stress test: 20 pop, 5 deaths, 0 errors, 11 techs researched, prosperity 80.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -26,6 +26,7 @@
   - **Tech-gated buildings**: BUILDING_TECH_REQUIREMENTS gates advanced buildings behind research. Can't build smelter without metallurgy, can't build large_farm without crop_rotation, etc. placeBuilding enforces tech requirements. 50 tests.
   - **Enemy variety**: bandit_archer (7 HP, 2 atk, 0 def, range 3) and bandit_brute (18 HP, 5 atk, 3 def). Archers shoot at range without retaliation. Brutes are tanky melee. Raid composition scales with camp strength: archers at strength 3+, brutes at strength 5+. 22 tests.
   - **Call to Arms**: callToArms/standDown commands. Workers become militia (2 atk, 0 def). Guards unaffected. Militia fight and move toward enemies. Auto-stand-down when enemies cleared. Previous roles restored. Idempotent. 21 tests.
+  - **Quest/objective system**: 12 milestone quests (QUEST_DEFINITIONS) auto-complete and award renown+gold. Data-driven with conditions checked daily. Covers population, buildings, research, combat, food, guards, liberation. No double-awarding. 68 tests.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -103,28 +104,26 @@
 ### GAPS — What Bellwright has that this sim doesn't:
 
 **Priority 1 — Gameplay Depth:**
-1. **No quest/objective system.** Bellwright has quest objectives driving gameplay progression. Our sim has no goals beyond "survive." Need at least milestone objectives.
-2. **Limited production chain depth.** Missing charcoal/kiln (fuel processing), stonemason, carpenter, distillery. Bellwright has deeper multi-step chains.
-3. **No villager rest quality / comfort.** Bellwright tracks housing comfort beyond just morale bonus. Manor vs tent should have stronger gameplay impact.
-4. **No enemy loot drops.** Bellwright enemies drop equipment/resources when killed.
+1. **Limited production chain depth.** Missing charcoal/kiln (fuel processing), stonemason, carpenter, distillery. Bellwright has deeper multi-step chains.
+2. **No villager rest quality / comfort.** Bellwright tracks housing comfort beyond just morale bonus. Manor vs tent should have stronger gameplay impact.
+3. **No enemy loot drops.** Bellwright enemies drop equipment/resources when killed.
+4. **No expedition/exploration system.** Bellwright has player-led expeditions to explore map, find resources, encounter events.
 
 **Priority 2 — Polish:**
 5. **Raid event messages don't mention enemy composition.** When archers/brutes appear, the event should list them.
 6. **Stress test player AI doesn't use callToArms.** Should mobilize militia during raids.
 
-Note: Tech-gated buildings, enemy variety, Call to Arms, and physical armor crafting are all implemented.
-
 ### Honest priority order for closing gaps:
-1. Quest/objective system (milestone goals)
-2. Deeper production chains (charcoal, stonemason, etc.)
-3. Housing comfort system
-4. Enemy loot drops
+1. Deeper production chains (charcoal, stonemason, carpenter)
+2. Housing comfort system
+3. Enemy loot drops
+4. Expedition system
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 50 test files, 940 tests total
+- `src/tests/test-v2-*.ts` — 51 test files, 1008 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
