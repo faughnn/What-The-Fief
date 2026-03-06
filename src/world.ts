@@ -123,7 +123,7 @@ export type BuildingType =
   // Upgraded defenses
   | 'reinforced_wall'
   // Military
-  | 'barracks'
+  | 'barracks' | 'training_ground'
   // Roads
   | 'road';
 
@@ -737,6 +737,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 20, stone: 15, planks: 10 }, description: 'Military housing — guards gain 2x combat XP',
     maxWorkers: 0, production: null, mapChar: 'B',
   },
+  training_ground: {
+    type: 'training_ground', width: 2, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 10, stone: 5 }, description: 'Guards train here — passive combat XP gain',
+    maxWorkers: 2, production: null, mapChar: 'G',
+  },
 };
 
 // --- Skills ---
@@ -761,6 +766,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   large_farm: 'farming', deep_quarry: 'mining',
   lumber_mill: 'crafting', advanced_smelter: 'crafting',
   windmill: 'cooking', kitchen: 'cooking',
+  training_ground: 'combat',
 };
 
 export function skillMultiplier(level: number): number {
@@ -1031,6 +1037,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   inn: 60,
   reinforced_wall: 200,
   barracks: 80,
+  training_ground: 40,
 };
 
 
@@ -1161,6 +1168,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   inn: 'architecture',
   reinforced_wall: 'siege_engineering',
   barracks: 'military_tactics',
+  training_ground: 'fortification',
 };
 
 export interface ResearchState {

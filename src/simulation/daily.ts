@@ -161,6 +161,19 @@ export function processDailyChecks(ts: TickState): void {
     v.homeless = v.homeBuildingId ? 0 : v.homeless + 1;
   }
 
+  // Training ground: guards assigned there gain combat XP daily
+  for (const b of ts.buildings) {
+    if (b.type !== 'training_ground' || !b.constructed) continue;
+    for (const wid of b.assignedWorkers) {
+      const guard = ts.villagers.find(v => v.id === wid && v.role === 'guard');
+      if (guard) {
+        let xp = 2;
+        if (guard.traits.includes('fast_learner')) xp = Math.ceil(xp * 1.5);
+        guard.skills.combat = Math.min(100, guard.skills.combat + xp);
+      }
+    }
+  }
+
   // Building maintenance decay — 1 HP every 5 days for constructed buildings
   // Exempt: walls, fences, gates, rubble, roads, unconstructed
   const DECAY_EXEMPT: Set<string> = new Set(['wall', 'reinforced_wall', 'fence', 'gate', 'rubble', 'road']);
