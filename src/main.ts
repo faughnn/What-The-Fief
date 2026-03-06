@@ -7,7 +7,7 @@ import { renderAll, ViewMode } from './render-text.js';
 function parseArgs(argv: string[]) {
   const args = argv.slice(2);
   const result = {
-    ticks: 120, // 1 day = 120 ticks
+    ticks: 4000, // 1 day = TICKS_PER_DAY ticks
     view: 'all' as ViewMode,
     place: [] as { type: BuildingType; x: number; y: number }[],
     assign: [] as { villagerId: string; buildingId: string }[],

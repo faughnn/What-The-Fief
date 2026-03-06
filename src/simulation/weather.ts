@@ -1,10 +1,10 @@
 // weather.ts — Season/weather transitions and lightning strikes
 
-import { Season, SEASON_NAMES } from '../world.js';
+import { Season, SEASON_NAMES, DAYS_PER_YEAR, DAYS_PER_SEASON, LIGHTNING_STRIKE_CHANCE } from '../world.js';
 import { TickState } from './helpers.js';
 
 export function processSeasonAndWeather(ts: TickState): void {
-  ts.season = SEASON_NAMES[Math.floor((ts.newDay % 40) / 10)];
+  ts.season = SEASON_NAMES[Math.floor((ts.newDay % DAYS_PER_YEAR) / DAYS_PER_SEASON)];
   const weatherRng = ((ts.newDay * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff;
   const weatherThresholds: Record<Season, [number, number]> = {
     spring: [0.6, 0.9], summer: [0.7, 0.9], autumn: [0.4, 0.8], winter: [0.5, 0.8],
@@ -20,7 +20,7 @@ export function processLightning(ts: TickState): void {
   if (constructed.length === 0) return;
 
   const lightningRng = ((ts.newTick * 48271 + 3) & 0x7fffffff) / 0x7fffffff;
-  if (lightningRng < 0.005) {
+  if (lightningRng < LIGHTNING_STRIKE_CHANCE) {
     const target = constructed[ts.newTick % constructed.length];
     target.onFire = true;
     ts.events.push(`Lightning struck the ${target.type} at (${target.x},${target.y})!`);

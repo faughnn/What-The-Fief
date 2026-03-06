@@ -15,7 +15,7 @@ import {
 import {
   TickState, getBuildingEntrance, addResource, addToBuffer, bufferTotal,
   hasBufferInputs, consumeBufferInputs, ticksPerUnit, productionMultiplier,
-  autoEquipTool, degradeTool, gainSkillXp, hasTech, techProductionBonus,
+  autoEquipTool, degradeTool, autoEquipArmor, gainSkillXp, hasTech, techProductionBonus,
   findStorehouseAt, findNearestStorehouse, findNearestBuilding, findStorehouseWithResource, revealArea, isStorehouse,
   deductFromBuffer, deductFromStorehouseAndGlobal,
 } from './helpers.js';

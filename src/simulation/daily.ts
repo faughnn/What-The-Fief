@@ -17,7 +17,7 @@ import {
   FESTIVAL_MORALE_BOOST, FESTIVAL_DURATION,
 } from '../world.js';
 import {
-  TickState, findHome, autoEquipTool, autoEquipWeapon, getBuildingEntrance,
+  TickState, findHome, autoEquipTool, autoEquipWeapon, autoEquipArmor, getBuildingEntrance,
   addResource, addToBuffer, findStorehouseWithResource, hasTech, isStorehouse,
   roleForBuilding, deductFromBuffer, deductFromStorehouseAndGlobal,
 } from './helpers.js';
@@ -363,6 +363,7 @@ export function processDailyChecks(ts: TickState): void {
   for (const v of ts.villagers) {
     if (v.role === 'guard' && v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
     if (v.role === 'guard' && v.weapon === 'none') autoEquipWeapon(v, ts.resources, ts.buildings);
+    if (v.role === 'guard' && v.armor === 'none') autoEquipArmor(v, ts.resources, ts.buildings);
   }
 
   // Disease daily: HP loss and duration countdown (after regen, so net effect is visible)
