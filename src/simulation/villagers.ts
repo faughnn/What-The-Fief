@@ -885,6 +885,9 @@ export function processVillagerStateMachine(ts: TickState): void {
       continue;
     }
 
+    // Storm movement penalty: skip traveling on odd ticks (50% speed)
+    if (ts.weather === 'storm' && ts.newTick % 2 === 1 && v.state.startsWith('traveling')) continue;
+
     // DAYTIME STATE MACHINE — dispatch to handlers
     switch (v.state) {
       case 'sleeping':                   handleSleeping(v, ts); break;
