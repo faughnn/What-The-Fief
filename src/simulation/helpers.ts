@@ -107,7 +107,7 @@ export const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   weaponsmith: 'weaponsmith_worker', fletcher: 'fletcher_worker', leather_workshop: 'leather_workshop_worker',
   research_desk: 'researcher',
   chicken_coop: 'chicken_keeper', livestock_barn: 'rancher', apiary: 'beekeeper',
-  hunting_lodge: 'hunter', foraging_hut: 'forager', fishing_hut: 'fisher',
+  hunting_lodge: 'hunter', foraging_hut: 'forager', foraging_lodge: 'forager', fishing_hut: 'fisher',
   marketplace: 'trader',
   well: 'well_worker',
   butchery: 'butcher', compost_pile: 'composter', drying_rack: 'dryer',

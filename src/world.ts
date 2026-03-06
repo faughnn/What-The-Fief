@@ -143,7 +143,9 @@ export type BuildingType =
   // Healing
   | 'apothecary'
   // Research
-  | 'library';
+  | 'library'
+  // Upgraded resource buildings
+  | 'foraging_lodge';
 
 export interface Building {
   id: string;
@@ -795,6 +797,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 15, stone: 10, planks: 5 }, description: 'Boosts research speed when constructed',
     maxWorkers: 0, production: null, mapChar: 'L',
   },
+  foraging_lodge: {
+    type: 'foraging_lodge', width: 1, height: 1, allowedTerrain: ['grass', 'forest'],
+    cost: { wood: 12, stone: 5, planks: 3 }, description: 'Upgraded foraging hut — 2 workers, better yield',
+    maxWorkers: 2, production: { output: 'food', amountPerWorker: 3, inputs: null }, mapChar: 'G',
+  },
 };
 
 // --- Skills ---
@@ -813,7 +820,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   research_desk: 'crafting',
   chicken_coop: 'farming',
   livestock_barn: 'farming',
-  apiary: 'herbalism', foraging_hut: 'herbalism', fishing_hut: 'farming',
+  apiary: 'herbalism', foraging_hut: 'herbalism', foraging_lodge: 'herbalism', fishing_hut: 'farming',
   weaponsmith: 'crafting', fletcher: 'crafting', leather_workshop: 'crafting',
   // T2 upgraded buildings inherit parent skills
   large_farm: 'farming', deep_quarry: 'mining',
@@ -1115,6 +1122,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   forester: 30,
   apothecary: 35,
   library: 50,
+  foraging_lodge: 35,
 };
 
 
@@ -1132,6 +1140,7 @@ export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cos
   bakery: { to: 'kitchen', cost: { wood: 10, stone: 10, planks: 5 } },
   storehouse: { to: 'large_storehouse', cost: { wood: 20, stone: 10, planks: 10 } },
   tavern: { to: 'inn', cost: { wood: 15, stone: 10, planks: 8, rope: 3 } },
+  foraging_hut: { to: 'foraging_lodge', cost: { wood: 8, stone: 3, planks: 2 } },
   fence: { to: 'wall', cost: { stone: 3 } },
   wall: { to: 'reinforced_wall', cost: { stone: 5, ingots: 2 } },
 };
@@ -1251,6 +1260,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   forester: 'advanced_farming',
   apothecary: 'medicine',
   library: 'civil_engineering',
+  foraging_lodge: 'advanced_farming',
 };
 
 export interface ResearchState {

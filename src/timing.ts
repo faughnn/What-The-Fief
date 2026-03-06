@@ -63,6 +63,7 @@ const CONSTRUCTION_TICKS_BASE: Record<string, number> = {
   forester: 50,
   apothecary: 60,
   library: 90,
+  foraging_lodge: 60,
 };
 
 export const CONSTRUCTION_TICKS: Record<BuildingType, number> = Object.fromEntries(
