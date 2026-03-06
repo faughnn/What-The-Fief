@@ -1215,6 +1215,31 @@ export const TRADE_PRICES: Partial<Record<ResourceType, { buy: number; sell: num
   rope: { buy: 5, sell: 2 },
 };
 
+// --- Dynamic pricing: supply/demand adjusts prices ±30% ---
+// surplus (>50) → sell price drops (market flooded), buy price drops slightly
+// scarcity (<10) → buy price rises, sell price rises (desperate demand)
+export const PRICE_SURPLUS_THRESHOLD = 50;
+export const PRICE_SCARCITY_THRESHOLD = 10;
+export const PRICE_MAX_MODIFIER = 0.3; // ±30%
+
+export function getDynamicPrice(resource: ResourceType, resources: Record<string, number>): { buy: number; sell: number } | null {
+  const base = TRADE_PRICES[resource];
+  if (!base) return null;
+  const amount = resources[resource] || 0;
+  let modifier = 0;
+  if (amount >= PRICE_SURPLUS_THRESHOLD) {
+    // Surplus: sell price drops (oversupply), buy price drops slightly
+    modifier = -Math.min(PRICE_MAX_MODIFIER, (amount - PRICE_SURPLUS_THRESHOLD) / 100);
+  } else if (amount <= PRICE_SCARCITY_THRESHOLD) {
+    // Scarcity: prices rise
+    modifier = Math.min(PRICE_MAX_MODIFIER, (PRICE_SCARCITY_THRESHOLD - amount) / 20);
+  }
+  return {
+    buy: Math.max(1, Math.round(base.buy * (1 + modifier))),
+    sell: Math.max(1, Math.round(base.sell * (1 + modifier))),
+  };
+}
+
 // --- Game State ---
 export interface GameState {
   tick: number;  // total tick count; day = Math.floor(tick / TICKS_PER_DAY)

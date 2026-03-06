@@ -3,7 +3,7 @@
 import {
   GameState, BuildingType, Building, Resources, ResourceType,
   Villager, VillagerRole, Direction, Tile, SupplyRoute,
-  BUILDING_TEMPLATES, TRADE_PRICES, UPGRADE_PATHS,
+  BUILDING_TEMPLATES, TRADE_PRICES, getDynamicPrice, UPGRADE_PATHS,
   BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   TechId, TECH_TREE, MerchantState,
   GuardMode, GuardLine,
@@ -51,7 +51,7 @@ export function buyResource(state: GameState, resource: ResourceType, amount: nu
   if (state.merchant.x !== mpEntrance.x || state.merchant.y !== mpEntrance.y) {
     console.log('ERROR: Merchant not at marketplace yet'); return state;
   }
-  const price = TRADE_PRICES[resource];
+  const price = getDynamicPrice(resource, state.resources);
   if (!price) { console.log(`ERROR: Cannot trade ${resource}`); return state; }
   const totalCost = price.buy * amount;
   if (state.resources.gold < totalCost) {
@@ -82,7 +82,7 @@ export function sellResource(state: GameState, resource: ResourceType, amount: n
   if (state.merchant.x !== mpEntrance.x || state.merchant.y !== mpEntrance.y) {
     console.log('ERROR: Merchant not at marketplace yet'); return state;
   }
-  const price = TRADE_PRICES[resource];
+  const price = getDynamicPrice(resource, state.resources);
   if (!price) { console.log(`ERROR: Cannot trade ${resource}`); return state; }
   // Sell from marketplace local buffer (goods must be physically present)
   const mpBuffer = marketplace.localBuffer[resource] || 0;

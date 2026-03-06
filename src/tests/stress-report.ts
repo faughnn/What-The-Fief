@@ -212,6 +212,10 @@ function playerAI(state: GameState): GameState {
   if (day >= 6 && countBuildings(state, 'fishing_hut') === 0 && canBuildTech(state, 'fishing_hut')) {
     state = tryBuildNearWater(state, 'fishing_hut');
   }
+  // Forester — renewable wood (requires advanced_farming)
+  if (day >= 20 && countBuildings(state, 'forester') === 0 && canBuildTech(state, 'forester') && canAfford(state, 'forester')) {
+    state = tryBuild(state, 'forester', 14, 18);
+  }
   // Watchtower — build once we can afford it (requires fortification)
   if (day >= 15 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower') && canBuildTech(state, 'watchtower')) {
     state = tryBuild(state, 'watchtower', 13, 13);
