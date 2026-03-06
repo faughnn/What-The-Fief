@@ -15,6 +15,7 @@ import {
   BASE_STORAGE_CAP, STOREHOUSE_BONUS,
   CONSTRUCTION_TICKS, PRODUCTION_BASE_TICKS,
   CARRY_CAPACITY, PORTER_CARRY_BONUS, TOUGH_HP_BONUS,
+  ELDER_AGE, ELDER_SPEED_PENALTY,
 } from '../world.js';
 
 // --- TickState: mutable working copy of game state during a tick ---
@@ -227,6 +228,7 @@ export function productionMultiplier(v: Villager, buildingType: BuildingType, re
   if (v.traits.includes('lazy')) mult *= 0.8;
   if (v.traits.includes('stalwart')) mult *= 0.5;
   if (v.traits.includes('neurotic')) mult *= 1.5;
+  if (v.age >= ELDER_AGE) mult *= ELDER_SPEED_PENALTY;
   if (v.morale >= 70) mult *= 1.1;
   else if (v.morale < 30) mult *= 0.8;
   mult *= TOOL_MULTIPLIER[v.tool];

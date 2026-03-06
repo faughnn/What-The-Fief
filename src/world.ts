@@ -399,6 +399,14 @@ export const VILLAGER_BASE_HP = 10;
 export const HP_REGEN_PER_DAY = 2;
 export const MEDICINE_REGEN_BONUS = 1;
 
+// --- Aging ---
+export const ELDER_AGE = 60;              // age at which villagers become elders
+export const OLD_AGE_DEATH_START = 65;    // age at which natural death chance begins
+export const OLD_AGE_DEATH_CHANCE = 0.02; // per day chance of death at OLD_AGE_DEATH_START, increases with age
+export const ELDER_SPEED_PENALTY = 0.5;   // elders work/move at 50% speed
+export const MIN_VILLAGER_AGE = 18;
+export const MAX_VILLAGER_AGE = 45;
+
 // --- Spoilage rates (fraction lost per tick) ---
 export const SPOILAGE: Partial<Record<ResourceType, number>> = {
   food: 0.02,
@@ -975,6 +983,8 @@ export interface Villager {
   // Friendships
   friends: string[]; // IDs of friends (max 2)
   coworkDays: Record<string, number>; // villagerId → days worked together
+  // Aging
+  age: number; // current age in years
 }
 
 // --- Combat ---
@@ -1536,6 +1546,9 @@ export function createVillager(id: number, x: number, y: number): Villager {
   const traits = rollTraits(id);
   const baseHp = 10;
   const maxHp = baseHp + (traits.includes('tough') ? TOUGH_HP_BONUS : 0);
+  // Deterministic age from ID (18-45 range)
+  const ageRange = MAX_VILLAGER_AGE - MIN_VILLAGER_AGE;
+  const age = MIN_VILLAGER_AGE + ((id * 17 + 11) % (ageRange + 1));
   return {
     id: `v${id}`,
     name: VILLAGER_NAMES[(id - 1) % VILLAGER_NAMES.length],
@@ -1572,6 +1585,7 @@ export function createVillager(id: number, x: number, y: number): Villager {
     expeditionId: null,
     friends: [],
     coworkDays: {},
+    age,
   };
 }
 

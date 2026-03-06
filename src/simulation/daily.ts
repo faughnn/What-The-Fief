@@ -7,7 +7,7 @@ import {
   Season, WeatherType,
   SEASON_MORALE, WEATHER_MORALE, HOUSING_INFO, HOUSING_COMFORT,
   COMFORT_MORALE, FURNITURE_COMFORT_PER_UNIT, FURNITURE_COMFORT_CAP,
-  FoodEaten, TICKS_PER_DAY,
+  FoodEaten, TICKS_PER_DAY, DAYS_PER_YEAR,
   RENOWN_PER_RECRUIT, FREE_SETTLERS,
   CONSTRUCTION_POINT_PER_IMMIGRANT,
   CLOTHING_DURABILITY,
@@ -18,6 +18,7 @@ import {
   FESTIVAL_MORALE_BOOST, FESTIVAL_DURATION,
   FRIENDSHIP_COWORK_THRESHOLD, FRIENDSHIP_MORALE_BONUS,
   FRIENDSHIP_GRIEF_DAYS, FRIENDSHIP_GRIEF_PENALTY, MAX_FRIENDS,
+  ELDER_AGE, OLD_AGE_DEATH_START, OLD_AGE_DEATH_CHANCE,
 } from '../world.js';
 import {
   TickState, findHome, autoEquipTool, autoEquipWeapon, autoEquipArmor, getBuildingEntrance,
@@ -212,6 +213,27 @@ export function processDailyChecks(ts: TickState): void {
     }
   }
 
+  // Aging — every DAYS_PER_YEAR, all villagers age 1 year
+  if (ts.newDay > 0 && ts.newDay % DAYS_PER_YEAR === 0) {
+    for (const v of ts.villagers) {
+      v.age += 1;
+    }
+  }
+
+  // Old age death — daily check for villagers past OLD_AGE_DEATH_START
+  const oldAgeDeaths = new Set<string>();
+  for (const v of ts.villagers) {
+    if (v.age >= OLD_AGE_DEATH_START) {
+      const yearsOver = v.age - OLD_AGE_DEATH_START;
+      const deathChance = OLD_AGE_DEATH_CHANCE * (1 + yearsOver * 0.5);
+      const rng = ((ts.newDay * 31337 + parseInt(v.id.slice(1)) * 48271) & 0x7fffffff) / 0x7fffffff;
+      if (rng < deathChance) {
+        v.hp = 0;
+        oldAgeDeaths.add(v.id);
+      }
+    }
+  }
+
   // Death from HP=0 (disease, combat overflow, etc.)
   const dead = ts.villagers.filter(v => v.hp <= 0);
   for (const d of dead) {
@@ -224,7 +246,10 @@ export function processDailyChecks(ts: TickState): void {
       }
     }
     // Determine cause of death
-    const cause = d.sick ? 'disease' : d.state === 'assaulting_camp' ? 'assault' : 'combat';
+    const cause = oldAgeDeaths.has(d.id) ? `old age (${d.age})`
+      : d.sick ? 'disease'
+      : d.state === 'assaulting_camp' ? 'assault'
+      : 'combat';
     ts.events.push(`${d.name} has died (${cause}).`);
     // Record in graveyard
     ts.graveyard.push({ name: d.name, day: ts.newDay });
