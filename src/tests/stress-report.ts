@@ -421,10 +421,14 @@ function playerAI(state: GameState): GameState {
   }
 
   // Building upgrades — upgrade key buildings when resources permit
-  // Tent → house upgrades for morale (+10 each) — do when wood is plentiful
-  if (day >= 20 && state.resources.wood >= 20) {
+  // Tent → cottage upgrades early, cottage → house later
+  if (day >= 15 && state.resources.wood >= 10) {
     const tent = state.buildings.find(b => b.type === 'tent' && b.constructed);
     if (tent) state = upgradeBuilding(state, tent.id);
+  }
+  if (day >= 30 && state.resources.wood >= 15 && (state.resources.planks || 0) >= 5) {
+    const cottage = state.buildings.find(b => b.type === 'cottage' && b.constructed);
+    if (cottage) state = upgradeBuilding(state, cottage.id);
   }
   if (day >= 30 && state.resources.planks >= 10 && canBuildTech(state, 'large_farm')) {
     const smallFarm = state.buildings.find(b => b.type === 'farm' && b.constructed);

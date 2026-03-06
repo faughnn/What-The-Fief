@@ -1,5 +1,5 @@
 // test-v2-upgrades.ts — Building upgrade system tests
-// Buildings upgrade along defined paths: tent→house→manor
+// Buildings upgrade along defined paths: tent→cottage→house→manor
 
 import {
   createWorld, createVillager, GameState, Building,
@@ -46,9 +46,9 @@ function advance(state: GameState, n: number): GameState {
 }
 
 // ================================================================
-// TEST 1: Upgrade tent to house — basic upgrade
+// TEST 1: Upgrade tent to cottage — basic upgrade
 // ================================================================
-heading('Upgrade Tent to House');
+heading('Upgrade Tent to Cottage');
 
 {
   let state = flatWorld(15, 10);
@@ -58,11 +58,11 @@ heading('Upgrade Tent to House');
   state = placeBuilding(state, 'tent', 3, 3);
   const tentId = state.buildings.find(b => b.type === 'tent')!.id;
 
-  // Upgrade tent → house
+  // Upgrade tent → cottage
   state = upgradeBuilding(state, tentId);
 
   const upgraded = state.buildings.find(b => b.id === tentId)!;
-  assert(upgraded.type === 'house', `Tent upgraded to house (type=${upgraded.type})`);
+  assert(upgraded.type === 'cottage', `Tent upgraded to cottage (type=${upgraded.type})`);
   assert(upgraded.constructed === false, 'Upgraded building is a construction site');
   assert(upgraded.constructionProgress === 0, 'Upgrade construction starts at 0');
 }
@@ -91,13 +91,13 @@ heading('Upgrade Fails Without Resources');
 
 {
   let state = flatWorld(15, 10);
-  state = { ...state, resources: { ...state.resources, wood: 5 } };
+  state = { ...state, resources: { ...state.resources, wood: 4 } };
 
-  state = placeBuilding(state, 'tent', 3, 3); // costs 3 wood → 2
+  state = placeBuilding(state, 'tent', 3, 3); // costs 2 wood (civil_engineering) → 2 left
   const tentId = state.buildings.find(b => b.type === 'tent')!.id;
 
   const before = state.buildings.find(b => b.id === tentId)!;
-  state = upgradeBuilding(state, tentId);
+  state = upgradeBuilding(state, tentId); // needs 3 wood, only have 2
   const after = state.buildings.find(b => b.id === tentId)!;
 
   assert(after.type === 'tent', `Upgrade rejected — still tent (type=${after.type})`);
@@ -175,8 +175,8 @@ heading('Home Assignments Preserved');
 
   // Home still points to same building ID
   assert(state.villagers[0].homeBuildingId === tentId, 'Home assignment preserved after upgrade');
-  const house = state.buildings.find(b => b.id === tentId)!;
-  assert(house.type === 'house', 'Building is now a house');
+  const cottage = state.buildings.find(b => b.id === tentId)!;
+  assert(cottage.type === 'cottage', 'Building is now a cottage');
 }
 
 // ================================================================
@@ -257,10 +257,12 @@ heading('Upgraded Building HP');
   const tentId = state.buildings.find(b => b.type === 'tent')!.id;
 
   state = upgradeBuilding(state, tentId);
-  const house = state.buildings.find(b => b.id === tentId)!;
+  const cottage = state.buildings.find(b => b.id === tentId)!;
 
-  assert(house.maxHp === BUILDING_MAX_HP['house'], `House maxHp is ${BUILDING_MAX_HP['house']} (got ${house.maxHp})`);
-  assert(house.hp === BUILDING_MAX_HP['house'], `House hp is full (${house.hp}/${house.maxHp})`);
+  // tent upgrades to cottage (not directly to house anymore)
+  const expectedMaxHp = BUILDING_MAX_HP['cottage'];
+  assert(cottage.maxHp === expectedMaxHp, `Cottage maxHp is ${expectedMaxHp} (got ${cottage.maxHp})`);
+  assert(cottage.hp === expectedMaxHp, `Cottage hp is full (${cottage.hp}/${cottage.maxHp})`);
 }
 
 // ================================================================

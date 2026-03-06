@@ -33,7 +33,7 @@ export const RESEARCH_TICKS_PER_POINT = Math.round(TICKS_PER_DAY * 0.25);
 const CONSTRUCTION_SCALE = Math.round(TICKS_PER_DAY / 120);
 
 const CONSTRUCTION_TICKS_BASE: Record<string, number> = {
-  tent: 30, house: 90, manor: 180,
+  tent: 30, cottage: 50, house: 90, manor: 180,
   farm: 60, woodcutter: 45, quarry: 90, storehouse: 90,
   herb_garden: 40, flax_field: 40, hemp_field: 40, iron_mine: 120,
   sawmill: 75, smelter: 100, mill: 60, bakery: 60,

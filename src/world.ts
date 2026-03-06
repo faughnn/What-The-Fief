@@ -46,6 +46,7 @@ export const OUTDOOR_BUILDINGS: BuildingType[] = [
 // --- Housing Tiers ---
 export const HOUSING_INFO: Partial<Record<BuildingType, { capacity: number; morale: number }>> = {
   tent: { capacity: 1, morale: 0 },
+  cottage: { capacity: 2, morale: 5 },
   house: { capacity: 2, morale: 10 },
   manor: { capacity: 4, morale: 20 },
   inn: { capacity: 4, morale: 15 },
@@ -55,6 +56,7 @@ export const HOUSING_INFO: Partial<Record<BuildingType, { capacity: number; mora
 // --- Housing comfort levels ---
 export const HOUSING_COMFORT: Partial<Record<BuildingType, number>> = {
   tent: 1,
+  cottage: 1,
   house: 2,
   manor: 3,
   inn: 2,
@@ -98,7 +100,7 @@ export interface Tile {
 
 // --- Building ---
 export type BuildingType =
-  | 'house' | 'tent' | 'manor' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse'
+  | 'house' | 'tent' | 'cottage' | 'manor' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse'
   | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine'
   | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker'
   | 'blacksmith' | 'toolmaker' | 'armorer' | 'coal_burner' | 'carpenter'
@@ -430,9 +432,14 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 3 }, description: 'Basic shelter for 1 villager',
     maxWorkers: 0, production: null, mapChar: 't',
   },
+  cottage: {
+    type: 'cottage', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 6 }, description: 'Small home for 2 villagers',
+    maxWorkers: 0, production: null, mapChar: 'c',
+  },
   house: {
     type: 'house', width: 1, height: 1, allowedTerrain: ['grass'],
-    cost: { wood: 10 }, description: 'Cottage for 2 villagers',
+    cost: { wood: 10 }, description: 'Solid home for 2 villagers',
     maxWorkers: 0, production: null, mapChar: 'H',
   },
   manor: {
@@ -1034,7 +1041,7 @@ export interface ResourceDrop {
 
 // V2: Building max HP by type
 export const BUILDING_MAX_HP: Record<BuildingType, number> = {
-  tent: 20, house: 50, manor: 80,
+  tent: 20, cottage: 35, house: 50, manor: 80,
   farm: 30, woodcutter: 30, quarry: 40, storehouse: 60,
   herb_garden: 25, flax_field: 25, hemp_field: 25, iron_mine: 50,
   sawmill: 40, smelter: 50, mill: 35, bakery: 35,
@@ -1068,7 +1075,8 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
 
 // V2: Building upgrade paths — from → { to, cost }
 export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cost: Partial<Resources> }>> = {
-  tent: { to: 'house', cost: { wood: 7 } },
+  tent: { to: 'cottage', cost: { wood: 3 } },
+  cottage: { to: 'house', cost: { wood: 5, planks: 3 } },
   house: { to: 'manor', cost: { wood: 15, stone: 15, planks: 10 } },
   // Production building upgrades
   farm: { to: 'large_farm', cost: { wood: 10, stone: 5, planks: 5 } },
