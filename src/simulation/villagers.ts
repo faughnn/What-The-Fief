@@ -465,6 +465,10 @@ function produceAtWorkplace(v: Villager, job: Building, template: typeof BUILDIN
       consumeBufferInputs(job.localBuffer, prod.inputs);
       const bonus = techProductionBonus(ts.research, job.type);
       addToBuffer(job.localBuffer, prod.output, 1 + bonus, job.bufferCapacity);
+      // Byproduct (e.g., butchery → leather)
+      if (prod.byproduct) {
+        addToBuffer(job.localBuffer, prod.byproduct.resource, prod.byproduct.amount, job.bufferCapacity);
+      }
     } else {
       // No inputs in local buffer — go pick them up from storehouse
       startPickupInputs(v, job, ts.buildings, ts.resources, ts.grid, ts.width, ts.height);

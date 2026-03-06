@@ -22,6 +22,7 @@ const ROLE_CHARS: Record<VillagerRole, string> = {
   scout: 'c', guard: 'g', researcher: 'd', hunter: 'H', forager: 'G',
   chicken_keeper: 'j', rancher: 'u', beekeeper: 'y', trader: 'T',
   fisher: '$', hauler: '!', militia: 'M', well_worker: 'O',
+  butcher: 'U', composter: '%', dryer: '=',
 };
 
 export function renderMap(state: GameState): string {

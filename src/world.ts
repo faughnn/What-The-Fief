@@ -99,6 +99,8 @@ export type BuildingType =
   | 'outpost'
   // Water
   | 'water_collector'
+  // Food processing
+  | 'butchery' | 'compost_pile' | 'drying_rack'
   // Roads
   | 'road';
 
@@ -127,7 +129,7 @@ export type ResourceType =
   | 'planks' | 'charcoal' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
   | 'basic_tools' | 'sturdy_tools' | 'iron_tools'
   | 'sword' | 'bow'
-  | 'furniture' | 'water'
+  | 'furniture' | 'water' | 'meat' | 'fertilizer' | 'dried_food'
   | 'leather_armor' | 'iron_armor'
   | 'gold';
 
@@ -156,6 +158,9 @@ export interface Resources {
   bow: number;
   furniture: number;
   water: number;
+  meat: number;
+  fertilizer: number;
+  dried_food: number;
   leather_armor: number;
   iron_armor: number;
   gold: number;
@@ -167,7 +172,7 @@ export function emptyResources(): Resources {
     planks: 0, charcoal: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
     basic_tools: 0, sturdy_tools: 0, iron_tools: 0,
     sword: 0, bow: 0,
-    furniture: 0, water: 0,
+    furniture: 0, water: 0, meat: 0, fertilizer: 0, dried_food: 0,
     leather_armor: 0, iron_armor: 0,
     gold: 0,
   };
@@ -179,7 +184,7 @@ export const ALL_RESOURCES: ResourceType[] = [
   'planks', 'charcoal', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
   'basic_tools', 'sturdy_tools', 'iron_tools',
   'sword', 'bow',
-  'furniture', 'water',
+  'furniture', 'water', 'meat', 'fertilizer', 'dried_food',
   'leather_armor', 'iron_armor',
   'gold',
 ];
@@ -345,11 +350,18 @@ export const SPOILAGE: Partial<Record<ResourceType, number>> = {
   food: 0.02,
   wheat: 0.01,
   flour: 0.01,
+  meat: 0.015,
+  dried_food: 0.005, // dried food spoils much slower
 };
+
+// Alias for test access
+export const SPOILAGE_RATES = SPOILAGE;
 
 // --- Food priority (best first) ---
 export const FOOD_PRIORITY: { resource: ResourceType; satisfaction: number }[] = [
+  { resource: 'meat', satisfaction: 2.5 },
   { resource: 'bread', satisfaction: 2 },
+  { resource: 'dried_food', satisfaction: 1.8 },
   { resource: 'fish', satisfaction: 1.5 },
   { resource: 'flour', satisfaction: 1.5 },
   { resource: 'wheat', satisfaction: 1 },
@@ -361,6 +373,7 @@ export interface ProductionRule {
   output: ResourceType;
   amountPerWorker: number;
   inputs: Partial<Record<ResourceType, number>> | null;
+  byproduct?: { resource: ResourceType; amount: number }; // secondary output
 }
 
 // --- Building Templates ---
@@ -577,6 +590,21 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 5 }, description: 'Collects rainwater passively (more in rain)',
     maxWorkers: 0, production: { output: 'water', amountPerWorker: 1 }, mapChar: '~',
   },
+  butchery: {
+    type: 'butchery', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 8, stone: 3 }, description: 'Processes raw food into meat and leather',
+    maxWorkers: 1, production: { output: 'meat', amountPerWorker: 2, inputs: { food: 3 }, byproduct: { resource: 'leather', amount: 1 } }, mapChar: 'U',
+  },
+  compost_pile: {
+    type: 'compost_pile', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 5 }, description: 'Converts surplus food into fertilizer',
+    maxWorkers: 1, production: { output: 'fertilizer', amountPerWorker: 1, inputs: { food: 2 } }, mapChar: '%',
+  },
+  drying_rack: {
+    type: 'drying_rack', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 6 }, description: 'Dries food for long-term preservation',
+    maxWorkers: 1, production: { output: 'dried_food', amountPerWorker: 2, inputs: { food: 2 } }, mapChar: '=',
+  },
   church: {
     type: 'church', width: 2, height: 2, allowedTerrain: ['grass'],
     cost: { wood: 20, stone: 15 }, description: 'Boosts morale of nearby villagers',
@@ -685,6 +713,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   woodcutter: 'woodcutting',
   mill: 'cooking', bakery: 'cooking',
   herb_garden: 'herbalism', well: 'farming',
+  butchery: 'cooking', compost_pile: 'farming', drying_rack: 'cooking',
   research_desk: 'crafting',
   chicken_coop: 'farming',
   livestock_barn: 'farming',
@@ -717,7 +746,8 @@ export type VillagerRole =
   | 'weaponsmith_worker' | 'fletcher_worker' | 'leather_workshop_worker'
   | 'scout' | 'guard' | 'researcher' | 'hunter' | 'forager'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
-  | 'fisher' | 'hauler' | 'militia' | 'well_worker';
+  | 'fisher' | 'hauler' | 'militia' | 'well_worker'
+  | 'butcher' | 'composter' | 'dryer';
 
 export type VillagerState =
   | 'sleeping'
@@ -948,6 +978,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   tavern: 40,
   well: 50,
   water_collector: 20,
+  butchery: 35, compost_pile: 15, drying_rack: 20,
   church: 80,
   graveyard: 20,
   rubble: 1,
