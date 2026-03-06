@@ -501,7 +501,7 @@ export function liberateVillage(state: GameState, villageId: string): GameState 
       x: ex, y: ey,
       hp: template.maxHp, maxHp: template.maxHp,
       attack: template.attack, defense: template.defense,
-      siege: 'none', ticksAlive: 0,
+      range: 0, siege: 'none', ticksAlive: 0,
     });
     nextId++;
   }

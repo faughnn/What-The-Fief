@@ -5,16 +5,17 @@ import {
   EnemyEntity, EnemyType, ENEMY_TEMPLATES, GUARD_COMBAT,
   CONSTRUCTION_TICKS, BUILDING_MAX_HP, ALL_RESOURCES,
   WATCHTOWER_RANGE, WATCHTOWER_DAMAGE,
-  WEAPON_STATS,
+  WEAPON_STATS, ARMOR_STATS,
   BanditCamp, CAMP_BASE_HP, CAMP_HP_PER_LEVEL, CAMP_RAID_INTERVAL,
   CAMP_SPAWN_DAY, CAMP_SPAWN_INTERVAL, CAMP_MAX_COUNT,
   CAMP_CLEAR_GOLD, CAMP_CLEAR_RENOWN,
   WOLF_SPAWN_THRESHOLD, RAM_SPAWN_THRESHOLD, MAX_RAMS,
   SIEGE_TOWER_THRESHOLD, WOLF_STRENGTH_OFFSET,
+  ARCHER_RAID_THRESHOLD, BRUTE_RAID_THRESHOLD,
   TRUST_KILL_BANDIT, TRUST_VILLAGE_RADIUS, TRUST_THRESHOLDS, TrustRank,
   LIBERATION_RENOWN_REWARD,
 } from '../world.js';
-import { TickState, isAdjacent, hasTech, degradeWeapon, addToBuffer, isStorehouse, destroyBuildingAndCreateRubble, buildBuildingMap } from './helpers.js';
+import { TickState, isAdjacent, hasTech, degradeWeapon, degradeArmor, addToBuffer, isStorehouse, destroyBuildingAndCreateRubble, buildBuildingMap } from './helpers.js';
 import { findPath, findPathEnemy } from './movement.js';
 
 // --- Find settlement center (average building position) ---
@@ -58,12 +59,21 @@ function pickCampPosition(ts: TickState, side: number): { x: number; y: number }
   }
 }
 
+// --- Determine enemy type for a slot in a raid based on camp strength ---
+function pickRaidEnemyType(index: number, totalBandits: number, strength: number): EnemyType {
+  // At strength >= BRUTE_RAID_THRESHOLD: ~20% brutes (every 5th enemy)
+  if (strength >= BRUTE_RAID_THRESHOLD && index > 0 && index % 5 === 0) return 'bandit_brute';
+  // At strength >= ARCHER_RAID_THRESHOLD: ~30% archers (every 3rd enemy, not already brute)
+  if (strength >= ARCHER_RAID_THRESHOLD && index > 0 && index % 3 === 0) return 'bandit_archer';
+  return 'bandit';
+}
+
 // --- Spawn enemies at a camp's location ---
 function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
   const numBandits = camp.strength + 1;
   const numWolves = camp.strength >= WOLF_SPAWN_THRESHOLD ? camp.strength - WOLF_STRENGTH_OFFSET : 0;
   for (let i = 0; i < numBandits + numWolves; i++) {
-    const type: EnemyType = i < numBandits ? 'bandit' : 'wolf';
+    const type: EnemyType = i < numBandits ? pickRaidEnemyType(i, numBandits, camp.strength) : 'wolf';
     const t = ENEMY_TEMPLATES[type];
     // Spread enemies around camp position
     const ex = Math.max(0, Math.min(ts.width - 1, camp.x + (i % 3) - 1));
@@ -71,7 +81,7 @@ function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
     ts.enemies.push({
       id: `e${ts.nextEnemyId}`, type, x: ex, y: ey,
       hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-      siege: 'none', ticksAlive: 0,
+      range: t.range || 0, siege: 'none', ticksAlive: 0,
     });
     ts.nextEnemyId++;
   }
@@ -84,7 +94,7 @@ function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
         x: Math.max(0, Math.min(ts.width - 1, camp.x + i)),
         y: Math.max(0, Math.min(ts.height - 1, camp.y + 1)),
         hp: 25, maxHp: 25, attack: 5, defense: 3,
-        siege: 'battering_ram', ticksAlive: 0,
+        range: 0, siege: 'battering_ram', ticksAlive: 0,
       });
       ts.nextEnemyId++;
     }
@@ -95,7 +105,7 @@ function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
       x: Math.max(0, Math.min(ts.width - 1, camp.x - 1)),
       y: Math.max(0, Math.min(ts.height - 1, camp.y + 1)),
       hp: 20, maxHp: 20, attack: 2, defense: 2,
-      siege: 'siege_tower', ticksAlive: 0,
+      range: 0, siege: 'siege_tower', ticksAlive: 0,
     });
     ts.nextEnemyId++;
   }
@@ -171,7 +181,7 @@ export function processRaidAndCombat(ts: TickState): void {
       const numWolves = ts.raidLevel >= (WOLF_SPAWN_THRESHOLD + 1) ? ts.raidLevel - WOLF_STRENGTH_OFFSET : 0;
       const edgeSide = ts.newDay % 4;
       for (let i = 0; i < numBandits + numWolves; i++) {
-        const type: EnemyType = i < numBandits ? 'bandit' : 'wolf';
+        const type: EnemyType = i < numBandits ? pickRaidEnemyType(i, numBandits, ts.raidLevel) : 'wolf';
         const t = ENEMY_TEMPLATES[type];
         let ex: number, ey: number;
         switch (edgeSide) {
@@ -183,7 +193,7 @@ export function processRaidAndCombat(ts: TickState): void {
         ts.enemies.push({
           id: `e${ts.nextEnemyId}`, type, x: ex, y: ey,
           hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-          siege: 'none', ticksAlive: 0,
+          range: t.range || 0, siege: 'none', ticksAlive: 0,
         });
         ts.nextEnemyId++;
       }
@@ -200,7 +210,7 @@ export function processRaidAndCombat(ts: TickState): void {
           ts.enemies.push({
             id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
             hp: 25, maxHp: 25, attack: 5, defense: 3,
-            siege: 'battering_ram', ticksAlive: 0,
+            range: 0, siege: 'battering_ram', ticksAlive: 0,
           });
           ts.nextEnemyId++;
         }
@@ -216,7 +226,7 @@ export function processRaidAndCombat(ts: TickState): void {
         ts.enemies.push({
           id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
           hp: 20, maxHp: 20, attack: 2, defense: 2,
-          siege: 'siege_tower', ticksAlive: 0,
+          range: 0, siege: 'siege_tower', ticksAlive: 0,
         });
         ts.nextEnemyId++;
       }
@@ -247,6 +257,30 @@ export function processRaidAndCombat(ts: TickState): void {
       v.role === 'guard' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
     );
     if (adjacentGuard) continue; // will fight below
+
+    // Ranged enemy (archer): shoot at nearest guard/villager in range instead of moving
+    if (e.range > 0) {
+      // Find nearest target (guard first, then any villager) within range
+      let rangedTarget: { hp: number } | null = null;
+      let rangedDist = Infinity;
+      for (const v of ts.villagers) {
+        if (v.hp <= 0) continue;
+        const dist = Math.abs(e.x - v.x) + Math.abs(e.y - v.y);
+        if (dist <= e.range && dist < rangedDist) {
+          // Prefer guards as targets
+          if (!rangedTarget || v.role === 'guard') {
+            rangedDist = dist;
+            rangedTarget = v;
+          }
+        }
+      }
+      if (rangedTarget) {
+        // Shoot — deal attack damage at range, no retaliation
+        rangedTarget.hp -= Math.max(1, e.attack);
+        continue;
+      }
+      // No target in range — fall through to normal movement
+    }
 
     // Siege tower: can bypass walls — use normal pathfinding instead of enemy pathfinding
     if (e.siege === 'siege_tower') {
@@ -465,9 +499,11 @@ export function processRaidAndCombat(ts: TickState): void {
         ? { attack: WEAPON_STATS[v.weapon].attack, defense: WEAPON_STATS[v.weapon].defense }
         : GUARD_COMBAT[v.tool];
       nearestEnemy.hp -= Math.max(1, baseStats.attack + attackBonus - nearestEnemy.defense);
-      const guardDef = baseStats.defense + defenseBonus;
+      const armorDef = ARMOR_STATS[v.armor]?.defense || 0;
+      const guardDef = baseStats.defense + defenseBonus + armorDef;
       v.hp -= Math.max(1, nearestEnemy.attack - guardDef);
       if (v.weapon !== 'none') degradeWeapon(v, ts.resources, ts.buildings);
+      if (v.armor !== 'none') degradeArmor(v, ts.resources, ts.buildings);
       continue;
     }
 

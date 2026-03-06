@@ -748,7 +748,7 @@ export interface Villager {
 }
 
 // --- Combat ---
-export type EnemyType = 'bandit' | 'wolf' | 'boar';
+export type EnemyType = 'bandit' | 'bandit_archer' | 'bandit_brute' | 'wolf' | 'boar';
 
 export interface Enemy {
   type: EnemyType;
@@ -762,11 +762,17 @@ export interface ActiveRaid {
   resolved: boolean;
 }
 
-export const ENEMY_TEMPLATES: Record<EnemyType, Omit<Enemy, 'hp'> & { maxHp: number }> = {
+export const ENEMY_TEMPLATES: Record<EnemyType, Omit<Enemy, 'hp'> & { maxHp: number; range?: number }> = {
   bandit: { type: 'bandit', maxHp: 10, attack: 3, defense: 1 },
+  bandit_archer: { type: 'bandit_archer', maxHp: 7, attack: 2, defense: 0, range: 3 },
+  bandit_brute: { type: 'bandit_brute', maxHp: 18, attack: 5, defense: 3 },
   wolf: { type: 'wolf', maxHp: 6, attack: 4, defense: 0 },
   boar: { type: 'boar', maxHp: 15, attack: 2, defense: 2 },
 };
+
+// Raid composition thresholds
+export const ARCHER_RAID_THRESHOLD = 3;  // Camp strength for archers to appear
+export const BRUTE_RAID_THRESHOLD = 5;   // Camp strength for brutes to appear
 
 // --- Bandit Camps (persistent world threats) ---
 export interface BanditCamp {
@@ -805,6 +811,7 @@ export interface EnemyEntity {
   maxHp: number;
   attack: number;
   defense: number;
+  range: number;        // 0 = melee only, >0 = ranged attack distance
   siege: SiegeType;
   ticksAlive: number; // Enemies despawn after ~2 days (240 ticks)
 }

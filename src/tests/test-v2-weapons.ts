@@ -48,7 +48,7 @@ function addEnemy(state: GameState, x: number, y: number, type: 'bandit' | 'wolf
   const e: EnemyEntity = {
     id: `e${state.nextEnemyId}`, type, x, y,
     hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-    siege: 'none', ticksAlive: 0,
+    range: 0, siege: 'none', ticksAlive: 0,
   };
   state.nextEnemyId++;
   state.enemies.push(e);

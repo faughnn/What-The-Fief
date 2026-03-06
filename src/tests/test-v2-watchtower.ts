@@ -51,6 +51,7 @@ function addEnemy(state: GameState, x: number, y: number): GameState {
     id: `e${state.nextEnemyId}`, type: 'bandit',
     x, y, hp: t.maxHp, maxHp: t.maxHp,
     attack: t.attack, defense: t.defense,
+    range: 0, siege: 'none', ticksAlive: 0,
   };
   return { ...state, enemies: [...state.enemies, enemy], nextEnemyId: state.nextEnemyId + 1 };
 }

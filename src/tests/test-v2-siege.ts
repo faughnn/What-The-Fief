@@ -87,7 +87,7 @@ heading('Battering Ram vs Wall');
   const ram: EnemyEntity = {
     id: 'e1', type: 'bandit', x: 4, y: 5,
     hp: 25, maxHp: 25, attack: 5, defense: 3,
-    siege: 'battering_ram',
+    range: 0, siege: 'battering_ram', ticksAlive: 0,
   };
   state = { ...state, enemies: [ram], nextEnemyId: 2 };
 
@@ -129,7 +129,7 @@ heading('Normal Enemy vs Wall (Comparison)');
   const bandit: EnemyEntity = {
     id: 'e1', type: 'bandit', x: 4, y: 5,
     hp: 10, maxHp: 10, attack: 3, defense: 1,
-    siege: 'none',
+    range: 0, siege: 'none', ticksAlive: 0,
   };
   state = { ...state, enemies: [bandit], nextEnemyId: 2 };
 
@@ -178,7 +178,7 @@ heading('Siege Tower Bypasses Wall');
   const tower: EnemyEntity = {
     id: 'e1', type: 'bandit', x: 5, y: 5,
     hp: 20, maxHp: 20, attack: 2, defense: 2,
-    siege: 'siege_tower',
+    range: 0, siege: 'siege_tower', ticksAlive: 0,
   };
   state = { ...state, enemies: [tower], nextEnemyId: 2 };
 
@@ -228,7 +228,7 @@ heading('Battering Ram Destroys Gate');
   const ram: EnemyEntity = {
     id: 'e1', type: 'bandit', x: 4, y: 5,
     hp: 25, maxHp: 25, attack: 5, defense: 3,
-    siege: 'battering_ram',
+    range: 0, siege: 'battering_ram', ticksAlive: 0,
   };
   state = { ...state, enemies: [ram], nextEnemyId: 2 };
 

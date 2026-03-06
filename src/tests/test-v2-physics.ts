@@ -46,6 +46,7 @@ function addEnemy(state: GameState, type: 'bandit' | 'wolf' | 'boar', x: number,
     type, x, y,
     hp: template.maxHp, maxHp: template.maxHp,
     attack: template.attack, defense: template.defense,
+    range: 0, siege: 'none', ticksAlive: 0,
   };
   return {
     ...state,

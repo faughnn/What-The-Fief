@@ -30,7 +30,7 @@ function addVillage(state: GameState, id: string, x: number, y: number): GameSta
 function spawnEnemy(state: GameState, x: number, y: number, hp: number = 1): GameState {
   const e: EnemyEntity = {
     id: `e${state.nextEnemyId}`, type: 'bandit',
-    x, y, hp, maxHp: 10, attack: 3, defense: 1, siege: 'none', ticksAlive: 0,
+    x, y, hp, maxHp: 10, attack: 3, defense: 1, range: 0, siege: 'none', ticksAlive: 0,
   };
   return { ...state, enemies: [...state.enemies, e], nextEnemyId: state.nextEnemyId + 1 };
 }

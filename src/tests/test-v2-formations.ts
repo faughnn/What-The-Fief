@@ -94,7 +94,7 @@ console.log('\n=== Charge Mode: Engages At Long Range ===');
   state.enemies.push({
     id: 'e1', type: 'bandit', x: 19, y: 10,
     hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-    siege: 'none', ticksAlive: 0,
+    range: 0, siege: 'none', ticksAlive: 0,
   });
 
   const startX = guard.x;
@@ -117,7 +117,7 @@ console.log('\n=== Hold Mode: Does Not Move Toward Distant Enemy ===');
   state.enemies.push({
     id: 'e1', type: 'bandit', x: 13, y: 10,
     hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-    siege: 'none', ticksAlive: 0,
+    range: 0, siege: 'none', ticksAlive: 0,
   });
 
   const startX = guard.x;
@@ -139,7 +139,7 @@ console.log('\n=== Hold Mode: Fights Adjacent Enemy ===');
   state.enemies.push({
     id: 'e1', type: 'bandit', x: 10, y: 8,
     hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-    siege: 'none', ticksAlive: 0,
+    range: 0, siege: 'none', ticksAlive: 0,
   });
 
   state = tick(state);
@@ -160,7 +160,7 @@ console.log('\n=== Hold Mode: Engages Within 3 Tiles ===');
   state.enemies.push({
     id: 'e1', type: 'bandit', x: 13, y: 10,
     hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-    siege: 'none', ticksAlive: 0,
+    range: 0, siege: 'none', ticksAlive: 0,
   });
 
   const startX = guard.x;
@@ -184,7 +184,7 @@ console.log('\n=== Back Line: Bow Guard Stays at Range ===');
   state.enemies.push({
     id: 'e1', type: 'bandit', x: 13, y: 10,
     hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-    siege: 'none', ticksAlive: 0,
+    range: 0, siege: 'none', ticksAlive: 0,
   });
 
   state = tick(state);
@@ -209,7 +209,7 @@ console.log('\n=== Front Line: Sword Guard Closes to Melee ===');
   state.enemies.push({
     id: 'e1', type: 'bandit', x: 15, y: 10,
     hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-    siege: 'none', ticksAlive: 0,
+    range: 0, siege: 'none', ticksAlive: 0,
   });
 
   const startX = guard.x;
@@ -232,7 +232,7 @@ console.log('\n=== Back Line: Melee When Cornered ===');
   state.enemies.push({
     id: 'e1', type: 'bandit', x: 11, y: 10,
     hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-    siege: 'none', ticksAlive: 0,
+    range: 0, siege: 'none', ticksAlive: 0,
   });
 
   state = tick(state);
@@ -253,7 +253,7 @@ console.log('\n=== Patrol Mode: Standard Behavior (10-Tile Range) ===');
   state.enemies.push({
     id: 'e1', type: 'bandit', x: 14, y: 10,
     hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-    siege: 'none', ticksAlive: 0,
+    range: 0, siege: 'none', ticksAlive: 0,
   });
 
   const startX = guard.x;
@@ -274,7 +274,7 @@ console.log('\n=== Patrol Mode: Ignores Enemy Beyond 10 Tiles ===');
   state.enemies.push({
     id: 'e1', type: 'bandit', x: 17, y: 10,
     hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-    siege: 'none', ticksAlive: 0,
+    range: 0, siege: 'none', ticksAlive: 0,
   });
 
   const startX = guard.x;
