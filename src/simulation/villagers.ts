@@ -486,6 +486,11 @@ function produceAtWorkplace(v: Villager, job: Building, template: typeof BUILDIN
         if (ts.season === 'autumn' && ts.research.completed.includes('irrigation' as TechId)) farmMult = 1.0;
         if (farmMult === 0) { v.workProgress = 0; return; } // No farming in winter
         amount = Math.max(1, Math.floor(amount * farmMult));
+        // Fertilizer boost: +50% production, consumes 1 fertilizer per cycle
+        if ((ts.resources.fertilizer || 0) > 0) {
+          amount = Math.max(amount + 1, Math.ceil(amount * 1.5));
+          ts.resources.fertilizer = (ts.resources.fertilizer || 0) - 1;
+        }
       }
       amount = Math.max(1, Math.floor(amount * WEATHER_OUTDOOR_MULT[ts.weather]));
     }
