@@ -39,7 +39,7 @@ export const SEASONAL_EVENTS: Record<Season, SeasonalEvent> = {
 
 export const OUTDOOR_BUILDINGS: BuildingType[] = [
   'farm', 'woodcutter', 'quarry', 'herb_garden', 'flax_field', 'hemp_field',
-  'chicken_coop', 'apiary', 'livestock_barn', 'foraging_hut', 'fishing_hut',
+  'chicken_coop', 'apiary', 'livestock_barn', 'foraging_hut', 'fishing_hut', 'forester',
   'large_farm', 'deep_quarry',
 ];
 
@@ -124,6 +124,8 @@ export type BuildingType =
   | 'reinforced_wall'
   // Military
   | 'barracks' | 'training_ground' | 'spike_trap'
+  // Renewable resources
+  | 'forester'
   // Roads
   | 'road';
 
@@ -747,6 +749,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 3, ingots: 1 }, description: 'Damages enemies that step on it',
     maxWorkers: 0, production: null, mapChar: '^',
   },
+  forester: {
+    type: 'forester', width: 1, height: 1, allowedTerrain: ['grass', 'forest'],
+    cost: { wood: 5, stone: 3 }, description: 'Plants and harvests trees — renewable wood',
+    maxWorkers: 2, production: { output: 'wood', amountPerWorker: 1, inputs: null }, mapChar: 'F',
+  },
 };
 
 // --- Skills ---
@@ -758,7 +765,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   farm: 'farming', flax_field: 'farming', hemp_field: 'farming',
   quarry: 'mining', iron_mine: 'mining',
   sawmill: 'crafting', smelter: 'crafting', coal_burner: 'crafting', carpenter: 'crafting', tanner: 'crafting', weaver: 'crafting', ropemaker: 'crafting',
-  woodcutter: 'woodcutting',
+  woodcutter: 'woodcutting', forester: 'woodcutting',
   mill: 'cooking', bakery: 'cooking',
   herb_garden: 'herbalism', well: 'farming',
   butchery: 'cooking', compost_pile: 'farming', drying_rack: 'cooking',
@@ -798,7 +805,8 @@ export type VillagerRole =
   | 'scout' | 'guard' | 'researcher' | 'hunter' | 'forager'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
   | 'fisher' | 'hauler' | 'militia' | 'well_worker'
-  | 'butcher' | 'composter' | 'dryer';
+  | 'butcher' | 'composter' | 'dryer'
+  | 'forester_worker';
 
 export type VillagerState =
   | 'sleeping'
@@ -1044,6 +1052,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   barracks: 80,
   training_ground: 40,
   spike_trap: 10,
+  forester: 30,
 };
 
 
@@ -1176,6 +1185,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   barracks: 'military_tactics',
   training_ground: 'fortification',
   spike_trap: 'fortification',
+  forester: 'advanced_farming',
 };
 
 export interface ResearchState {

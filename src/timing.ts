@@ -60,6 +60,7 @@ const CONSTRUCTION_TICKS_BASE: Record<string, number> = {
   barracks: 100,
   training_ground: 60,
   spike_trap: 15,
+  forester: 50,
 };
 
 export const CONSTRUCTION_TICKS: Record<BuildingType, number> = Object.fromEntries(

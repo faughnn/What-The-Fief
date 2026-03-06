@@ -110,6 +110,7 @@ export const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   marketplace: 'trader',
   well: 'well_worker',
   butchery: 'butcher', compost_pile: 'composter', drying_rack: 'dryer',
+  forester: 'forester_worker',
   watchtower: 'guard',
   training_ground: 'guard',
   // T2 upgraded buildings inherit parent roles
