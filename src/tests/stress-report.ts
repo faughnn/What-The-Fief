@@ -226,6 +226,17 @@ function playerAI(state: GameState): GameState {
   if (day >= 25 && countBuildings(state, 'fletcher') === 0 && countBuildings(state, 'ropemaker') > 0 && canBuildTech(state, 'fletcher')) {
     state = tryBuild(state, 'fletcher', 13, 14);
   }
+  // Coal burner — needed for charcoal (smelter fuel). Build when metallurgy available.
+  if (day >= 20 && countBuildings(state, 'coal_burner') === 0 && canBuildTech(state, 'coal_burner') && canAfford(state, 'coal_burner')) {
+    state = tryBuild(state, 'coal_burner', 12, 17);
+  }
+  // Iron mine + smelter chain — requires metallurgy + charcoal supply
+  if (day >= 22 && countBuildings(state, 'iron_mine') === 0 && canBuildTech(state, 'iron_mine') && canAfford(state, 'iron_mine')) {
+    state = tryBuild(state, 'iron_mine', 12, 16);
+  }
+  if (day >= 24 && countBuildings(state, 'smelter') === 0 && countBuildings(state, 'coal_burner') > 0 && canBuildTech(state, 'smelter') && canAfford(state, 'smelter')) {
+    state = tryBuild(state, 'smelter', 12, 13);
+  }
   // Armor production: leather_workshop (requires master_crafting)
   if (day >= 28 && countBuildings(state, 'leather_workshop') === 0 && countBuildings(state, 'tanner') > 0 && countBuildings(state, 'weaver') > 0 && canBuildTech(state, 'leather_workshop')) {
     state = tryBuild(state, 'leather_workshop', 12, 14);

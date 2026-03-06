@@ -17,8 +17,11 @@ const ROLE_CHARS: Record<VillagerRole, string> = {
   sawyer: 's', smelter: 'e', miller: 'l', baker: 'b',
   tanner_worker: 'n', weaver_worker: 'a', ropemaker_worker: 'r',
   blacksmith_worker: 'k', toolmaker_worker: 'o', armorer_worker: 'z',
-  scout: 'c', guard: 'g', researcher: 'd',
-  chicken_keeper: 'j', rancher: 'u', beekeeper: 'y',
+  charcoal_burner: 'C', weaponsmith_worker: 'W', fletcher_worker: 'F',
+  leather_workshop_worker: 'L',
+  scout: 'c', guard: 'g', researcher: 'd', hunter: 'H', forager: 'G',
+  chicken_keeper: 'j', rancher: 'u', beekeeper: 'y', trader: 'T',
+  fisher: '$', hauler: '!', militia: 'M',
 };
 
 export function renderMap(state: GameState): string {

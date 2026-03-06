@@ -60,7 +60,7 @@ export type BuildingType =
   | 'house' | 'tent' | 'manor' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse'
   | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine'
   | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker'
-  | 'blacksmith' | 'toolmaker' | 'armorer'
+  | 'blacksmith' | 'toolmaker' | 'armorer' | 'coal_burner'
   | 'town_hall' | 'wall' | 'fence'
   | 'research_desk'
   | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace' | 'hunting_lodge' | 'foraging_hut' | 'fishing_hut'
@@ -108,7 +108,7 @@ export interface Building {
 // --- Resources ---
 export type ResourceType =
   | 'wood' | 'stone' | 'food' | 'wheat' | 'fish' | 'iron_ore' | 'herbs' | 'flax' | 'hemp'
-  | 'planks' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
+  | 'planks' | 'charcoal' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
   | 'basic_tools' | 'sturdy_tools' | 'iron_tools'
   | 'sword' | 'bow'
   | 'leather_armor' | 'iron_armor'
@@ -125,6 +125,7 @@ export interface Resources {
   flax: number;
   hemp: number;
   planks: number;
+  charcoal: number;
   ingots: number;
   flour: number;
   bread: number;
@@ -144,7 +145,7 @@ export interface Resources {
 export function emptyResources(): Resources {
   return {
     wood: 0, stone: 0, food: 0, wheat: 0, fish: 0, iron_ore: 0, herbs: 0, flax: 0, hemp: 0,
-    planks: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
+    planks: 0, charcoal: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
     basic_tools: 0, sturdy_tools: 0, iron_tools: 0,
     sword: 0, bow: 0,
     leather_armor: 0, iron_armor: 0,
@@ -155,7 +156,7 @@ export function emptyResources(): Resources {
 // All resource keys for iteration
 export const ALL_RESOURCES: ResourceType[] = [
   'wood', 'stone', 'food', 'wheat', 'fish', 'iron_ore', 'herbs', 'flax', 'hemp',
-  'planks', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
+  'planks', 'charcoal', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
   'basic_tools', 'sturdy_tools', 'iron_tools',
   'sword', 'bow',
   'leather_armor', 'iron_armor',
@@ -418,7 +419,7 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   smelter: {
     type: 'smelter', width: 2, height: 2, allowedTerrain: ['grass'],
     cost: { wood: 15, stone: 10 }, description: 'Smelts iron ore into ingots',
-    maxWorkers: 1, production: { output: 'ingots', amountPerWorker: 1, inputs: { iron_ore: 2 } }, mapChar: 'E',
+    maxWorkers: 1, production: { output: 'ingots', amountPerWorker: 1, inputs: { iron_ore: 2, charcoal: 1 } }, mapChar: 'E',
   },
   mill: {
     type: 'mill', width: 1, height: 1, allowedTerrain: ['grass'],
@@ -459,6 +460,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     type: 'armorer', width: 2, height: 2, allowedTerrain: ['grass'],
     cost: { wood: 25, stone: 20 }, description: 'Forges iron armor from ingots and leather',
     maxWorkers: 1, production: { output: 'iron_armor', amountPerWorker: 1, inputs: { ingots: 3, leather: 1 } }, mapChar: 'A',
+  },
+  coal_burner: {
+    type: 'coal_burner', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 10, stone: 5 }, description: 'Burns wood into charcoal for fuel',
+    maxWorkers: 1, production: { output: 'charcoal', amountPerWorker: 2, inputs: { wood: 2 } }, mapChar: 'c',
   },
   town_hall: {
     type: 'town_hall', width: 3, height: 3, allowedTerrain: ['grass'],
@@ -574,7 +580,7 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   advanced_smelter: {
     type: 'advanced_smelter', width: 2, height: 2, allowedTerrain: ['grass'],
     cost: { stone: 20, planks: 10, ingots: 5 }, description: 'Blast furnace — 2 workers, 2 ingots each',
-    maxWorkers: 2, production: { output: 'ingots', amountPerWorker: 2, inputs: { iron_ore: 2 } }, mapChar: 'E',
+    maxWorkers: 2, production: { output: 'ingots', amountPerWorker: 2, inputs: { iron_ore: 2, charcoal: 1 } }, mapChar: 'E',
   },
   windmill: {
     type: 'windmill', width: 2, height: 2, allowedTerrain: ['grass'],
@@ -644,7 +650,7 @@ export const ALL_SKILLS: SkillType[] = ['farming', 'mining', 'crafting', 'woodcu
 export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   farm: 'farming', flax_field: 'farming', hemp_field: 'farming',
   quarry: 'mining', iron_mine: 'mining',
-  sawmill: 'crafting', smelter: 'crafting', tanner: 'crafting', weaver: 'crafting', ropemaker: 'crafting',
+  sawmill: 'crafting', smelter: 'crafting', coal_burner: 'crafting', tanner: 'crafting', weaver: 'crafting', ropemaker: 'crafting',
   woodcutter: 'woodcutting',
   mill: 'cooking', bakery: 'cooking',
   herb_garden: 'herbalism',
@@ -676,9 +682,9 @@ export type VillagerRole =
   | 'idle' | 'farmer' | 'woodcutter' | 'quarrier' | 'herbalist'
   | 'flaxer' | 'hemper' | 'miner' | 'sawyer' | 'smelter'
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
-  | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker'
+  | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker' | 'charcoal_burner'
   | 'weaponsmith_worker' | 'fletcher_worker' | 'leather_workshop_worker'
-  | 'scout' | 'guard' | 'researcher' | 'hunter'
+  | 'scout' | 'guard' | 'researcher' | 'hunter' | 'forager'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
   | 'fisher' | 'hauler' | 'militia';
 
@@ -886,7 +892,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   herb_garden: 25, flax_field: 25, hemp_field: 25, iron_mine: 50,
   sawmill: 40, smelter: 50, mill: 35, bakery: 35,
   tanner: 35, weaver: 35, ropemaker: 35,
-  blacksmith: 45, toolmaker: 45, armorer: 50,
+  blacksmith: 45, toolmaker: 45, armorer: 50, coal_burner: 35,
   town_hall: 100, wall: 100, fence: 30,
   research_desk: 30, chicken_coop: 25, livestock_barn: 40,
   apiary: 20, marketplace: 60, hunting_lodge: 30, foraging_hut: 25, fishing_hut: 30, gate: 80,
@@ -1005,6 +1011,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   foraging_hut: 'herbalism_lore',
   // Tier 2
   smelter: 'metallurgy',
+  coal_burner: 'metallurgy',
   iron_mine: 'metallurgy',
   armorer: 'metallurgy',
   marketplace: 'trade_routes',
