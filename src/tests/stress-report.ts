@@ -2,8 +2,8 @@
 // Simulates a real Bellwright player making decisions each day.
 
 import {
-  createWorld, createVillager, GameState, Building, BuildingType,
-  TICKS_PER_DAY, BUILDING_TEMPLATES, FOOD_PRIORITY,
+  createWorld, createVillager, GameState, Building, BuildingType, TechId,
+  TICKS_PER_DAY, BUILDING_TEMPLATES, FOOD_PRIORITY, BUILDING_TECH_REQUIREMENTS,
 } from '../world.js';
 import {
   tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp, setFormation, holdFestival,
@@ -19,6 +19,15 @@ function canAfford(state: GameState, type: BuildingType): boolean {
     if ((state.resources[res as keyof typeof state.resources] || 0) < (amt as number)) return false;
   }
   return true;
+}
+
+function hasTech(state: GameState, tech: TechId): boolean {
+  return state.research.completed.includes(tech);
+}
+
+function canBuildTech(state: GameState, type: BuildingType): boolean {
+  const req = BUILDING_TECH_REQUIREMENTS[type];
+  return !req || hasTech(state, req);
 }
 
 function countBuildings(state: GameState, type: BuildingType): number {
@@ -183,8 +192,8 @@ function playerAI(state: GameState): GameState {
   if (day >= 9 && countBuildings(state, 'research_desk') === 0 && canAfford(state, 'research_desk')) {
     state = tryBuild(state, 'research_desk', 14, 14);
   }
-  // Mill (wheat→flour) — start food quality chain early
-  if (day >= 10 && countBuildings(state, 'mill') === 0 && state.resources.wheat > 15) {
+  // Mill (wheat→flour) — start food quality chain early (requires basic_cooking)
+  if (day >= 10 && countBuildings(state, 'mill') === 0 && state.resources.wheat > 15 && canBuildTech(state, 'mill')) {
     state = tryBuild(state, 'mill', 16, 14);
   }
   // Well
@@ -196,15 +205,15 @@ function playerAI(state: GameState): GameState {
     state = tryBuild(state, 'tavern', 14, 13);
   }
   // Bakery (flour→bread) — bread gives +10 morale. HIGH PRIORITY after mill.
-  if (day >= 12 && countBuildings(state, 'bakery') === 0 && countBuildings(state, 'mill') > 0) {
+  if (day >= 12 && countBuildings(state, 'bakery') === 0 && countBuildings(state, 'mill') > 0 && canBuildTech(state, 'bakery')) {
     state = tryBuild(state, 'bakery', 17, 15);
   }
-  // Fishing hut — early food diversity, must be near water
-  if (day >= 6 && countBuildings(state, 'fishing_hut') === 0) {
+  // Fishing hut — food diversity, must be near water (requires advanced_farming)
+  if (day >= 6 && countBuildings(state, 'fishing_hut') === 0 && canBuildTech(state, 'fishing_hut')) {
     state = tryBuildNearWater(state, 'fishing_hut');
   }
-  // Watchtower — build once we can afford it (wood:15 stone:10)
-  if (day >= 15 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower')) {
+  // Watchtower — build once we can afford it (requires fortification)
+  if (day >= 15 && countBuildings(state, 'watchtower') === 0 && canAfford(state, 'watchtower') && canBuildTech(state, 'watchtower')) {
     state = tryBuild(state, 'watchtower', 13, 13);
   }
   // Weapon production chain: hemp_field → ropemaker → fletcher (bows for guards)
@@ -214,15 +223,15 @@ function playerAI(state: GameState): GameState {
   if (day >= 22 && countBuildings(state, 'ropemaker') === 0 && countBuildings(state, 'hemp_field') > 0) {
     state = tryBuild(state, 'ropemaker', 13, 17);
   }
-  if (day >= 25 && countBuildings(state, 'fletcher') === 0 && countBuildings(state, 'ropemaker') > 0) {
+  if (day >= 25 && countBuildings(state, 'fletcher') === 0 && countBuildings(state, 'ropemaker') > 0 && canBuildTech(state, 'fletcher')) {
     state = tryBuild(state, 'fletcher', 13, 14);
   }
-  // Armor production: leather_workshop (leather + linen → leather_armor)
-  if (day >= 28 && countBuildings(state, 'leather_workshop') === 0 && countBuildings(state, 'tanner') > 0 && countBuildings(state, 'weaver') > 0) {
+  // Armor production: leather_workshop (requires master_crafting)
+  if (day >= 28 && countBuildings(state, 'leather_workshop') === 0 && countBuildings(state, 'tanner') > 0 && countBuildings(state, 'weaver') > 0 && canBuildTech(state, 'leather_workshop')) {
     state = tryBuild(state, 'leather_workshop', 12, 14);
   }
-  // Church for morale (+10 to nearby villagers)
-  if (day >= 30 && countBuildings(state, 'church') === 0 && canAfford(state, 'church')) {
+  // Church for morale (requires trade_routes)
+  if (day >= 30 && countBuildings(state, 'church') === 0 && canAfford(state, 'church') && canBuildTech(state, 'church')) {
     state = tryBuild(state, 'church', 14, 15);
   }
   // Decoration buildings (garden, fountain, statue) are available but the player AI
@@ -343,7 +352,7 @@ function playerAI(state: GameState): GameState {
 
   // Research — always queue tech if not researching (even before desk is built)
   if (!state.research.current) {
-    const techOrder = ['crop_rotation', 'improved_tools', 'fortification', 'basic_cooking', 'masonry', 'advanced_farming', 'civil_engineering', 'trade_routes', 'military_tactics', 'steel_forging', 'archery'] as const;
+    const techOrder = ['basic_cooking', 'crop_rotation', 'improved_tools', 'fortification', 'masonry', 'herbalism_lore', 'animal_husbandry', 'advanced_farming', 'archery', 'military_tactics', 'civil_engineering', 'trade_routes', 'metallurgy', 'steel_forging', 'master_crafting', 'architecture'] as const;
     for (const tech of techOrder) {
       if (!state.research.completed.includes(tech as any) && state.research.current !== tech) {
         state = setResearch(state, tech as any);
@@ -358,13 +367,13 @@ function playerAI(state: GameState): GameState {
     const tent = state.buildings.find(b => b.type === 'tent' && b.constructed);
     if (tent) state = upgradeBuilding(state, tent.id);
   }
-  if (day >= 30 && state.resources.planks >= 10) {
+  if (day >= 30 && state.resources.planks >= 10 && canBuildTech(state, 'large_farm')) {
     const smallFarm = state.buildings.find(b => b.type === 'farm' && b.constructed);
     if (smallFarm && state.resources.wood >= 10 && state.resources.planks >= 5) {
       state = upgradeBuilding(state, smallFarm.id);
     }
   }
-  if (day >= 40 && state.resources.planks >= 15) {
+  if (day >= 40 && state.resources.planks >= 15 && canBuildTech(state, 'lumber_mill')) {
     const saw = state.buildings.find(b => b.type === 'sawmill' && b.constructed);
     if (saw) state = upgradeBuilding(state, saw.id);
   }

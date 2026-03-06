@@ -58,8 +58,9 @@ heading('Disease Spreads Physically');
   state = { ...state, villagers: [v1, v2], nextVillagerId: 3 };
 
   // Run enough ticks for disease to have chance to spread
-  // With 10% per tick, after 20 ticks the probability of at least one spread ≈ 88%
-  state = advance(state, 30);
+  // DISEASE_SPREAD_CHANCE is scaled with tick rate (~0.003/tick at 4000 tpd)
+  // Need ~1000 ticks for ~95% cumulative probability
+  state = advance(state, TICKS_PER_DAY);
 
   const sick2 = state.villagers.find(v => v.id === 'v2');
   assert(sick2 !== undefined, 'Villager 2 still alive');
@@ -86,7 +87,7 @@ heading('Disease Does Not Spread Far');
   v2.state = 'idle';
 
   state = { ...state, villagers: [v1, v2], nextVillagerId: 3 };
-  state = advance(state, 30);
+  state = advance(state, TICKS_PER_DAY);
 
   const healthy = state.villagers.find(v => v.id === 'v2');
   assert(healthy !== undefined, 'Distant villager still alive');
@@ -112,7 +113,7 @@ heading('Sick Villagers Lose HP');
 
   state = { ...state, villagers: [v1], nextVillagerId: 2 };
 
-  // Advance one full day (120 ticks) — disease deals 1 HP per day
+  // Advance one full day — disease deals 1 HP per day
   state = advance(state, TICKS_PER_DAY);
 
   const v = state.villagers.find(v => v.id === 'v1');

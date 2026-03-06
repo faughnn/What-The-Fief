@@ -4,7 +4,7 @@ import {
   GameState, BuildingType, Building, Resources, ResourceType, Tile,
   BUILDING_TEMPLATES, BUILDING_MAX_HP, CONSTRUCTION_TICKS,
   DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP, OUTPOST_BUFFER_CAP,
-  FREE_CONSTRUCTION,
+  FREE_CONSTRUCTION, BUILDING_TECH_REQUIREMENTS,
   FIRE_DAMAGE_PER_TICK, FIRE_SPREAD_CHANCE, WELL_FIRE_PROTECTION_RANGE,
 } from '../world.js';
 import { TickState, computeStorageCap, hasTech, findNearestStorehouse, bufferTotal, isAdjacent, getBuildingEntrance, isStorehouse, deductFromBuffer, destroyBuildingAndCreateRubble, rebuildBuildingMap } from './helpers.js';
@@ -13,6 +13,13 @@ import { findPath } from './movement.js';
 export function placeBuilding(state: GameState, type: BuildingType, x: number, y: number): GameState {
   const template = BUILDING_TEMPLATES[type];
   if (!template) { console.log(`ERROR: Unknown building type '${type}'`); return state; }
+
+  // Tech-gated building check
+  const requiredTech = BUILDING_TECH_REQUIREMENTS[type];
+  if (requiredTech && !state.research.completed.includes(requiredTech)) {
+    console.log(`ERROR: Cannot place ${type} — requires ${requiredTech} research`); return state;
+  }
+
   const { width: bw, height: bh } = template;
 
   if (x < 0 || y < 0 || x + bw > state.width || y + bh > state.height) {

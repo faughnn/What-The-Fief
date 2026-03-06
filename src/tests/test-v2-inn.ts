@@ -4,6 +4,7 @@ import {
   createWorld, GameState, TICKS_PER_DAY, BUILDING_TEMPLATES, HOUSING_INFO,
   TAVERN_MORALE_THRESHOLD, TAVERN_MORALE_BOOST,
   FESTIVAL_MORALE_BOOST, FESTIVAL_DURATION, FESTIVAL_FOOD_COST, FESTIVAL_GOLD_COST,
+  ALL_TECHS,
 } from '../world.js';
 import { tick, placeBuilding, assignVillager, upgradeBuilding, holdFestival } from '../simulation/index.js';
 
@@ -15,6 +16,7 @@ function assert(cond: boolean, msg: string) {
 
 function makeInnWorld(): GameState {
   let state = createWorld(20, 20, 2);
+  state.research.completed = [...ALL_TECHS];
   state.fog = state.fog.map(row => row.map(() => true));
   state.territory = state.territory.map(row => row.map(() => true));
   for (let y = 0; y < 20; y++) {

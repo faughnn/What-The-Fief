@@ -4,7 +4,7 @@
 import {
   createWorld, createVillager, GameState, Building,
   TICKS_PER_DAY, NIGHT_TICKS, WATCHTOWER_RANGE, WATCHTOWER_DAMAGE,
-  EnemyEntity, ENEMY_TEMPLATES,
+  EnemyEntity, ENEMY_TEMPLATES, ALL_TECHS,
 } from '../world.js';
 import {
   tick, placeBuilding, assignVillager, setGuard,
@@ -31,6 +31,7 @@ function flatWorld(w: number, h: number): GameState {
   }
   state.villagers = [];
   state.nextVillagerId = 1;
+  state.research.completed = [...ALL_TECHS];
   return state;
 }
 

@@ -952,6 +952,46 @@ export const TECH_TREE: Record<TechId, TechDefinition> = {
 
 export const ALL_TECHS: TechId[] = Object.keys(TECH_TREE) as TechId[];
 
+// --- Tech-gated building requirements ---
+// Buildings not listed here are always available (no tech needed).
+export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> = {
+  // Tier 1
+  large_farm: 'crop_rotation',
+  deep_quarry: 'masonry',
+  town_hall: 'masonry',
+  toolmaker: 'improved_tools',
+  watchtower: 'fortification',
+  chicken_coop: 'animal_husbandry',
+  livestock_barn: 'animal_husbandry',
+  apiary: 'animal_husbandry',
+  mill: 'basic_cooking',
+  bakery: 'basic_cooking',
+  foraging_hut: 'herbalism_lore',
+  // Tier 2
+  smelter: 'metallurgy',
+  iron_mine: 'metallurgy',
+  armorer: 'metallurgy',
+  marketplace: 'trade_routes',
+  church: 'trade_routes',
+  manor: 'civil_engineering',
+  large_storehouse: 'civil_engineering',
+  outpost: 'civil_engineering',
+  fountain: 'civil_engineering',
+  statue: 'civil_engineering',
+  fletcher: 'archery',
+  hunting_lodge: 'military_tactics',
+  fishing_hut: 'advanced_farming',
+  garden: 'advanced_farming',
+  // Tier 3
+  weaponsmith: 'steel_forging',
+  leather_workshop: 'master_crafting',
+  lumber_mill: 'architecture',
+  advanced_smelter: 'architecture',
+  windmill: 'architecture',
+  kitchen: 'architecture',
+  inn: 'architecture',
+};
+
 export interface ResearchState {
   completed: TechId[];
   current: TechId | null;

@@ -9,7 +9,7 @@ import {
   GuardMode, GuardLine,
   FESTIVAL_FOOD_COST, FESTIVAL_GOLD_COST, FESTIVAL_COOLDOWN, TICKS_PER_DAY,
   LIBERATION_BRIGAND_COUNT, ENEMY_TEMPLATES, EnemyEntity,
-  createVillager, RENOWN_PER_RECRUIT,
+  createVillager, RENOWN_PER_RECRUIT, BUILDING_TECH_REQUIREMENTS,
 } from '../world.js';
 import { roleForBuilding, bufferTotal, findNearestStorehouse, isStorehouse, deductFromBuffer, findHome } from './helpers.js';
 
@@ -244,6 +244,12 @@ export function upgradeBuilding(state: GameState, buildingId: string): GameState
 
   const path = UPGRADE_PATHS[building.type];
   if (!path) { console.log(`ERROR: No upgrade path for ${building.type}`); return state; }
+
+  // Tech check for upgrade target
+  const requiredTech = BUILDING_TECH_REQUIREMENTS[path.to];
+  if (requiredTech && !state.research.completed.includes(requiredTech)) {
+    console.log(`ERROR: Cannot upgrade to ${path.to} — requires ${requiredTech} research`); return state;
+  }
 
   const toTemplate = BUILDING_TEMPLATES[path.to];
 

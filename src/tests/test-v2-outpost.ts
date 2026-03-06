@@ -3,7 +3,7 @@ import {
   createWorld, createVillager, GameState, Building,
   BUILDING_TEMPLATES, TICKS_PER_DAY, OUTPOST_BUFFER_CAP,
   STOREHOUSE_BUFFER_CAP, BASE_STORAGE_CAP, STOREHOUSE_BONUS,
-  BuildingType,
+  BuildingType, ALL_TECHS,
 } from '../world.js';
 import { tick, placeBuilding, assignVillager } from '../simulation/index.js';
 
@@ -17,6 +17,7 @@ function assert(condition: boolean, msg: string): void {
 
 function setupColony(villagersCount: number): GameState {
   let state = createWorld(30, 30, 42);
+  state.research.completed = [...ALL_TECHS];
   for (let y = 0; y < 30; y++) {
     for (let x = 0; x < 30; x++) {
       state.grid[y][x] = { terrain: 'grass', building: null, deposit: null };

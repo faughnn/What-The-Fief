@@ -2,7 +2,7 @@
 
 import {
   createWorld, GameState, TICKS_PER_DAY, BUILDING_TEMPLATES,
-  FOOD_PRIORITY, ALL_RESOURCES, OUTDOOR_BUILDINGS, BUILDING_SKILL_MAP,
+  FOOD_PRIORITY, ALL_RESOURCES, OUTDOOR_BUILDINGS, BUILDING_SKILL_MAP, ALL_TECHS,
 } from '../world.js';
 import { tick, placeBuilding, assignVillager } from '../simulation/index.js';
 
@@ -14,6 +14,7 @@ function assert(cond: boolean, msg: string) {
 
 function makeFishingWorld(): GameState {
   let state = createWorld(20, 20, 2);
+  state.research.completed = [...ALL_TECHS];
   state.fog = state.fog.map(row => row.map(() => true));
   state.territory = state.territory.map(row => row.map(() => true));
   // Default: all grass

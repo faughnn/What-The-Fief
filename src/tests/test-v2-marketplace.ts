@@ -3,7 +3,7 @@
 
 import {
   createWorld, createVillager, GameState, Building,
-  TICKS_PER_DAY, NIGHT_TICKS, BUILDING_TEMPLATES, MerchantState,
+  TICKS_PER_DAY, NIGHT_TICKS, BUILDING_TEMPLATES, MerchantState, ALL_TECHS,
 } from '../world.js';
 import {
   tick, placeBuilding, assignVillager, buyResource, sellResource,
@@ -30,6 +30,7 @@ function flatWorld(w: number, h: number): GameState {
   }
   state.villagers = [];
   state.nextVillagerId = 1;
+  state.research.completed = [...ALL_TECHS];
   return state;
 }
 

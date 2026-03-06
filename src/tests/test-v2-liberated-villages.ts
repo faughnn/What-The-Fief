@@ -2,7 +2,7 @@
 
 import {
   createWorld, GameState, TICKS_PER_DAY, BUILDING_TEMPLATES,
-  NpcSettlement, createVillager,
+  NpcSettlement, createVillager, ALL_TECHS,
 } from '../world.js';
 import { tick, placeBuilding, assignVillager, recruitFromVillage } from '../simulation/index.js';
 
@@ -14,6 +14,7 @@ function assert(cond: boolean, msg: string) {
 
 function makeLiberatedWorld(): GameState {
   let state = createWorld(40, 40, 42);
+  state.research.completed = [...ALL_TECHS];
   state.fog = state.fog.map(row => row.map(() => true));
   state.territory = state.territory.map(row => row.map(() => true));
   for (let y = 0; y < 40; y++) {

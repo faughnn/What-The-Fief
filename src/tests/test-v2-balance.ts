@@ -7,7 +7,7 @@
 
 import {
   createWorld, createVillager, GameState, Building, Villager,
-  TICKS_PER_DAY, NIGHT_TICKS, BUILDING_TEMPLATES,
+  TICKS_PER_DAY, NIGHT_TICKS, BUILDING_TEMPLATES, DAYS_PER_SEASON, ALL_TECHS,
 } from '../world.js';
 import {
   tick, placeBuilding, assignVillager, setGuard, setPatrol,
@@ -34,6 +34,7 @@ function flatWorld(w: number, h: number): GameState {
   }
   state.villagers = [];
   state.nextVillagerId = 1;
+  state.research.completed = [...ALL_TECHS];
   return state;
 }
 
@@ -364,16 +365,21 @@ heading('Undefended Colony Suffers From Raids');
 
   // Force a raid — set raidBar to 100 and tick to just before day boundary
   // Run only 2 days: raid triggers on day 1, damage done by day 2
-  // (longer runs cause raidLevel decay after villagers die)
+  // Note: raidLevel may decay back to 0 if villagers drop to <=3 and enemies are cleared,
+  // so we track peak raidLevel to prove the raid triggered.
   state = { ...state, raidBar: 100, tick: TICKS_PER_DAY - 1 };
-  state = advanceDays(state, 2);
+  let peakRaidLevel = 0;
+  for (let i = 0; i < TICKS_PER_DAY * 2; i++) {
+    state = tick(state);
+    if (state.raidLevel > peakRaidLevel) peakRaidLevel = state.raidLevel;
+  }
 
   // Without guards, colony should lose villagers or buildings
   const villagersAfter = state.villagers.length;
   const buildingsAfter = state.buildings.filter(b => b.type !== 'rubble').length;
 
-  assert(state.raidLevel >= 1,
-    `Raid triggered for undefended colony (raid level: ${state.raidLevel})`);
+  assert(peakRaidLevel >= 1,
+    `Raid triggered for undefended colony (peak raid level: ${peakRaidLevel})`);
   assert(villagersAfter < villagersBeforeRaids || buildingsAfter < buildingsBeforeRaids,
     `Undefended colony suffered (villagers: ${villagersBeforeRaids}→${villagersAfter}, buildings: ${buildingsBeforeRaids}→${buildingsAfter})`);
 }
@@ -412,11 +418,11 @@ heading('Winter Harsh But Survivable');
   };
   state = assignVillager(state, state.villagers[0].id, state.buildings.find(b => b.type === 'farm')!.id);
 
-  // Skip to winter (day 30 = winter start)
-  state = { ...state, tick: 29 * TICKS_PER_DAY - 1 };
+  // Skip to winter (day DAYS_PER_SEASON*3 = winter start)
+  state = { ...state, tick: (DAYS_PER_SEASON * 3 - 1) * TICKS_PER_DAY - 1 };
 
-  // Run through winter (10 days)
-  state = advanceDays(state, 10);
+  // Run through winter (DAYS_PER_SEASON days)
+  state = advanceDays(state, DAYS_PER_SEASON);
 
   // Villager should survive winter with stored food
   assert(state.villagers.length >= 1,

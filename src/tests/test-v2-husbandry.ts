@@ -2,7 +2,7 @@
 import {
   createWorld, createVillager, GameState, Building,
   BUILDING_TEMPLATES, BUILDING_MAX_HP, CONSTRUCTION_TICKS,
-  TICKS_PER_DAY,
+  TICKS_PER_DAY, ALL_TECHS,
 } from '../world.js';
 import { tick, placeBuilding, assignVillager } from '../simulation/index.js';
 
@@ -17,6 +17,7 @@ function assert(condition: boolean, msg: string): void {
 // Helper: create a world with storehouse and one building, assign worker
 function setupProduction(buildingType: 'chicken_coop' | 'livestock_barn' | 'apiary'): GameState {
   let state = createWorld(20, 20, 42);
+  state.research.completed = [...ALL_TECHS];
   for (let y = 0; y < 20; y++) {
     for (let x = 0; x < 20; x++) {
       state.grid[y][x] = { terrain: 'grass', building: null, deposit: null };
@@ -62,8 +63,8 @@ console.log('\n=== Chicken Coop: Produces Food ===');
   const coop = state.buildings.find(b => b.type === 'chicken_coop')!;
   const initialFood = state.resources.food;
 
-  // Run half a day (60 ticks)
-  for (let i = 0; i < 60; i++) state = tick(state);
+  // Run a full day — worker needs travel time + production takes PRODUCTION_BASE_TICKS
+  for (let i = 0; i < TICKS_PER_DAY; i++) state = tick(state);
 
   const updatedCoop = state.buildings.find(b => b.type === 'chicken_coop')!;
   const bufferFood = updatedCoop.localBuffer.food || 0;
@@ -84,8 +85,8 @@ console.log('\n=== Livestock Barn: Produces Leather ===');
 {
   let state = setupProduction('livestock_barn');
 
-  // Run a full day (120 ticks) — worker needs travel time
-  for (let i = 0; i < TICKS_PER_DAY; i++) state = tick(state);
+  // Run 2 full days — worker needs travel time + production takes PRODUCTION_BASE_TICKS
+  for (let i = 0; i < TICKS_PER_DAY * 2; i++) state = tick(state);
 
   const updatedBarn = state.buildings.find(b => b.type === 'livestock_barn')!;
   const bufferLeather = updatedBarn.localBuffer.leather || 0;
@@ -106,7 +107,7 @@ console.log('\n=== Apiary: Produces Herbs ===');
 {
   let state = setupProduction('apiary');
 
-  // Run a full day (120 ticks) — worker needs travel time
+  // Run a full day — worker needs travel time
   for (let i = 0; i < TICKS_PER_DAY; i++) state = tick(state);
 
   const updatedApiary = state.buildings.find(b => b.type === 'apiary')!;
@@ -142,7 +143,7 @@ console.log('\n=== Worker Assigned Correct Role ===');
 console.log('\n=== Production Over Full Day ===');
 {
   let state = setupProduction('chicken_coop');
-  // Run a full day (120 ticks)
+  // Run a full day
   for (let i = 0; i < TICKS_PER_DAY; i++) state = tick(state);
 
   const coop = state.buildings.find(b => b.type === 'chicken_coop')!;

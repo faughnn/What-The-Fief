@@ -4,8 +4,8 @@ import {
   createWorld, GameState, Building, Villager, createVillager,
   BUILDING_TEMPLATES, CONSTRUCTION_TICKS, BUILDING_MAX_HP,
   GUARD_COMBAT, WEAPON_STATS, WEAPON_DURABILITY,
-  TICKS_PER_DAY, DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP,
-  ResourceType, EnemyEntity, ENEMY_TEMPLATES,
+  TICKS_PER_DAY, NIGHT_TICKS, DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP, PRODUCTION_BASE_TICKS,
+  ResourceType, EnemyEntity, ENEMY_TEMPLATES, ALL_TECHS,
 } from '../world.js';
 import { placeBuilding } from '../simulation/buildings.js';
 import { tick } from '../simulation/index.js';
@@ -18,6 +18,7 @@ function assert(cond: boolean, msg: string) {
 
 function makeSmallWorld(): GameState {
   const state = createWorld(20, 20, 42);
+  state.research.completed = [...ALL_TECHS];
   // Clear area for buildings
   for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) {
     state.grid[y][x].terrain = 'grass';
@@ -105,9 +106,9 @@ console.log('\n=== Sword Production ===');
   worker.homeBuildingId = tent.id;
   worker.food = 8;
 
-  // Run 5 days (600 ticks)
+  // Run enough ticks for production (PRODUCTION_BASE_TICKS=800, need multiple day cycles)
   let lastState = state;
-  for (let i = 0; i < 600; i++) {
+  for (let i = 0; i < TICKS_PER_DAY * 5; i++) {
     lastState = tick(lastState);
   }
   // Check either storehouse buffer or global for swords
@@ -147,7 +148,7 @@ console.log('\n=== Bow Production ===');
   worker.food = 8;
 
   let lastState = state;
-  for (let i = 0; i < 600; i++) lastState = tick(lastState);
+  for (let i = 0; i < TICKS_PER_DAY * 5; i++) lastState = tick(lastState);
   const totalBows = lastState.resources.bow;
   const bufferBows = lastState.buildings
     .filter(b => b.type === 'fletcher' || b.type === 'storehouse' || b.type === 'large_storehouse')
@@ -231,7 +232,7 @@ console.log('\n=== Sword Guard Melee Combat ===');
   const startEnemyHp = enemy.hp;
 
   // Run one tick (daytime so combat activates)
-  state.tick = 30; // daytime
+  state.tick = NIGHT_TICKS; // daytime
   state = tick(state);
 
   const e = state.enemies.find(en => en.id === enemy.id);
@@ -267,7 +268,7 @@ console.log('\n=== Bow Guard Ranged Attack ===');
   const startEnemyHp = enemy.hp;
   const startGuardHp = guard.hp;
 
-  state.tick = 30;
+  state.tick = NIGHT_TICKS;
   state = tick(state);
 
   const e = state.enemies.find(en => en.id === enemy.id);
@@ -301,7 +302,7 @@ console.log('\n=== Bow Guard Range Limit ===');
   const enemy = addEnemy(state, 5, 10, 'bandit');
   const startEnemyHp = enemy.hp;
 
-  state.tick = 30;
+  state.tick = NIGHT_TICKS;
   state = tick(state);
 
   const e = state.enemies.find(en => en.id === enemy.id);
@@ -334,7 +335,7 @@ console.log('\n=== Weapon Durability ===');
 
   const enemy = addEnemy(state, 5, 6, 'bandit');
 
-  state.tick = 30;
+  state.tick = NIGHT_TICKS;
   // Run 3 ticks of combat — sword should break
   for (let i = 0; i < 3; i++) {
     state = tick(state);
@@ -378,7 +379,7 @@ console.log('\n=== Watchtower Bow Bonus ===');
   const enemy = addEnemy(state, 5, 9, 'bandit'); // 4 tiles away
   const startHp = enemy.hp;
 
-  state.tick = 30;
+  state.tick = NIGHT_TICKS;
   state = tick(state);
 
   const e = state.enemies.find(en => en.id === enemy.id);
@@ -440,7 +441,7 @@ console.log('\n=== Weapon Overrides Tool in Combat ===');
   const enemy = addEnemy(state, 5, 6, 'bandit'); // 10 HP, 1 def
   const startHp = enemy.hp;
 
-  state.tick = 30;
+  state.tick = NIGHT_TICKS;
   state = tick(state);
 
   const e = state.enemies.find(en => en.id === enemy.id);

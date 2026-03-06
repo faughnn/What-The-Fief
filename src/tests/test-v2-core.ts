@@ -5,7 +5,7 @@ import {
   createWorld, createVillager, GameState, Building, Villager,
   TICKS_PER_DAY, NIGHT_TICKS, CARRY_CAPACITY, BUILDING_MAX_HP,
   DEFAULT_BUFFER_CAP, STOREHOUSE_BUFFER_CAP, emptyResources,
-  BUILDING_TEMPLATES,
+  BUILDING_TEMPLATES, DAYS_PER_SEASON, DAYS_PER_YEAR,
 } from '../world.js';
 import {
   tick, placeBuilding, assignVillager, findPath,
@@ -65,7 +65,7 @@ function tickInDay(state: GameState): number {
 }
 
 // ================================================================
-// TEST 1: Tick model — 120 ticks = 1 day
+// TEST 1: Tick model — TICKS_PER_DAY ticks = 1 day
 // ================================================================
 heading('Tick Model');
 
@@ -80,11 +80,11 @@ heading('Tick Model');
 
   state = advance(state, TICKS_PER_DAY - 1);
   assert(state.tick === TICKS_PER_DAY, `After ${TICKS_PER_DAY} ticks, tick=${TICKS_PER_DAY}`);
-  assert(state.day === 1, 'After 120 ticks, day=1');
+  assert(state.day === 1, `After ${TICKS_PER_DAY} ticks, day=1`);
 
   state = advance(state, TICKS_PER_DAY);
-  assert(state.tick === TICKS_PER_DAY * 2, 'After 240 ticks, tick=240');
-  assert(state.day === 2, 'After 240 ticks, day=2');
+  assert(state.tick === TICKS_PER_DAY * 2, `After ${TICKS_PER_DAY * 2} ticks, tick=${TICKS_PER_DAY * 2}`);
+  assert(state.day === 2, `After ${TICKS_PER_DAY * 2} ticks, day=2`);
 }
 
 // ================================================================
@@ -391,7 +391,7 @@ heading('Villager Sleeps At Night');
   // Run a full day cycle
   state = advance(state, TICKS_PER_DAY);
 
-  // At tick 120 (start of second night), villager should be sleeping
+  // At tick TICKS_PER_DAY (start of second night), villager should be sleeping
   // Advance a few night ticks
   state = advance(state, 5);
   const v = state.villagers.find(v => v.id === 'v1')!;
@@ -421,26 +421,26 @@ heading('Building HP and Local Buffer');
 }
 
 // ================================================================
-// TEST 11: Season changes every 10 days
+// TEST 11: Season changes every DAYS_PER_SEASON days
 // ================================================================
 heading('Seasonal Changes');
 
 {
   let state = flatWorld(10, 10);
-  // Day 0-9: spring, 10-19: summer, 20-29: autumn, 30-39: winter
+  // Day 0 to DAYS_PER_SEASON-1: spring, then summer, autumn, winter
   assert(state.season === 'spring', 'Starts in spring');
 
-  state = advance(state, 10 * TICKS_PER_DAY);
-  assert(state.season === 'summer', 'Day 10 is summer');
+  state = advance(state, DAYS_PER_SEASON * TICKS_PER_DAY);
+  assert(state.season === 'summer', `Day ${DAYS_PER_SEASON} is summer`);
 
-  state = advance(state, 10 * TICKS_PER_DAY);
-  assert(state.season === 'autumn', 'Day 20 is autumn');
+  state = advance(state, DAYS_PER_SEASON * TICKS_PER_DAY);
+  assert(state.season === 'autumn', `Day ${DAYS_PER_SEASON * 2} is autumn`);
 
-  state = advance(state, 10 * TICKS_PER_DAY);
-  assert(state.season === 'winter', 'Day 30 is winter');
+  state = advance(state, DAYS_PER_SEASON * TICKS_PER_DAY);
+  assert(state.season === 'winter', `Day ${DAYS_PER_SEASON * 3} is winter`);
 
-  state = advance(state, 10 * TICKS_PER_DAY);
-  assert(state.season === 'spring', 'Day 40 cycles back to spring');
+  state = advance(state, DAYS_PER_SEASON * TICKS_PER_DAY);
+  assert(state.season === 'spring', `Day ${DAYS_PER_YEAR} cycles back to spring`);
 }
 
 // ================================================================

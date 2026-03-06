@@ -1,12 +1,13 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 807 tests passing (46 test files). 100-day stress test: 14 pop, 4 deaths, 0 errors, 9 techs researched, prosperity 80. All villagers clothed.
+- **Status**: V2 spatial simulation. 847 tests passing (47 test files). 100-day stress test: 13 pop, 5 deaths, 0 errors, 9 techs researched, prosperity 80. All villagers clothed.
 - **What exists**:
-  - **Core**: 120 ticks/day. 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
+  - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
   - **Combat**: Spatial combat (enemies march from camps/edges, walls/fences block, guards intercept/patrol, melee, watchtower ranged 5-tile). Siege equipment (battering rams, siege towers).
   - **Weapons**: Sword (atk 6, def 2, melee) and bow (atk 2, range 4, ranged). Guards auto-equip. Weaponsmith + fletcher. Durability degrades per combat tick.
+  - **Armor**: Craftable armor items (leather_armor def 2, iron_armor def 4). Leather_workshop (leather+linen→leather_armor). Armorer (ingots+leather→iron_armor). Guards auto-equip best available. Durability degrades in combat. 40 tests.
   - **Guard formations**: Charge (infinite detect), hold (3-tile), patrol (10-tile). Front line (melee) and back line (ranged).
   - **Bandit camps**: Persistent camps spawn at edges every 25 days. Raids originate from camps. Guards can assault/clear for gold+renown. Max 3 active.
   - **Environment**: Wildlife + hunting + self-defense. Seasonal farming (winter=0, summer=1.3x). Clothing/warmth. Fire/disaster + wells. Disease + herb healing. Lightning.
@@ -31,7 +32,7 @@
 **No.** The physical foundation, economy depth, combat systems, persistent threats, and worker management are strong. The 100-day stress test proves a competent player AI can grow to 14 population with 9 techs researched and prosperity 85. But several core Bellwright systems are still missing.
 
 ### What IS working (proven by 628 tests + 100-day stress test):
-- ✅ 120 ticks/day, 1 tile/tick max, BFS pathfinding
+- ✅ 4000 ticks/day (RimWorld pacing), 1 tile/tick max, BFS pathfinding
 - ✅ Physical production: presence required, local buffers, hauling to storehouse
 - ✅ Processing buildings: miller fetches wheat from storehouse, produces flour at mill
 - ✅ Storehouse buffer = source of truth for global resources
@@ -88,28 +89,32 @@
 - ✅ **Liberated village integration**: Enhanced caravans (5-day interval, 15 goods), recruitment (10 renown), renown stream (+2/village/10 days), prosperity boost (+5/village). 11 tests.
 - ✅ **Job priorities**: setJobPriority(villagerId, buildingType, priority) with 0-9 scale. Priority 0 disables, 1=highest. Auto-assign respects priorities before default order. Works alongside setPreferredJob. 23 tests.
 - ✅ **Fishing**: fishing_hut (1x1, grass adjacent to water). Fish resource (satisfaction 1.5). Fisher role. Outdoor, farming skill. Water adjacency enforced in placeBuilding. 19 tests.
+- ✅ **Physical armor crafting**: leather_workshop (leather+linen→leather_armor, def 2) and armorer (ingots+leather→iron_armor, def 4). Guards auto-equip best crafted armor from storehouse. Durability degrades in combat (30/50). 40 tests.
+- ✅ **Timing overhaul**: All pacing in src/timing.ts. TICKS_PER_DAY=4000, 15-day seasons, 60-day year, 40% night. Renderer at 4 ticks/sec = ~17 min days (RimWorld pacing). Per-tick rates auto-scale.
+- ✅ **Map**: 200x200 default. 20x20 starting territory. Territory expansion via town hall.
 - ✅ 100-day stress test: player AI grows to 14 pop, 9 techs, prosperity 80, all clothed, 0 errors
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
-**Priority 1 — Missing systems:**
-1. **No delivery requests between outposts.** Bellwright lets players request specific resources from other settlements/outposts via a delivery UI. We have supply routes (player-directed hauling) but not the "request items FROM location" pattern.
+**Priority 1 — Depth:**
+1. **No tech-gated buildings.** Research tree exists with 20 techs but only provides passive bonuses. Bellwright gates advanced buildings behind research — you can't build a smelter until you research metallurgy. Our sim lets you build anything anytime with resources.
+2. **No building placement requirements.** Bellwright requires certain buildings near others (e.g., tanner near a water source). Our only constraint is fishing_hut near water.
 
-**Priority 2 — Depth:**
-2. **No physical armor items.** Bellwright has wearable armor equipment per villager. We only have armored_guards tech (+5 HP). Should have craftable armor items with durability (like weapons).
+Note: Physical armor items are now implemented (leather_workshop + armorer produce craftable armor). Delivery requests covered by supply route system. Both gaps closed.
 
 ### Honest priority order for closing gaps:
-1. Delivery requests (outpost-to-outpost resource requests)
-2. Physical armor items (craftable, equippable, durability)
+1. Tech-gated building construction (research unlocks buildings)
+2. Building placement requirements / proximity constraints
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
-- `src/tests/test-v2-*.ts` — 46 test files, 807 tests total
+- `src/timing.ts` — single source of truth for all pacing constants
+- `src/tests/test-v2-*.ts` — 47 test files, 835 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
-- Grid: grid[y][x]. 120 ticks/day. 1 tile/tick max.
+- Grid: grid[y][x]. 4000 ticks/day (src/timing.ts). 1 tile/tick max. 200x200 default map. 20x20 starting territory.
 - Resources in storehouse local buffers. Global resources = sum of storehouse buffers only. Eating from storehouse buffer.
 - Storehouse buffer cap: 2000 per storehouse. Global per-resource cap: 150 per storehouse.
 - Building costs deduct from both global AND storehouse buffer.
@@ -132,9 +137,10 @@
 - Immigration checks storehouse food (not global) to gate new settlers.
 - Fences: allies pass through, enemies blocked.
 - Wildlife self-defense: villagers deal 1 dmg back, guards deal 3. Guards actively fight hostile animals within 5 tiles.
-- Research: 30 ticks per knowledge point. 3-tier tech tree with prerequisites.
+- Research: TICKS_PER_DAY*0.25 ticks per knowledge point. 3-tier tech tree with prerequisites.
 - Tool durability bonuses: improved_tools +20%, steel_forging +50%.
 - Weapons: sword (atk 6, def 2, dur 40) and bow (atk 2, range 4, dur 30). Separate from tools. Guards auto-equip best available. Weaponsmith: ingots+planks→sword. Fletcher: wood+rope→bow.
+- Armor: leather_armor (def 2, dur 30) and iron_armor (def 4, dur 50). Crafted resources consumed on equip. Leather_workshop: leather+linen→leather_armor. Armorer: ingots+leather→iron_armor. Guards auto-equip best from storehouse. Durability degrades each combat tick.
 - Bandit camps: spawn at map edges after day 25, every 30 days (lastCampSpawnDay tracked). HP = 30 + raidLevel*10. Max 3 camps. Raids every 25 days from camps. Guards can assault (pathfind + attack HP). Camp fights back (strength*1.5 dmg). Clearing: +30 gold, +10 renown.
 - Recruitment: first 4 settlers free, then 5 renown per recruit. Quests grant renown (first_steps, prosper, fortify, research).
 - Wildlife: hostile animals (wolves, boars) gated behind day 10 or having guards. Non-combat villagers flee within 3 tiles. Self-defense: guard 4, hunter 3, worker 2.

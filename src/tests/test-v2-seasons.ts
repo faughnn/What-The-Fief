@@ -3,7 +3,7 @@
 
 import {
   createWorld, createVillager, GameState, Building,
-  TICKS_PER_DAY, NIGHT_TICKS,
+  TICKS_PER_DAY, NIGHT_TICKS, DAYS_PER_SEASON, DAYS_PER_YEAR,
   BUILDING_TEMPLATES,
 } from '../world.js';
 import {
@@ -90,7 +90,7 @@ function seasonTestSetup(startDay: number): { state: GameState, farmId: string }
 }
 
 // ================================================================
-// TEST 1: Farm produces wheat in spring (day 0-9)
+// TEST 1: Farm produces wheat in spring (day 0 to DAYS_PER_SEASON-1)
 // ================================================================
 heading('Farm Produces in Spring');
 
@@ -104,12 +104,12 @@ heading('Farm Produces in Spring');
 }
 
 // ================================================================
-// TEST 2: Farm does NOT produce wheat in winter (day 30-39)
+// TEST 2: Farm does NOT produce wheat in winter
 // ================================================================
 heading('Farm Does Not Produce in Winter');
 
 {
-  const { state: s0, farmId } = seasonTestSetup(30);
+  const { state: s0, farmId } = seasonTestSetup(DAYS_PER_SEASON * 3);
 
   // Verify we're actually in winter
   let state = advance(s0, 1); // trigger season computation
@@ -143,11 +143,11 @@ heading('Farm Does Not Produce in Winter');
 heading('Farm Resumes After Winter');
 
 {
-  // Start at day 40 (second spring cycle)
-  const { state: s0, farmId } = seasonTestSetup(40);
+  // Start at day DAYS_PER_YEAR (second spring cycle)
+  const { state: s0, farmId } = seasonTestSetup(DAYS_PER_YEAR);
 
   let state = advance(s0, 1); // trigger season
-  assert(state.season === 'spring', `Season is spring at day 40 (${state.season})`);
+  assert(state.season === 'spring', `Season is spring at day ${DAYS_PER_YEAR} (${state.season})`);
 
   // Clear wheat to isolate production
   state = {
@@ -208,7 +208,7 @@ heading('Woodcutter Produces in Winter');
         : tile
     )),
     villagers: state.villagers.map(v => ({ ...v, homeBuildingId: homeId, food: 10 })),
-    tick: TICKS_PER_DAY * 30 - 1, day: 29,
+    tick: TICKS_PER_DAY * DAYS_PER_SEASON * 3 - 1, day: DAYS_PER_SEASON * 3 - 1,
   };
 
   state = assignVillager(state, 'v1', wcId);

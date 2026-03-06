@@ -4,6 +4,7 @@ import {
   BUILDING_TEMPLATES, TICKS_PER_DAY,
   INITIAL_CONSTRUCTION_POINTS, CONSTRUCTION_POINT_MILESTONES,
   CONSTRUCTION_POINT_PER_IMMIGRANT, FREE_CONSTRUCTION,
+  ALL_TECHS,
 } from '../world.js';
 import { tick, placeBuilding, assignVillager } from '../simulation/index.js';
 
@@ -17,6 +18,7 @@ function assert(condition: boolean, msg: string): void {
 
 function setupColony(): GameState {
   let state = createWorld(30, 30, 42);
+  state.research.completed = [...ALL_TECHS];
   for (let y = 0; y < 30; y++) {
     for (let x = 0; x < 30; x++) {
       state.grid[y][x] = { terrain: 'grass', building: null, deposit: null };
@@ -63,6 +65,7 @@ console.log('\n--- Initial State ---');
 
 {
   const state = createWorld(20, 20, 1);
+  state.research.completed = [...ALL_TECHS];
   assert(state.constructionPoints === INITIAL_CONSTRUCTION_POINTS, 'New world starts with initial construction points');
   assert(state.constructionPointsMilestones.length === 0, 'No milestones claimed initially');
 }

@@ -4,7 +4,7 @@
 import {
   createWorld, createVillager, GameState, Building,
   TICKS_PER_DAY, NIGHT_TICKS, CONSTRUCTION_TICKS,
-  BUILDING_TEMPLATES, BUILDING_MAX_HP,
+  BUILDING_TEMPLATES, BUILDING_MAX_HP, ALL_TECHS,
 } from '../world.js';
 import {
   tick, placeBuilding, assignVillager, upgradeBuilding,
@@ -22,6 +22,7 @@ function heading(s: string) { console.log(`\n=== ${s} ===`); }
 
 function flatWorld(w: number, h: number): GameState {
   const state = createWorld(w, h, 1);
+  state.research.completed = [...ALL_TECHS];
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       state.grid[y][x] = { terrain: 'grass', building: null, deposit: null };

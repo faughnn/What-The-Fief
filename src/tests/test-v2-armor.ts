@@ -3,7 +3,7 @@
 import {
   createWorld, GameState, TICKS_PER_DAY, NIGHT_TICKS, BUILDING_TEMPLATES,
   WEAPON_STATS, createVillager, ARMOR_RESOURCE, ARMOR_STATS, ARMOR_DURABILITY,
-  ARMOR_EQUIP_PRIORITY, PRODUCTION_BASE_TICKS,
+  ARMOR_EQUIP_PRIORITY, PRODUCTION_BASE_TICKS, ALL_TECHS,
 } from '../world.js';
 import { tick, placeBuilding, assignVillager, setGuard } from '../simulation/index.js';
 
@@ -15,6 +15,7 @@ function assert(cond: boolean, msg: string) {
 
 function makeArmorWorld(): GameState {
   let state = createWorld(20, 20, 2);
+  state.research.completed = [...ALL_TECHS];
   state.fog = state.fog.map(row => row.map(() => true));
   state.territory = state.territory.map(row => row.map(() => true));
   for (let y = 0; y < 20; y++) {

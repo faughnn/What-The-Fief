@@ -144,6 +144,8 @@ heading('Scout Ticks Expire');
   v.food = 10;
   state = { ...state, villagers: [v], nextVillagerId: 2 };
 
+  // Start at daytime so scout doesn't immediately sleep after expiring
+  state.tick = NIGHT_TICKS;
   state = sendScout(state, 'v1', 'e');
   // scoutTicksLeft = 50, map is 60 wide, so should expire before edge
 

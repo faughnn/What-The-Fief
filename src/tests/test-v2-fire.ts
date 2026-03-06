@@ -3,7 +3,7 @@
 
 import {
   createWorld, createVillager, GameState, Building,
-  TICKS_PER_DAY, NIGHT_TICKS,
+  TICKS_PER_DAY, NIGHT_TICKS, FIRE_DAMAGE_PER_TICK,
 } from '../world.js';
 import {
   tick, placeBuilding, assignVillager,
@@ -71,8 +71,10 @@ heading('Building On Fire');
   assert(b.onFire === true, 'Building is on fire');
   const hpBefore = b.hp;
 
-  // Run a few ticks — fire should damage the building
-  state = advance(state, 5);
+  // Run enough ticks for fire to deal at least 1 HP damage
+  // FIRE_DAMAGE_PER_TICK is scaled down, so we need ceil(1/FIRE_DAMAGE_PER_TICK) ticks
+  const ticksForOneDamage = Math.ceil(1 / FIRE_DAMAGE_PER_TICK) + 5;
+  state = advance(state, ticksForOneDamage);
 
   const bAfter = state.buildings[0];
   if (bAfter) {
@@ -94,28 +96,39 @@ heading('Fire Spreads');
   state = placeBuilding(state, 'house', 4, 3); // adjacent
 
   // Pre-construct both, set first on fire
+  // Build a map of building index by position for grid sync
+  const bldgByPos = new Map(state.buildings.map((b, i) => [`${b.x},${b.y}`, i]));
   state = {
     ...state,
     buildings: state.buildings.map((b, i) => ({
       ...b, constructed: true, constructionProgress: b.constructionRequired,
       onFire: i === 0, // only first building on fire
     })),
-    grid: state.grid.map(row => row.map(tile =>
-      tile.building
-        ? { ...tile, building: { ...tile.building, constructed: true, constructionProgress: tile.building.constructionRequired } }
-        : tile
-    )),
+    grid: state.grid.map((row, y) => row.map((tile, x) => {
+      if (!tile.building) return tile;
+      const idx = bldgByPos.get(`${x},${y}`);
+      return {
+        ...tile,
+        building: {
+          ...tile.building,
+          constructed: true,
+          constructionProgress: tile.building.constructionRequired,
+          onFire: idx === 0,
+        },
+      };
+    })),
   };
 
-  // Run enough ticks for fire to potentially spread (spread chance per tick)
-  state = advance(state, 30);
+  // Run enough ticks for fire to potentially spread (spread chance per tick is very small)
+  // With FIRE_SPREAD_CHANCE ~0.0015, need ~700 ticks for ~65% chance, use a full day
+  state = advance(state, TICKS_PER_DAY);
 
-  // Check if second building caught fire or took damage
+  // Check if second building caught fire, took damage, or was destroyed (became rubble)
   const b2 = state.buildings.find(b => b.x === 4 && b.y === 3);
   if (b2) {
-    // Either on fire or took damage from spread
-    const damaged = b2.hp < b2.maxHp || b2.onFire;
-    assert(damaged, `Fire spread to adjacent building (hp=${b2.hp}/${b2.maxHp}, onFire=${b2.onFire})`);
+    // Fire spread if: building took damage, is on fire, or was destroyed and replaced by rubble
+    const damaged = b2.hp < b2.maxHp || b2.onFire || b2.type === 'rubble';
+    assert(damaged, `Fire spread to adjacent building (type=${b2.type}, hp=${b2.hp}/${b2.maxHp}, onFire=${b2.onFire})`);
   } else {
     assert(true, 'Adjacent building destroyed by fire spread');
   }
@@ -157,8 +170,8 @@ heading('Villager Extinguishes Fire');
     })),
   };
 
-  // Run several ticks — villager should extinguish fire
-  state = advance(state, 20);
+  // Run enough ticks for villager to extinguish fire (scaled with tick rate)
+  state = advance(state, Math.ceil(TICKS_PER_DAY / 4));
 
   const house = state.buildings.find(b => b.type === 'house');
   if (house) {
@@ -209,8 +222,9 @@ heading('Fire Destroys Building');
     )),
   };
 
-  // Fire deals 2 HP/tick → 3 HP tent dies in 2 ticks
-  state = advance(state, 5);
+  // Fire deals FIRE_DAMAGE_PER_TICK HP/tick → 3 HP tent dies in ceil(3/FIRE_DAMAGE_PER_TICK) ticks
+  const ticksToDestroy = Math.ceil(3 / FIRE_DAMAGE_PER_TICK) + 5;
+  state = advance(state, ticksToDestroy);
 
   const tent = state.buildings.find(b => b.type === 'tent');
   assert(tent === undefined, 'Tent destroyed by fire');

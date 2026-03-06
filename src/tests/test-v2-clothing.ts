@@ -3,7 +3,7 @@
 
 import {
   createWorld, createVillager, GameState, Building,
-  TICKS_PER_DAY, NIGHT_TICKS,
+  TICKS_PER_DAY, NIGHT_TICKS, DAYS_PER_SEASON,
 } from '../world.js';
 import {
   tick, placeBuilding, assignVillager,
@@ -147,8 +147,8 @@ heading('Auto-Equip Clothing from Leather');
 heading('Winter Morale Penalty Without Clothing');
 
 {
-  // Start at winter (day 30)
-  let state = setupClothingTest(30);
+  // Start at winter (day = DAYS_PER_SEASON * 3, i.e. season index 3)
+  let state = setupClothingTest(DAYS_PER_SEASON * 3);
   // No clothing available
   state = { ...state, resources: { ...state.resources, linen: 0, leather: 0 } };
   // Ensure villager unclothed with enough food to survive (food > 0, morale should stay > 10 with house)
@@ -172,7 +172,7 @@ heading('Winter Morale Penalty Without Clothing');
 heading('Winter Morale Normal With Clothing');
 
 {
-  let state = setupClothingTest(30);
+  let state = setupClothingTest(DAYS_PER_SEASON * 3);
   state = { ...state, resources: { ...state.resources, linen: 5 } };
   state = {
     ...state,
@@ -204,7 +204,7 @@ heading('Winter Morale Normal With Clothing');
 heading('Winter HP Loss Without Clothing');
 
 {
-  let state = setupClothingTest(30);
+  let state = setupClothingTest(DAYS_PER_SEASON * 3);
   state = { ...state, resources: { ...state.resources, linen: 0, leather: 0 } };
   // Give enough food to not depart, unclothed. HP starts at maxHp (10).
   state = {
