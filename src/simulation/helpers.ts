@@ -110,7 +110,7 @@ export const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   hunting_lodge: 'hunter', foraging_hut: 'forager', foraging_lodge: 'forager', fishing_hut: 'fisher',
   marketplace: 'trader',
   well: 'well_worker',
-  butchery: 'butcher', compost_pile: 'composter', drying_rack: 'dryer',
+  butchery: 'butcher', compost_pile: 'composter', drying_rack: 'dryer', smoking_rack: 'smoker',
   forester: 'forester_worker',
   apothecary: 'healer',
   watchtower: 'guard',

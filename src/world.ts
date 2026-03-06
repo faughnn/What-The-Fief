@@ -129,7 +129,7 @@ export type BuildingType =
   // Water
   | 'water_collector'
   // Food processing
-  | 'butchery' | 'compost_pile' | 'drying_rack'
+  | 'butchery' | 'compost_pile' | 'drying_rack' | 'smoking_rack'
   // Food storage
   | 'food_cellar'
   // Upgraded defenses
@@ -172,7 +172,7 @@ export type ResourceType =
   | 'planks' | 'charcoal' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
   | 'basic_tools' | 'sturdy_tools' | 'iron_tools'
   | 'sword' | 'bow'
-  | 'furniture' | 'water' | 'meat' | 'fertilizer' | 'dried_food'
+  | 'furniture' | 'water' | 'meat' | 'fertilizer' | 'dried_food' | 'smoked_food'
   | 'leather_armor' | 'iron_armor'
   | 'bandage'
   | 'gold';
@@ -205,6 +205,7 @@ export interface Resources {
   meat: number;
   fertilizer: number;
   dried_food: number;
+  smoked_food: number;
   leather_armor: number;
   iron_armor: number;
   gold: number;
@@ -216,7 +217,7 @@ export function emptyResources(): Resources {
     planks: 0, charcoal: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
     basic_tools: 0, sturdy_tools: 0, iron_tools: 0,
     sword: 0, bow: 0,
-    furniture: 0, water: 0, meat: 0, fertilizer: 0, dried_food: 0,
+    furniture: 0, water: 0, meat: 0, fertilizer: 0, dried_food: 0, smoked_food: 0,
     leather_armor: 0, iron_armor: 0,
     bandage: 0,
     gold: 0,
@@ -229,7 +230,7 @@ export const ALL_RESOURCES: ResourceType[] = [
   'planks', 'charcoal', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
   'basic_tools', 'sturdy_tools', 'iron_tools',
   'sword', 'bow',
-  'furniture', 'water', 'meat', 'fertilizer', 'dried_food',
+  'furniture', 'water', 'meat', 'fertilizer', 'dried_food', 'smoked_food',
   'leather_armor', 'iron_armor',
   'bandage',
   'gold',
@@ -405,6 +406,7 @@ export const SPOILAGE: Partial<Record<ResourceType, number>> = {
   flour: 0.01,
   meat: 0.015,
   dried_food: 0.005, // dried food spoils much slower
+  smoked_food: 0.003, // smoked food spoils even slower
 };
 
 // Alias for test access
@@ -413,6 +415,7 @@ export const SPOILAGE_RATES = SPOILAGE;
 // --- Food priority (best first) ---
 export const FOOD_PRIORITY: { resource: ResourceType; satisfaction: number }[] = [
   { resource: 'meat', satisfaction: 2.5 },
+  { resource: 'smoked_food', satisfaction: 2.2 },
   { resource: 'bread', satisfaction: 2 },
   { resource: 'dried_food', satisfaction: 1.8 },
   { resource: 'fish', satisfaction: 1.5 },
@@ -663,6 +666,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 6 }, description: 'Dries food for long-term preservation',
     maxWorkers: 1, production: { output: 'dried_food', amountPerWorker: 2, inputs: { food: 2 } }, mapChar: '=',
   },
+  smoking_rack: {
+    type: 'smoking_rack', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 8, stone: 2 }, description: 'Smokes meat with charcoal for long preservation',
+    maxWorkers: 1, production: { output: 'smoked_food', amountPerWorker: 2, inputs: { meat: 2, charcoal: 1 } }, mapChar: '~',
+  },
   food_cellar: {
     type: 'food_cellar', width: 1, height: 1, allowedTerrain: ['grass'],
     cost: { wood: 8, stone: 12, planks: 2 }, description: 'Reduces food spoilage by 50%',
@@ -816,7 +824,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   woodcutter: 'woodcutting', forester: 'woodcutting',
   mill: 'cooking', bakery: 'cooking',
   herb_garden: 'herbalism', well: 'farming',
-  butchery: 'cooking', compost_pile: 'farming', drying_rack: 'cooking',
+  butchery: 'cooking', compost_pile: 'farming', drying_rack: 'cooking', smoking_rack: 'cooking',
   research_desk: 'crafting',
   chicken_coop: 'farming',
   livestock_barn: 'farming',
@@ -867,7 +875,7 @@ export type VillagerRole =
   | 'scout' | 'guard' | 'researcher' | 'hunter' | 'forager'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
   | 'fisher' | 'hauler' | 'militia' | 'well_worker'
-  | 'butcher' | 'composter' | 'dryer'
+  | 'butcher' | 'composter' | 'dryer' | 'smoker'
   | 'forester_worker'
   | 'healer';
 
@@ -1104,7 +1112,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   tavern: 40,
   well: 50,
   water_collector: 20,
-  butchery: 35, compost_pile: 15, drying_rack: 20, food_cellar: 40,
+  butchery: 35, compost_pile: 15, drying_rack: 20, smoking_rack: 25, food_cellar: 40,
   church: 80,
   graveyard: 20,
   rubble: 1,
@@ -1228,6 +1236,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   mill: 'basic_cooking',
   bakery: 'basic_cooking',
   food_cellar: 'basic_cooking',
+  smoking_rack: 'basic_cooking',
   foraging_hut: 'herbalism_lore',
   // Tier 2
   smelter: 'metallurgy',
