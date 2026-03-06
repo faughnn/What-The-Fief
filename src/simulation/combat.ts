@@ -14,8 +14,9 @@ import {
   ARCHER_RAID_THRESHOLD, BRUTE_RAID_THRESHOLD,
   TRUST_KILL_BANDIT, TRUST_VILLAGE_RADIUS, TRUST_THRESHOLDS, TrustRank,
   LIBERATION_RENOWN_REWARD, MILITIA_COMBAT,
+  ENEMY_LOOT,
 } from '../world.js';
-import { TickState, isAdjacent, hasTech, degradeWeapon, degradeArmor, addToBuffer, isStorehouse, destroyBuildingAndCreateRubble, buildBuildingMap } from './helpers.js';
+import { TickState, isAdjacent, hasTech, degradeWeapon, degradeArmor, addToBuffer, addResource, isStorehouse, destroyBuildingAndCreateRubble, buildBuildingMap } from './helpers.js';
 import { findPath, findPathEnemy } from './movement.js';
 
 // --- Find settlement center (average building position) ---
@@ -601,10 +602,19 @@ export function processRaidAndCombat(ts: TickState): void {
     }
   }
 
-  // Remove dead enemies + award trust to nearby NPC villages
+  // Remove dead enemies + drop loot + award trust to nearby NPC villages
   for (let i = ts.enemies.length - 1; i >= 0; i--) {
     if (ts.enemies[i].hp <= 0) {
       const deadE = ts.enemies[i];
+      // Drop loot into nearest storehouse
+      const loot = ENEMY_LOOT[deadE.type];
+      if (loot) {
+        const sh = ts.buildings.find(b => isStorehouse(b.type) && b.constructed);
+        for (const drop of loot) {
+          if (sh) addToBuffer(sh.localBuffer, drop.resource, drop.amount, sh.bufferCapacity);
+          addResource(ts.resources, drop.resource, drop.amount, ts.storageCap);
+        }
+      }
       // Award trust to nearby NPC villages
       for (const village of ts.npcSettlements) {
         if (village.liberated) continue;

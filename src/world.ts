@@ -825,6 +825,20 @@ export const ENEMY_TEMPLATES: Record<EnemyType, Omit<Enemy, 'hp'> & { maxHp: num
   boar: { type: 'boar', maxHp: 15, attack: 2, defense: 2 },
 };
 
+// Enemy loot drops
+export interface LootDrop {
+  resource: ResourceType;
+  amount: number;
+}
+
+export const ENEMY_LOOT: Record<EnemyType, LootDrop[]> = {
+  bandit: [{ resource: 'gold', amount: 1 }],
+  bandit_archer: [{ resource: 'gold', amount: 1 }],
+  bandit_brute: [{ resource: 'gold', amount: 3 }],
+  wolf: [{ resource: 'leather', amount: 1 }],
+  boar: [{ resource: 'food', amount: 2 }],
+};
+
 // Raid composition thresholds
 export const ARCHER_RAID_THRESHOLD = 3;  // Camp strength for archers to appear
 export const BRUTE_RAID_THRESHOLD = 5;   // Camp strength for brutes to appear
