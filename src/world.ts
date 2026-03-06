@@ -135,7 +135,7 @@ export type BuildingType =
   // Upgraded defenses
   | 'reinforced_wall'
   // Military
-  | 'barracks' | 'training_ground' | 'spike_trap'
+  | 'barracks' | 'training_ground' | 'spike_trap' | 'weapon_rack'
   // Renewable resources
   | 'forester'
   // Roads
@@ -398,6 +398,10 @@ export const ARMOR_BONUS_HP = 5;            // armored_guards tech bonus
 export const VILLAGER_BASE_HP = 10;
 export const HP_REGEN_PER_DAY = 2;
 export const MEDICINE_REGEN_BONUS = 1;
+
+// --- Weapon Rack ---
+export const WEAPON_RACK_RANGE = 5;      // guards within this range auto-equip from weapon rack buffer
+export const WEAPON_RACK_BUFFER = 50;     // weapon rack stores up to 50 items
 
 // --- Aging ---
 export const ELDER_AGE = 60;              // age at which villagers become elders
@@ -818,6 +822,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 12, stone: 5, planks: 3 }, description: 'Upgraded foraging hut — 2 workers, better yield',
     maxWorkers: 2, production: { output: 'food', amountPerWorker: 3, inputs: null }, mapChar: 'G',
   },
+  weapon_rack: {
+    type: 'weapon_rack', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 6, planks: 3, ingots: 2 }, description: 'Stores weapons and armor — nearby guards auto-equip',
+    maxWorkers: 0, production: null, mapChar: 'R',
+  },
 };
 
 // --- Skills ---
@@ -1141,6 +1150,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   apothecary: 35,
   library: 50,
   foraging_lodge: 35,
+  weapon_rack: 30,
 };
 
 
@@ -1274,6 +1284,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   inn: 'architecture',
   reinforced_wall: 'siege_engineering',
   barracks: 'military_tactics',
+  weapon_rack: 'military_tactics',
   training_ground: 'fortification',
   spike_trap: 'fortification',
   forester: 'advanced_farming',

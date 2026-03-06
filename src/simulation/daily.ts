@@ -19,6 +19,9 @@ import {
   FRIENDSHIP_COWORK_THRESHOLD, FRIENDSHIP_MORALE_BONUS,
   FRIENDSHIP_GRIEF_DAYS, FRIENDSHIP_GRIEF_PENALTY, MAX_FRIENDS,
   ELDER_AGE, OLD_AGE_DEATH_START, OLD_AGE_DEATH_CHANCE,
+  WEAPON_RACK_RANGE, WEAPON_EQUIP_PRIORITY, WEAPON_RESOURCE, WEAPON_DURABILITY,
+  ARMOR_EQUIP_PRIORITY, ARMOR_RESOURCE, ARMOR_DURABILITY,
+  WeaponType, ArmorType,
 } from '../world.js';
 import {
   TickState, findHome, autoEquipTool, autoEquipWeapon, autoEquipArmor, getBuildingEntrance,
@@ -26,6 +29,31 @@ import {
   roleForBuilding, deductFromBuffer, deductFromStorehouseAndGlobal,
 } from './helpers.js';
 import { planPath } from './movement.js';
+
+// Equip weapon/armor from a local buffer (weapon rack)
+function autoEquipWeaponFromBuffer(v: Villager, buffer: Partial<Record<ResourceType, number>>): void {
+  for (const wtype of WEAPON_EQUIP_PRIORITY) {
+    const res = WEAPON_RESOURCE[wtype];
+    if ((buffer[res] || 0) > 0) {
+      buffer[res] = (buffer[res] || 0) - 1;
+      v.weapon = wtype;
+      v.weaponDurability = WEAPON_DURABILITY[wtype];
+      return;
+    }
+  }
+}
+
+function autoEquipArmorFromBuffer(v: Villager, buffer: Partial<Record<ResourceType, number>>): void {
+  for (const atype of ARMOR_EQUIP_PRIORITY) {
+    const res = ARMOR_RESOURCE[atype];
+    if ((buffer[res] || 0) > 0) {
+      buffer[res] = (buffer[res] || 0) - 1;
+      v.armor = atype;
+      v.armorDurability = ARMOR_DURABILITY[atype];
+      return;
+    }
+  }
+}
 
 // New settlement optimism: +20 morale fading to 0 over 40 days (like RimWorld)
 const NEW_SETTLEMENT_OPTIMISM_DAYS = 40;
@@ -463,10 +491,26 @@ export function processDailyChecks(ts: TickState): void {
   }
 
   // Guard equip tools and weapons
+  // Weapon racks: guards near a rack can equip from its buffer
+  const weaponRacks = ts.buildings.filter(b => b.type === 'weapon_rack' && b.constructed);
   for (const v of ts.villagers) {
-    if (v.role === 'guard' && v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
-    if (v.role === 'guard' && v.weapon === 'none') autoEquipWeapon(v, ts.resources, ts.buildings);
-    if (v.role === 'guard' && v.armor === 'none') autoEquipArmor(v, ts.resources, ts.buildings);
+    if (v.role !== 'guard') continue;
+    // Try weapon rack first for weapons/armor
+    if (v.weapon === 'none' || v.armor === 'none') {
+      for (const rack of weaponRacks) {
+        const dx = Math.abs(v.x - rack.x);
+        const dy = Math.abs(v.y - rack.y);
+        if (dx <= WEAPON_RACK_RANGE && dy <= WEAPON_RACK_RANGE) {
+          if (v.weapon === 'none') autoEquipWeaponFromBuffer(v, rack.localBuffer);
+          if (v.armor === 'none') autoEquipArmorFromBuffer(v, rack.localBuffer);
+          break;
+        }
+      }
+    }
+    // Fallback to storehouse
+    if (v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
+    if (v.weapon === 'none') autoEquipWeapon(v, ts.resources, ts.buildings);
+    if (v.armor === 'none') autoEquipArmor(v, ts.resources, ts.buildings);
   }
 
   // Disease daily: HP loss and duration countdown (after regen, so net effect is visible)
