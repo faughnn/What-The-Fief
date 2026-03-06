@@ -4,6 +4,7 @@ import {
   ResourceType, createVillager, FOOD_PRIORITY, TICKS_PER_DAY,
   CONSTRUCTION_POINT_MILESTONES,
   DISEASE_DURATION_BASE, DISEASE_DURATION_MEDICINE,
+  QUEST_DEFINITIONS,
 } from '../world.js';
 import {
   TickState, getBuildingEntrance, addResource, addToBuffer,
@@ -234,23 +235,39 @@ export function processEventsAndQuests(ts: TickState): void {
     }
   }
 
-  // Quest checks (daily)
+  // Quest checks (daily) — data-driven from QUEST_DEFINITIONS
   if (ts.isNewDay) {
-    if (!ts.completedQuests.includes('first_steps') && ts.villagers.length >= 5 && ts.buildings.length >= 3) {
-      ts.completedQuests.push('first_steps');
-      ts.renown += 10;
-      ts.resources.gold += 20;
-      const qSH1 = ts.buildings.find(b => isStorehouse(b.type) && b.constructed);
-      if (qSH1) addToBuffer(qSH1.localBuffer, 'gold', 20, qSH1.bufferCapacity);
-      ts.events.push('Quest complete: "First Steps" — 5 villagers, 3 buildings. +10 renown, +20 gold.');
-    }
-    if (!ts.completedQuests.includes('prosperous') && ts.prosperity >= 70) {
-      ts.completedQuests.push('prosperous');
-      ts.renown += 20;
-      ts.resources.gold += 50;
-      const qSH2 = ts.buildings.find(b => isStorehouse(b.type) && b.constructed);
-      if (qSH2) addToBuffer(qSH2.localBuffer, 'gold', 50, qSH2.bufferCapacity);
-      ts.events.push('Quest complete: "Prosperous" — Settlement thriving! +20 renown, +50 gold.');
+    const constructedCount = ts.buildings.filter(b => b.constructed && b.type !== 'rubble').length;
+    const guardCount = ts.villagers.filter(v => v.role === 'guard').length;
+    const foodTypes = (['food', 'wheat', 'bread', 'fish'] as const).filter(t => ts.resources[t] > 0).length;
+    const liberatedCount = ts.npcSettlements.filter(s => s.liberated).length;
+
+    // Check conditions for each quest
+    const questConditions: Record<string, boolean> = {
+      first_steps: ts.villagers.length >= 5 && ts.buildings.length >= 3,
+      fortified: ts.raidLevel > 0,
+      prosperous: ts.prosperity >= 70,
+      researcher: ts.research.completed.length >= 3,
+      industrious: constructedCount >= 10,
+      well_fed: foodTypes >= 3,
+      armed_forces: guardCount >= 3,
+      growing_colony: ts.villagers.length >= 10,
+      liberator: liberatedCount > 0,
+      master_builder: constructedCount >= 20,
+      scholar: ts.research.completed.length >= 8,
+      thriving: ts.villagers.length >= 15,
+    };
+
+    for (const quest of QUEST_DEFINITIONS) {
+      if (ts.completedQuests.includes(quest.id)) continue;
+      if (!questConditions[quest.id]) continue;
+
+      ts.completedQuests.push(quest.id);
+      ts.renown += quest.renown;
+      ts.resources.gold += quest.gold;
+      const qSH = ts.buildings.find(b => isStorehouse(b.type) && b.constructed);
+      if (qSH) addToBuffer(qSH.localBuffer, 'gold', quest.gold, qSH.bufferCapacity);
+      ts.events.push(`Quest complete: "${quest.name}" — ${quest.desc}. +${quest.renown} renown, +${quest.gold} gold.`);
     }
   }
 

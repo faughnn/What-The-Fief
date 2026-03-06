@@ -247,6 +247,30 @@ export const FESTIVAL_MORALE_BOOST = 20;
 export const FESTIVAL_DURATION = 3;    // days the morale boost lasts
 export const FESTIVAL_COOLDOWN = 10;   // days between festivals
 
+// --- Quest Definitions ---
+export interface QuestDefinition {
+  id: string;
+  name: string;
+  desc: string;
+  renown: number;
+  gold: number;
+}
+
+export const QUEST_DEFINITIONS: QuestDefinition[] = [
+  { id: 'first_steps', name: 'First Steps', desc: 'Have 5 villagers and 3 buildings', renown: 10, gold: 20 },
+  { id: 'fortified', name: 'Fortified', desc: 'Survive your first raid', renown: 15, gold: 30 },
+  { id: 'prosperous', name: 'Prosperous', desc: 'Reach prosperity 70', renown: 20, gold: 50 },
+  { id: 'researcher', name: 'Researcher', desc: 'Research 3 technologies', renown: 15, gold: 25 },
+  { id: 'industrious', name: 'Industrious', desc: 'Construct 10 buildings', renown: 15, gold: 30 },
+  { id: 'well_fed', name: 'Well Fed', desc: 'Have 3+ food types available', renown: 10, gold: 20 },
+  { id: 'armed_forces', name: 'Armed Forces', desc: 'Have 3 guards on duty', renown: 15, gold: 25 },
+  { id: 'growing_colony', name: 'Growing Colony', desc: 'Reach 10 villagers', renown: 20, gold: 40 },
+  { id: 'liberator', name: 'Liberator', desc: 'Liberate an NPC village', renown: 25, gold: 50 },
+  { id: 'master_builder', name: 'Master Builder', desc: 'Construct 20 buildings', renown: 20, gold: 40 },
+  { id: 'scholar', name: 'Scholar', desc: 'Research 8 technologies', renown: 25, gold: 50 },
+  { id: 'thriving', name: 'Thriving', desc: 'Reach 15 villagers', renown: 25, gold: 50 },
+];
+
 export const DEFAULT_BUFFER_CAP = 20;
 export const STOREHOUSE_BUFFER_CAP = 2000;
 export const OUTPOST_BUFFER_CAP = 100;

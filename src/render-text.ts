@@ -3,6 +3,7 @@
 import {
   GameState, VillagerRole, BUILDING_TEMPLATES, ResourceType, BuildingType,
   ALL_RESOURCES, FOOD_PRIORITY, ALL_TECHS, TECH_TREE,
+  TICKS_PER_DAY, NIGHT_TICKS, QUEST_DEFINITIONS,
 } from './world.js';
 import { validateState } from './simulation.js';
 
@@ -22,9 +23,9 @@ const ROLE_CHARS: Record<VillagerRole, string> = {
 
 export function renderMap(state: GameState): string {
   const lines: string[] = [];
-  const dayTick = state.tick % 120;
-  const timeOfDay = dayTick < 30 ? 'night' : 'day';
-  lines.push(`=== Colony State [day ${state.day} tick ${dayTick}/120 ${timeOfDay}] ${state.season} / ${state.weather} ===`);
+  const dayTick = state.tick % TICKS_PER_DAY;
+  const timeOfDay = dayTick < NIGHT_TICKS ? 'night' : 'day';
+  lines.push(`=== Colony State [day ${state.day} tick ${dayTick}/${TICKS_PER_DAY} ${timeOfDay}] ${state.season} / ${state.weather} ===`);
   lines.push('');
 
   if (state.width > 20 || state.height > 20) {
@@ -123,12 +124,7 @@ export function renderEvents(state: GameState): string {
   const lines: string[] = ['Events & Quests:'];
   lines.push(`  Renown: ${state.renown}`);
   lines.push('  Quests:');
-  const allQuests = [
-    { id: 'first_steps', name: 'First Steps', desc: 'Have 5 villagers and 3 buildings' },
-    { id: 'fortified', name: 'Fortified', desc: 'Win your first raid' },
-    { id: 'prosperous', name: 'Prosperous', desc: 'Reach prosperity >= 70' },
-  ];
-  for (const q of allQuests) {
+  for (const q of QUEST_DEFINITIONS) {
     const done = state.completedQuests.includes(q.id);
     lines.push(`    ${done ? '[x]' : '[ ]'} ${q.name} — ${q.desc}`);
   }
