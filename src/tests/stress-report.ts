@@ -145,9 +145,10 @@ function playerAI(state: GameState): GameState {
   }
 
   // --- HOUSING: build ahead of demand, cap at 10 tents max ---
-  const homes = state.buildings.filter(b => ['tent', 'house', 'manor'].includes(b.type) && b.type !== 'rubble');
+  const housingTypes = ['tent', 'cottage', 'house', 'manor', 'inn', 'barracks'] as const;
+  const homes = state.buildings.filter(b => (housingTypes as readonly string[]).includes(b.type) && b.type !== 'rubble');
   const homeCapacity = homes.reduce((sum, b) => {
-    const cap = b.type === 'tent' ? 1 : b.type === 'house' ? 2 : 4;
+    const cap = b.type === 'tent' ? 1 : b.type === 'cottage' ? 2 : b.type === 'house' ? 2 : b.type === 'barracks' ? 4 : b.type === 'inn' ? 4 : 4;
     return sum + cap;
   }, 0);
   const tentCount = homes.filter(b => b.type === 'tent').length;
@@ -208,6 +209,17 @@ function playerAI(state: GameState): GameState {
   if (day >= 12 && countBuildings(state, 'bakery') === 0 && countBuildings(state, 'mill') > 0 && canBuildTech(state, 'bakery')) {
     state = tryBuild(state, 'bakery', 17, 15);
   }
+  // Scale food production with population — second mill+bakery when pop >= 12
+  if (pop >= 12 && countBuildings(state, 'mill') < 2 && canBuildTech(state, 'mill') && canAfford(state, 'mill')) {
+    state = tryBuild(state, 'mill', 12, 14);
+  }
+  if (pop >= 12 && countBuildings(state, 'bakery') < 2 && countBuildings(state, 'mill') >= 2 && canBuildTech(state, 'bakery') && canAfford(state, 'bakery')) {
+    state = tryBuild(state, 'bakery', 12, 13);
+  }
+  // Fourth farm when pop gets large
+  if (farmCount < 4 && pop >= 14 && canAfford(state, 'farm')) {
+    state = tryBuild(state, 'farm', 14, 18);
+  }
   // Fishing hut — food diversity, must be near water (requires advanced_farming)
   if (day >= 6 && countBuildings(state, 'fishing_hut') === 0 && canBuildTech(state, 'fishing_hut')) {
     state = tryBuildNearWater(state, 'fishing_hut');
@@ -244,7 +256,11 @@ function playerAI(state: GameState): GameState {
   }
   // Food cellar — halves spoilage rates (build once cooking tech is available)
   if (day >= 15 && countBuildings(state, 'food_cellar') === 0 && canBuildTech(state, 'food_cellar') && canAfford(state, 'food_cellar')) {
-    state = tryBuild(state, 'food_cellar', centerX, centerY - 1);
+    state = tryBuild(state, 'food_cellar', 16, 16);
+  }
+  // Second storehouse — ensures food access as colony spreads
+  if (pop >= 12 && countBuildings(state, 'storehouse') + countBuildings(state, 'large_storehouse') < 2 && canAfford(state, 'storehouse')) {
+    state = tryBuild(state, 'storehouse', 18, 15);
   }
   // Coal burner — needed for charcoal (smelter fuel). Build when metallurgy available.
   if (day >= 20 && countBuildings(state, 'coal_burner') === 0 && canBuildTech(state, 'coal_burner') && canAfford(state, 'coal_burner')) {
