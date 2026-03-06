@@ -518,7 +518,7 @@ export function processRaidAndCombat(ts: TickState): void {
       if (v.guardMode === 'hold') continue;
 
       // Patrol/charge: walk patrol route
-      if (v.patrolRoute.length > 0 && !ts.isNight) {
+      if (v.patrolRoute.length > 0) {
         const waypoint = v.patrolRoute[v.patrolIndex % v.patrolRoute.length];
         if (v.x === waypoint.x && v.y === waypoint.y) {
           v.patrolIndex = (v.patrolIndex + 1) % v.patrolRoute.length;
