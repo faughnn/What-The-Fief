@@ -139,7 +139,9 @@ export type BuildingType =
   // Renewable resources
   | 'forester'
   // Roads
-  | 'road';
+  | 'road'
+  // Healing
+  | 'apothecary';
 
 export interface Building {
   id: string;
@@ -168,6 +170,7 @@ export type ResourceType =
   | 'sword' | 'bow'
   | 'furniture' | 'water' | 'meat' | 'fertilizer' | 'dried_food'
   | 'leather_armor' | 'iron_armor'
+  | 'bandage'
   | 'gold';
 
 export interface Resources {
@@ -211,6 +214,7 @@ export function emptyResources(): Resources {
     sword: 0, bow: 0,
     furniture: 0, water: 0, meat: 0, fertilizer: 0, dried_food: 0,
     leather_armor: 0, iron_armor: 0,
+    bandage: 0,
     gold: 0,
   };
 }
@@ -223,6 +227,7 @@ export const ALL_RESOURCES: ResourceType[] = [
   'sword', 'bow',
   'furniture', 'water', 'meat', 'fertilizer', 'dried_food',
   'leather_armor', 'iron_armor',
+  'bandage',
   'gold',
 ];
 
@@ -778,6 +783,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 5, stone: 3 }, description: 'Plants and harvests trees — renewable wood',
     maxWorkers: 2, production: { output: 'wood', amountPerWorker: 1, inputs: null }, mapChar: 'F',
   },
+  apothecary: {
+    type: 'apothecary', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 8, stone: 5, herbs: 3 }, description: 'Healer crafts bandages from herbs',
+    maxWorkers: 1, production: { output: 'bandage', amountPerWorker: 2, inputs: { herbs: 1 } }, mapChar: '+',
+  },
 };
 
 // --- Skills ---
@@ -803,6 +813,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   lumber_mill: 'crafting', advanced_smelter: 'crafting',
   windmill: 'cooking', kitchen: 'cooking',
   training_ground: 'combat',
+  apothecary: 'herbalism',
 };
 
 export function skillMultiplier(level: number): number {
@@ -836,7 +847,8 @@ export type VillagerRole =
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
   | 'fisher' | 'hauler' | 'militia' | 'well_worker'
   | 'butcher' | 'composter' | 'dryer'
-  | 'forester_worker';
+  | 'forester_worker'
+  | 'healer';
 
 export type VillagerState =
   | 'sleeping'
@@ -1087,6 +1099,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   training_ground: 40,
   spike_trap: 10,
   forester: 30,
+  apothecary: 35,
 };
 
 
@@ -1221,6 +1234,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   training_ground: 'fortification',
   spike_trap: 'fortification',
   forester: 'advanced_farming',
+  apothecary: 'medicine',
 };
 
 export interface ResearchState {

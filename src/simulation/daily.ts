@@ -451,6 +451,16 @@ export function processDailyChecks(ts: TickState): void {
     if (v.sick) {
       v.hp = Math.max(1, v.hp - DISEASE_HP_LOSS_PER_DAY);
       v.sickDays -= 1;
+      // Apothecary with bandages speeds disease recovery by 1 extra day
+      if (v.sickDays > 0) {
+        for (const b of ts.buildings) {
+          if (b.type === 'apothecary' && b.constructed && (b.localBuffer.bandage || 0) > 0) {
+            b.localBuffer.bandage = (b.localBuffer.bandage || 0) - 1;
+            v.sickDays -= 1;
+            break;
+          }
+        }
+      }
       if (v.sickDays <= 0) {
         v.sick = false;
         v.sickDays = 0;
@@ -479,7 +489,18 @@ export function processDailyChecks(ts: TickState): void {
       v.maxHp = VILLAGER_BASE_HP + toughBonus;
     }
     const regenBonus = hasTech(ts.research, 'medicine') ? MEDICINE_REGEN_BONUS : 0;
-    if (v.hp < v.maxHp) v.hp = Math.min(v.maxHp, v.hp + HP_REGEN_PER_DAY + regenBonus);
+    // Apothecary healing: if a constructed apothecary has bandages, +2 HP/day and consume 1 bandage
+    let apothBonus = 0;
+    if (v.hp < v.maxHp) {
+      for (const b of ts.buildings) {
+        if (b.type === 'apothecary' && b.constructed && (b.localBuffer.bandage || 0) > 0) {
+          b.localBuffer.bandage = (b.localBuffer.bandage || 0) - 1;
+          apothBonus = 2;
+          break;
+        }
+      }
+    }
+    if (v.hp < v.maxHp) v.hp = Math.min(v.maxHp, v.hp + HP_REGEN_PER_DAY + regenBonus + apothBonus);
     v.hp = Math.min(v.hp, v.maxHp);
   }
 
