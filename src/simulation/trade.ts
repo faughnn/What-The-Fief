@@ -239,8 +239,15 @@ export function processEventsAndQuests(ts: TickState): void {
   if (ts.isNewDay) {
     const constructedCount = ts.buildings.filter(b => b.constructed && b.type !== 'rubble').length;
     const guardCount = ts.villagers.filter(v => v.role === 'guard').length;
-    const foodTypes = (['food', 'wheat', 'bread', 'fish'] as const).filter(t => ts.resources[t] > 0).length;
+    const allFoodTypes = (['food', 'wheat', 'bread', 'fish', 'meat', 'dried_food', 'smoked_food', 'flour'] as const);
+    const foodTypes = allFoodTypes.filter(t => ts.resources[t] > 0).length;
     const liberatedCount = ts.npcSettlements.filter(s => s.liberated).length;
+    const campsCleared = ts.raidLevel > 0; // proxy: at least 1 raid survived = camp likely cleared
+    const poisDiscovered = ts.pointsOfInterest.filter(p => p.explored).length;
+    const hasElder = ts.villagers.some(v => v.age >= 60);
+    const allTechsResearched = ts.research.completed.length >= 20;
+    const defensiveTypes = ['wall', 'fence', 'reinforced_wall', 'gate', 'watchtower', 'spike_trap', 'weapon_rack'];
+    const defensiveCount = ts.buildings.filter(b => b.constructed && defensiveTypes.includes(b.type)).length;
 
     // Check conditions for each quest
     const questConditions: Record<string, boolean> = {
@@ -256,6 +263,12 @@ export function processEventsAndQuests(ts: TickState): void {
       master_builder: constructedCount >= 20,
       scholar: ts.research.completed.length >= 8,
       thriving: ts.villagers.length >= 15,
+      camp_cleared: ts.banditCamps.some(c => c.hp <= 0) || ts.raidLevel >= 2,
+      food_empire: foodTypes >= 5,
+      explorer: poisDiscovered >= 3,
+      elder_village: hasElder,
+      tech_master: allTechsResearched,
+      fortress: defensiveCount >= 10,
     };
 
     for (const quest of QUEST_DEFINITIONS) {

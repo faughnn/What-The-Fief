@@ -343,6 +343,12 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
   { id: 'master_builder', name: 'Master Builder', desc: 'Construct 20 buildings', renown: 20, gold: 40 },
   { id: 'scholar', name: 'Scholar', desc: 'Research 8 technologies', renown: 25, gold: 50 },
   { id: 'thriving', name: 'Thriving', desc: 'Reach 15 villagers', renown: 25, gold: 50 },
+  { id: 'camp_cleared', name: 'Camp Cleared', desc: 'Clear a bandit camp', renown: 20, gold: 40 },
+  { id: 'food_empire', name: 'Food Empire', desc: 'Have 5+ food types available', renown: 15, gold: 30 },
+  { id: 'explorer', name: 'Explorer', desc: 'Discover 3 points of interest', renown: 20, gold: 35 },
+  { id: 'elder_village', name: 'Elder Village', desc: 'Have a villager reach age 60', renown: 15, gold: 25 },
+  { id: 'tech_master', name: 'Tech Master', desc: 'Research all technologies', renown: 30, gold: 60 },
+  { id: 'fortress', name: 'Fortress', desc: 'Build 10 defensive structures', renown: 20, gold: 40 },
 ];
 
 export const DEFAULT_BUFFER_CAP = 20;
