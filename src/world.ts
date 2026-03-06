@@ -118,6 +118,8 @@ export type BuildingType =
   | 'butchery' | 'compost_pile' | 'drying_rack'
   // Food storage
   | 'food_cellar'
+  // Upgraded defenses
+  | 'reinforced_wall'
   // Roads
   | 'road';
 
@@ -721,6 +723,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { stone: 1 }, description: 'Dirt road — doubles movement speed',
     maxWorkers: 0, production: null, mapChar: '=',
   },
+  reinforced_wall: {
+    type: 'reinforced_wall', width: 1, height: 1, allowedTerrain: ['grass', 'stone'],
+    cost: { stone: 5, ingots: 2 }, description: 'Reinforced stone wall — extra durable',
+    maxWorkers: 0, production: null, mapChar: '#',
+  },
 };
 
 // --- Skills ---
@@ -1013,6 +1020,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   garden: 20, fountain: 30, statue: 40,
   outpost: 40, road: 10,
   inn: 60,
+  reinforced_wall: 200,
 };
 
 
@@ -1029,6 +1037,8 @@ export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cos
   bakery: { to: 'kitchen', cost: { wood: 10, stone: 10, planks: 5 } },
   storehouse: { to: 'large_storehouse', cost: { wood: 20, stone: 10, planks: 10 } },
   tavern: { to: 'inn', cost: { wood: 15, stone: 10, planks: 8, rope: 3 } },
+  fence: { to: 'wall', cost: { stone: 3 } },
+  wall: { to: 'reinforced_wall', cost: { stone: 5, ingots: 2 } },
 };
 
 export const WATCHTOWER_RANGE = 5;
@@ -1139,6 +1149,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   windmill: 'architecture',
   kitchen: 'architecture',
   inn: 'architecture',
+  reinforced_wall: 'siege_engineering',
 };
 
 export interface ResearchState {

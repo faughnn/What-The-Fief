@@ -51,7 +51,7 @@ function findAdjacentTarget(
 ): Building | null {
   const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
   // Priority: walls first, then fences, then other buildings
-  for (const prio of ['wall', 'fence', null] as (BuildingType | null)[]) {
+  for (const prio of ['wall', 'reinforced_wall', 'fence', null] as (BuildingType | null)[]) {
     for (const { dx, dy } of dirs) {
       const nx = x + dx;
       const ny = y + dy;
@@ -331,7 +331,7 @@ export function processRaidAndCombat(ts: TickState): void {
 
     // Check if adjacent to a wall/building — attack it
     const adjTarget = findAdjacentTarget(e.x, e.y, ts.grid, ts.width, ts.height, ts.buildingMap);
-    if (adjTarget && (adjTarget.type === 'wall' || adjTarget.type === 'fence' || adjTarget.type === 'gate')) {
+    if (adjTarget && (adjTarget.type === 'wall' || adjTarget.type === 'reinforced_wall' || adjTarget.type === 'fence' || adjTarget.type === 'gate')) {
       // Battering ram deals 5 damage to structures
       const siegeDmg = e.siege === 'battering_ram' ? 5 : Math.max(1, e.attack);
       adjTarget.hp -= siegeDmg;

@@ -57,7 +57,7 @@ export function findPathEnemy(
   return findPathCore(grid, width, height, fromX, fromY, toX, toY, (tile) => {
     if (!tile.building) return true;
     const t = tile.building.type;
-    return t !== 'wall' && t !== 'fence' && t !== 'gate';
+    return t !== 'wall' && t !== 'reinforced_wall' && t !== 'fence' && t !== 'gate';
   });
 }
 

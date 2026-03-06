@@ -136,7 +136,8 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
   }
 
   const archBonus = hasTech(state.research, 'architecture') ? 1.5 : 1.0;
-  const siegeBonus = hasTech(state.research, 'siege_engineering') && (type === 'wall' || type === 'gate') ? 1.5 : 1.0;
+  const isDefensive = type === 'wall' || type === 'reinforced_wall' || type === 'fence' || type === 'gate';
+  const siegeBonus = hasTech(state.research, 'siege_engineering') && isDefensive ? 1.5 : 1.0;
   const maxHp = Math.floor((BUILDING_MAX_HP[type] || 50) * archBonus * siegeBonus);
   const bufCap = type === 'outpost' ? OUTPOST_BUFFER_CAP
     : isStorehouse(type) ? STOREHOUSE_BUFFER_CAP : DEFAULT_BUFFER_CAP;

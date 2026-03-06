@@ -56,6 +56,7 @@ const CONSTRUCTION_TICKS_BASE: Record<string, number> = {
   garden: 30, fountain: 40, statue: 50,
   outpost: 60, road: 1,
   inn: 120,
+  reinforced_wall: 100,
 };
 
 export const CONSTRUCTION_TICKS: Record<BuildingType, number> = Object.fromEntries(
