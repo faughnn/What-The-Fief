@@ -1,5 +1,23 @@
 // combat.ts — Raid spawning, enemy movement, guard AI, melee combat
 
+// Combat trait bonuses
+// brave: +2 attack, coward: -2 attack
+// resilient: +2 defense, nimble: +1 attack +1 defense
+function traitAttackBonus(v: { traits: string[] }): number {
+  let bonus = 0;
+  if (v.traits.includes('brave')) bonus += 2;
+  if (v.traits.includes('coward')) bonus -= 2;
+  if (v.traits.includes('nimble')) bonus += 1;
+  return bonus;
+}
+
+function traitDefenseBonus(v: { traits: string[] }): number {
+  let bonus = 0;
+  if (v.traits.includes('resilient')) bonus += 2;
+  if (v.traits.includes('nimble')) bonus += 1;
+  return bonus;
+}
+
 import {
   Building, BuildingType, Villager, Tile,
   EnemyEntity, EnemyType, ENEMY_TEMPLATES, GUARD_COMBAT,
@@ -369,11 +387,11 @@ export function processRaidAndCombat(ts: TickState): void {
         ? { attack: WEAPON_STATS[v.weapon].attack, defense: WEAPON_STATS[v.weapon].defense }
         : GUARD_COMBAT[v.tool];
       const atkBonus = hasTech(ts.research, 'military_tactics') ? 2 : 0;
-      camp.hp -= Math.max(1, baseStats.attack + atkBonus);
+      camp.hp -= Math.max(1, baseStats.attack + atkBonus + traitAttackBonus(v));
       if (v.weapon !== 'none') degradeWeapon(v, ts.resources, ts.buildings);
       v.state = 'assaulting_camp';
       // Camp fights back — guards near the camp take damage
-      v.hp -= Math.max(1, Math.floor(camp.strength * 1.5));
+      v.hp -= Math.max(1, Math.floor(camp.strength * 1.5) - traitDefenseBonus(v));
       continue;
     }
     // Not adjacent — pathfind toward camp
@@ -517,9 +535,9 @@ export function processRaidAndCombat(ts: TickState): void {
       const baseStats = v.weapon !== 'none'
         ? { attack: WEAPON_STATS[v.weapon].attack, defense: WEAPON_STATS[v.weapon].defense }
         : GUARD_COMBAT[v.tool];
-      nearestEnemy.hp -= Math.max(1, baseStats.attack + attackBonus - nearestEnemy.defense);
+      nearestEnemy.hp -= Math.max(1, baseStats.attack + attackBonus + traitAttackBonus(v) - nearestEnemy.defense);
       const armorDef = ARMOR_STATS[v.armor]?.defense || 0;
-      const guardDef = baseStats.defense + defenseBonus + armorDef;
+      const guardDef = baseStats.defense + defenseBonus + armorDef + traitDefenseBonus(v);
       v.hp -= Math.max(1, nearestEnemy.attack - guardDef);
       if (v.weapon !== 'none') degradeWeapon(v, ts.resources, ts.buildings);
       if (v.armor !== 'none') degradeArmor(v, ts.resources, ts.buildings);
@@ -574,8 +592,8 @@ export function processRaidAndCombat(ts: TickState): void {
 
       // Adjacent — fight
       if (isAdjacent(v.x, v.y, nearestEnemy.x, nearestEnemy.y)) {
-        nearestEnemy.hp -= Math.max(1, MILITIA_COMBAT.attack - nearestEnemy.defense);
-        v.hp -= Math.max(1, nearestEnemy.attack - MILITIA_COMBAT.defense);
+        nearestEnemy.hp -= Math.max(1, MILITIA_COMBAT.attack + traitAttackBonus(v) - nearestEnemy.defense);
+        v.hp -= Math.max(1, nearestEnemy.attack - MILITIA_COMBAT.defense - traitDefenseBonus(v));
         continue;
       }
 
@@ -612,9 +630,9 @@ export function processRaidAndCombat(ts: TickState): void {
       // Expedition member attacks like a guard (base 3 atk + weapon)
       const atkBonus = v.weapon !== 'none' ? (WEAPON_STATS[v.weapon]?.attack || 0) : 0;
       const defBonus = v.armor !== 'none' ? (ARMOR_STATS[v.armor]?.defense || 0) : 0;
-      const vAtk = 3 + atkBonus;
+      const vAtk = 3 + atkBonus + traitAttackBonus(v);
       e.hp -= Math.max(1, vAtk - e.defense);
-      v.hp -= Math.max(1, e.attack - defBonus);
+      v.hp -= Math.max(1, e.attack - defBonus - traitDefenseBonus(v));
       break; // fight one enemy per tick
     }
   }

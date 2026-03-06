@@ -755,9 +755,11 @@ export function skillMultiplier(level: number): number {
 }
 
 // --- Traits ---
-export type Trait = 'strong' | 'lazy' | 'skilled_crafter' | 'fast_learner' | 'glutton' | 'frugal' | 'cheerful' | 'gloomy';
+export type Trait = 'strong' | 'lazy' | 'skilled_crafter' | 'fast_learner' | 'glutton' | 'frugal' | 'cheerful' | 'gloomy'
+  | 'brave' | 'coward' | 'resilient' | 'nimble';
 
-export const ALL_TRAITS: Trait[] = ['strong', 'lazy', 'skilled_crafter', 'fast_learner', 'glutton', 'frugal', 'cheerful', 'gloomy'];
+export const ALL_TRAITS: Trait[] = ['strong', 'lazy', 'skilled_crafter', 'fast_learner', 'glutton', 'frugal', 'cheerful', 'gloomy',
+  'brave', 'coward', 'resilient', 'nimble'];
 
 // --- Villager ---
 export type VillagerRole =
