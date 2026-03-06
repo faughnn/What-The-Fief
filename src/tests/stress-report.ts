@@ -452,11 +452,11 @@ console.log = function (...args: any[]) {
   if (msg.startsWith('ERROR:')) errorLines.push(msg);
 };
 
-// Setup — small starting colony (like starting a Bellwright game)
-let state = createWorld(40, 40, 42);
+// Setup — starting colony on a medium map (60x60)
+let state = createWorld(60, 60, 42);
 // Make entire map grass/territory/fog so settlers from any edge can walk in
-for (let y = 0; y < 40; y++) {
-  for (let x = 0; x < 40; x++) {
+for (let y = 0; y < 60; y++) {
+  for (let x = 0; x < 60; x++) {
     state.fog[y][x] = true;
     state.territory[y][x] = true;
     state.grid[y][x] = { terrain: 'grass', building: null, deposit: null };
