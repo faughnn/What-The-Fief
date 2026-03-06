@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1008 tests passing (51 test files). 100-day stress test: 20 pop, 5 deaths, 0 errors, 11 techs researched, prosperity 80.
+- **Status**: V2 spatial simulation. 1083 tests passing (54 test files). 100-day stress test: 20 pop, 5 deaths, 0 errors, 11 techs researched, prosperity 80.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -27,6 +27,9 @@
   - **Enemy variety**: bandit_archer (7 HP, 2 atk, 0 def, range 3) and bandit_brute (18 HP, 5 atk, 3 def). Archers shoot at range without retaliation. Brutes are tanky melee. Raid composition scales with camp strength: archers at strength 3+, brutes at strength 5+. 22 tests.
   - **Call to Arms**: callToArms/standDown commands. Workers become militia (2 atk, 0 def). Guards unaffected. Militia fight and move toward enemies. Auto-stand-down when enemies cleared. Previous roles restored. Idempotent. 21 tests.
   - **Quest/objective system**: 12 milestone quests (QUEST_DEFINITIONS) auto-complete and award renown+gold. Data-driven with conditions checked daily. Covers population, buildings, research, combat, food, guards, liberation. No double-awarding. 68 tests.
+  - **Charcoal chain**: Coal burner (wood → charcoal). Smelter now requires charcoal + iron_ore → ingots. Deepens production chain, creates wood resource competition. 28 tests.
+  - **Housing comfort**: HOUSING_COMFORT values (tent=1, house=2, manor=3). Carpenter building (planks → furniture). Furniture boosts comfort. Comfort morale: level 2 = +5, level 3+ = +10. 20 tests.
+  - **Enemy loot drops**: Bandits drop gold, brutes drop 3 gold, wolves drop leather, boars drop food. Data-driven ENEMY_LOOT table. Loot goes to storehouse. 27 tests.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -35,7 +38,7 @@
 
 **No.** The physical foundation, economy depth, combat systems, persistent threats, and worker management are strong. The 100-day stress test proves a competent player AI can grow to 14 population with 9 techs researched and prosperity 85. But several core Bellwright systems are still missing.
 
-### What IS working (proven by 919 tests + 100-day stress test):
+### What IS working (proven by 1083 tests + 100-day stress test):
 - ✅ 4000 ticks/day (RimWorld pacing), 1 tile/tick max, BFS pathfinding
 - ✅ Physical production: presence required, local buffers, hauling to storehouse
 - ✅ Processing buildings: miller fetches wheat from storehouse, produces flour at mill
@@ -99,31 +102,37 @@
 - ✅ **Tech-gated buildings**: BUILDING_TECH_REQUIREMENTS gates 12 building types behind research. placeBuilding enforces requirements. 50 tests.
 - ✅ **Enemy variety**: bandit_archer (ranged, 7 HP, range 3), bandit_brute (tanky, 18 HP, 3 def). Archers shoot at range. Raid composition scales: archers at camp str 3+, brutes at str 5+. Forces diverse defense strategies. 22 tests.
 - ✅ **Call to Arms**: callToArms/standDown commands mobilize workers as militia (2 atk, 0 def). Guards unaffected. Militia move toward and fight enemies. Auto-stand-down when enemies cleared. Previous roles restored. 21 tests.
-- ✅ 100-day stress test: player AI grows to 21 pop, 11 techs, prosperity 80, all clothed, 0 errors
+- ✅ **Charcoal chain**: Coal burner (wood → charcoal). Smelter/advanced_smelter require charcoal as fuel. wood → charcoal + iron_ore → ingots.
+- ✅ **Carpenter + furniture**: carpenter (planks → furniture). Furniture boosts housing comfort.
+- ✅ **Housing comfort**: tent=1, house=2, manor=3. Comfort morale: +0/+5/+10. Furniture adds +1 comfort.
+- ✅ **Enemy loot drops**: bandits→gold, brutes→3 gold, wolves→leather, boars→food. Deposited to storehouse.
+- ✅ **Data-driven quests**: 12 milestone quests auto-complete with renown+gold rewards.
+- ✅ 100-day stress test: player AI grows to 20 pop, 11 techs, prosperity 80, all clothed, 0 errors
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
 **Priority 1 — Gameplay Depth:**
-1. **Limited production chain depth.** Missing charcoal/kiln (fuel processing), stonemason, carpenter, distillery. Bellwright has deeper multi-step chains.
-2. **No villager rest quality / comfort.** Bellwright tracks housing comfort beyond just morale bonus. Manor vs tent should have stronger gameplay impact.
-3. **No enemy loot drops.** Bellwright enemies drop equipment/resources when killed.
-4. **No expedition/exploration system.** Bellwright has player-led expeditions to explore map, find resources, encounter events.
+1. **No expedition/exploration system.** Bellwright has player-led squads that explore the map, find resources, and encounter events. Our scouts reveal fog but there's no squad expedition mechanic.
+2. **No villager needs beyond food.** Bellwright has water/drink needs. Currently villagers only need food.
+3. **Limited crafting variety.** Missing distillery, dye workshop, pottery. Bellwright has more crafting diversity.
+4. **No seasonal events.** Bellwright has harvest festivals, winter feasts, etc. beyond our basic festival command.
 
 **Priority 2 — Polish:**
 5. **Raid event messages don't mention enemy composition.** When archers/brutes appear, the event should list them.
 6. **Stress test player AI doesn't use callToArms.** Should mobilize militia during raids.
+7. **No building repair priority.** Damaged buildings should attract idle workers more urgently.
 
 ### Honest priority order for closing gaps:
-1. Deeper production chains (charcoal, stonemason, carpenter)
-2. Housing comfort system
-3. Enemy loot drops
-4. Expedition system
+1. Raid event detail messages + stress test callToArms (quick polish)
+2. Expedition/exploration system
+3. Water/drink needs
+4. More crafting variety
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 51 test files, 1008 tests total
+- `src/tests/test-v2-*.ts` — 54 test files, 1083 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
