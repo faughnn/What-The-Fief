@@ -446,9 +446,10 @@ console.log('\n=== Weapon Overrides Tool in Combat ===');
 
   const e = state.enemies.find(en => en.id === enemy.id);
   const dmg = startHp - (e?.hp || 0);
-  // Sword: max(1, 6 - 1) = 5
-  // Tool 'none': max(1, 3 - 1) = 2
-  assert(dmg === 5, `Sword overrides tool (dmg=${dmg}, expected 5 from sword, not 2 from tool:none)`);
+  // Sword: max(1, 6 + attackBonus - 1) where attackBonus = military_tactics(2) + steel_forging(1) = 3
+  // So damage = max(1, 6 + 3 - 1) = 8
+  // Tool 'none' without weapon: max(1, 3 + 3 - 1) = 5
+  assert(dmg === 8, `Sword overrides tool (dmg=${dmg}, expected 8 from sword+tech, not 5 from unarmed+tech)`);
 }
 
 console.log(`\n========================================`);

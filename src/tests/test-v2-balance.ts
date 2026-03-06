@@ -189,19 +189,23 @@ heading('Poorly-Laid Colony Struggles');
 heading('Distance Affects Productivity');
 
 {
-  // Colony A: tight layout (farm 3 tiles from storehouse)
-  let stateA = flatWorld(30, 10);
-  stateA = { ...stateA, resources: { ...stateA.resources, wood: 100, stone: 50, planks: 20, bread: 50 } };
+  // Both layouts on same-sized map, with high storage cap to avoid capping out.
+  // Tight: farm 2 tiles from storehouse. Distant: farm 30 tiles from storehouse.
+  // Distance affects: morning travel time + haul round-trip time = less production per day.
+  // Uses large_storehouse for higher cap (BASE_STORAGE_CAP + STOREHOUSE_BONUS*2 = 200).
+
+  // Colony A: tight layout
+  let stateA = flatWorld(40, 10);
+  stateA = { ...stateA, resources: { ...stateA.resources, wood: 200, stone: 100, planks: 50, bread: 80 } };
   stateA = placeBuilding(stateA, 'town_hall', 5, 3);
-  stateA = placeBuilding(stateA, 'storehouse', 10, 5);
+  stateA = placeBuilding(stateA, 'large_storehouse', 10, 5);
   stateA = placeBuilding(stateA, 'tent', 9, 5);
-  stateA = placeBuilding(stateA, 'farm', 12, 5);
+  stateA = placeBuilding(stateA, 'farm', 13, 5);
   stateA = constructAll(stateA);
-  // Stock storehouse with bread (highest food priority) so workers eat bread, not wheat
   stateA = {
     ...stateA,
     buildings: stateA.buildings.map(b =>
-      b.type === 'storehouse' ? { ...b, localBuffer: { ...b.localBuffer, bread: 50 } } : b
+      b.type === 'large_storehouse' ? { ...b, localBuffer: { ...b.localBuffer, bread: 80 } } : b
     ),
   };
   stateA = addVillager(stateA, 9, 5);
@@ -213,19 +217,18 @@ heading('Distance Affects Productivity');
   };
   stateA = assignVillager(stateA, stateA.villagers[0].id, stateA.buildings.find(b => b.type === 'farm')!.id);
 
-  // Colony B: distant layout (farm 20 tiles from storehouse)
-  let stateB = flatWorld(30, 10);
-  stateB = { ...stateB, resources: { ...stateB.resources, wood: 100, stone: 50, planks: 20, bread: 50 } };
+  // Colony B: distant layout (same map size, farm far from storehouse)
+  let stateB = flatWorld(40, 10);
+  stateB = { ...stateB, resources: { ...stateB.resources, wood: 200, stone: 100, planks: 50, bread: 80 } };
   stateB = placeBuilding(stateB, 'town_hall', 1, 1);
-  stateB = placeBuilding(stateB, 'storehouse', 1, 5);
+  stateB = placeBuilding(stateB, 'large_storehouse', 1, 5);
   stateB = placeBuilding(stateB, 'tent', 1, 7);
-  stateB = placeBuilding(stateB, 'farm', 25, 5);
+  stateB = placeBuilding(stateB, 'farm', 35, 5);
   stateB = constructAll(stateB);
-  // Stock storehouse with bread (highest food priority) so workers eat bread, not wheat
   stateB = {
     ...stateB,
     buildings: stateB.buildings.map(b =>
-      b.type === 'storehouse' ? { ...b, localBuffer: { ...b.localBuffer, bread: 50 } } : b
+      b.type === 'large_storehouse' ? { ...b, localBuffer: { ...b.localBuffer, bread: 80 } } : b
     ),
   };
   stateB = addVillager(stateB, 1, 7);
@@ -241,11 +244,12 @@ heading('Distance Affects Productivity');
   stateA = advanceDays(stateA, 10);
   stateB = advanceDays(stateB, 10);
 
-  // Total wheat = resources + farm buffer (wheat may be eaten from storehouse)
-  const farmA = stateA.buildings.find(b => b.type === 'farm');
-  const farmB = stateB.buildings.find(b => b.type === 'farm');
-  const wheatA = stateA.resources.wheat + (farmA ? (farmA.localBuffer.wheat || 0) : 0);
-  const wheatB = stateB.resources.wheat + (farmB ? (farmB.localBuffer.wheat || 0) : 0);
+  // Compare total wheat (global + buffer) — tight should produce more
+  // With large_storehouse, cap = 100 + 100 = 200, so no cap bottleneck
+  const farmAFinal = stateA.buildings.find(b => b.type === 'farm');
+  const farmBFinal = stateB.buildings.find(b => b.type === 'farm');
+  const wheatA = stateA.resources.wheat + (farmAFinal ? (farmAFinal.localBuffer.wheat || 0) : 0);
+  const wheatB = stateB.resources.wheat + (farmBFinal ? (farmBFinal.localBuffer.wheat || 0) : 0);
 
   assert(wheatA > wheatB,
     `Tight layout produced more wheat (${wheatA}) than distant layout (${wheatB})`);

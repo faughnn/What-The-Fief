@@ -143,6 +143,8 @@ console.log('\n--- Immigration Grants Points ---');
   let state = setupColony();
   state.constructionPoints = 5;
   state.renown = 100; // Plenty of renown for recruiting
+  // Pre-fill milestones so prosperity milestones don't award extra points during this test
+  state.constructionPointsMilestones = CONSTRUCTION_POINT_MILESTONES.map(m => m.prosperity);
 
   // Add more housing capacity
   for (let i = 0; i < 5; i++) {

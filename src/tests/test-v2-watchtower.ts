@@ -163,15 +163,16 @@ heading('Watchtower Range Limit');
   state = setGuard(state, 'v1');
   state = assignVillager(state, 'v1', towerId);
 
-  // Place enemy at range 8 (beyond watchtower range of 5)
-  state = addEnemy(state, 18, 5);
+  // Place enemy at range 10 (beyond watchtower range of 5, or 7 with archery tech)
+  // Enemy moves 1 tile/tick toward settlement, so after 1 tick dist=9, still beyond range 7
+  state = addEnemy(state, 20, 5);
   const enemyHpBefore = state.enemies[0].hp;
 
   // Run a tick
   state = advance(state, 1);
 
   const enemy = state.enemies.find(e => e.id === 'e1')!;
-  assert(enemy.hp === enemyHpBefore, `Tower didn't shoot enemy beyond range 5 (dist=8, hp unchanged: ${enemy.hp})`);
+  assert(enemy.hp === enemyHpBefore, `Tower didn't shoot enemy beyond range (dist=10, hp unchanged: ${enemy.hp})`);
 }
 
 // ================================================================
