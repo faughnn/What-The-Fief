@@ -162,16 +162,20 @@ export function processDailyChecks(ts: TickState): void {
   }
 
   // Spoilage — applies to storehouse buffers and global pool
-  for (const [res, rate] of Object.entries(SPOILAGE)) {
+  // Food cellar halves spoilage rate when constructed
+  const hasFoodCellar = ts.buildings.some(b => b.type === 'food_cellar' && b.constructed);
+  const spoilageMultiplier = hasFoodCellar ? 0.5 : 1;
+  for (const [res, baseRate] of Object.entries(SPOILAGE)) {
     const key = res as ResourceType;
-    const loss = Math.floor(ts.resources[key] * (rate as number));
+    const rate = (baseRate as number) * spoilageMultiplier;
+    const loss = Math.floor(ts.resources[key] * rate);
     ts.resources[key] = Math.max(0, ts.resources[key] - loss);
     // Also spoil in storehouse buffers
     for (const b of ts.buildings) {
       if (isStorehouse(b.type) && b.constructed) {
         const bufAmt = b.localBuffer[key] || 0;
         if (bufAmt > 0) {
-          const bufLoss = Math.floor(bufAmt * (rate as number));
+          const bufLoss = Math.floor(bufAmt * rate);
           deductFromBuffer(b.localBuffer, key, bufLoss);
         }
       }

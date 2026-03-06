@@ -116,6 +116,8 @@ export type BuildingType =
   | 'water_collector'
   // Food processing
   | 'butchery' | 'compost_pile' | 'drying_rack'
+  // Food storage
+  | 'food_cellar'
   // Roads
   | 'road';
 
@@ -620,6 +622,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 6 }, description: 'Dries food for long-term preservation',
     maxWorkers: 1, production: { output: 'dried_food', amountPerWorker: 2, inputs: { food: 2 } }, mapChar: '=',
   },
+  food_cellar: {
+    type: 'food_cellar', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 8, stone: 12, planks: 2 }, description: 'Reduces food spoilage by 50%',
+    maxWorkers: 0, production: null, mapChar: 'C',
+  },
   church: {
     type: 'church', width: 2, height: 2, allowedTerrain: ['grass'],
     cost: { wood: 20, stone: 15 }, description: 'Boosts morale of nearby villagers',
@@ -993,7 +1000,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   tavern: 40,
   well: 50,
   water_collector: 20,
-  butchery: 35, compost_pile: 15, drying_rack: 20,
+  butchery: 35, compost_pile: 15, drying_rack: 20, food_cellar: 40,
   church: 80,
   graveyard: 20,
   rubble: 1,
@@ -1104,6 +1111,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   apiary: 'animal_husbandry',
   mill: 'basic_cooking',
   bakery: 'basic_cooking',
+  food_cellar: 'basic_cooking',
   foraging_hut: 'herbalism_lore',
   // Tier 2
   smelter: 'metallurgy',

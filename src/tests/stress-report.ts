@@ -238,6 +238,10 @@ function playerAI(state: GameState): GameState {
   if (day >= 15 && countBuildings(state, 'compost_pile') === 0 && canBuildTech(state, 'compost_pile') && canAfford(state, 'compost_pile')) {
     state = tryBuild(state, 'compost_pile', 12, 16);
   }
+  // Food cellar — halves spoilage rates (build once cooking tech is available)
+  if (day >= 15 && countBuildings(state, 'food_cellar') === 0 && canBuildTech(state, 'food_cellar') && canAfford(state, 'food_cellar')) {
+    state = tryBuild(state, 'food_cellar', centerX, centerY - 1);
+  }
   // Coal burner — needed for charcoal (smelter fuel). Build when metallurgy available.
   if (day >= 20 && countBuildings(state, 'coal_burner') === 0 && canBuildTech(state, 'coal_burner') && canAfford(state, 'coal_burner')) {
     state = tryBuild(state, 'coal_burner', 12, 17);
