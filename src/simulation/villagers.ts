@@ -796,6 +796,11 @@ export function processVillagerStateMachine(ts: TickState): void {
       continue;
     }
 
+    // Expedition members: skip normal state machine (handled by expeditions.ts)
+    if (v.state === 'on_expedition') {
+      continue;
+    }
+
     // NIGHT: everyone sleeps
     if (ts.isNight) {
       if (v.state !== 'sleeping') {
@@ -882,7 +887,7 @@ export function processVillagerStateMachine(ts: TickState): void {
   // Force late-stayers home near end of day
   if (ts.dayTick >= TICKS_PER_DAY - 5 && !ts.isNight) {
     for (const v of ts.villagers) {
-      if (v.state !== 'sleeping' && v.state !== 'traveling_home' && v.state !== 'scouting') {
+      if (v.state !== 'sleeping' && v.state !== 'traveling_home' && v.state !== 'scouting' && v.state !== 'on_expedition') {
         const dropSH = findNearestStorehouse(ts.buildings, ts.grid, ts.width, ts.height, v.x, v.y);
         for (const [res, amt] of Object.entries(v.carrying)) {
           if (amt && amt > 0) {

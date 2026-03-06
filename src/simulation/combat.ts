@@ -273,7 +273,7 @@ export function processRaidAndCombat(ts: TickState): void {
 
     // Check if adjacent to a guard — if so, fight instead of moving
     const adjacentGuard = ts.villagers.find(v =>
-      v.role === 'guard' && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
+      (v.role === 'guard' || v.state === 'on_expedition') && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
     );
     if (adjacentGuard) continue; // will fight below
 
@@ -603,12 +603,28 @@ export function processRaidAndCombat(ts: TickState): void {
     }
   }
 
+  // --- EXPEDITION COMBAT: expedition members fight adjacent enemies ---
+  for (const v of ts.villagers) {
+    if (v.state !== 'on_expedition' || v.hp <= 0) continue;
+    for (const e of ts.enemies) {
+      if (e.hp <= 0) continue;
+      if (!isAdjacent(v.x, v.y, e.x, e.y)) continue;
+      // Expedition member attacks like a guard (base 3 atk + weapon)
+      const atkBonus = v.weapon !== 'none' ? (WEAPON_STATS[v.weapon]?.attack || 0) : 0;
+      const defBonus = v.armor !== 'none' ? (ARMOR_STATS[v.armor]?.defense || 0) : 0;
+      const vAtk = 3 + atkBonus;
+      e.hp -= Math.max(1, vAtk - e.defense);
+      v.hp -= Math.max(1, e.attack - defBonus);
+      break; // fight one enemy per tick
+    }
+  }
+
   // Enemies attack adjacent non-guard villagers (after guards/walls/buildings)
   for (const e of ts.enemies) {
     if (e.hp <= 0) continue;
     // Already fighting a guard or militia? Skip
     const fightingCombatant = ts.villagers.some(v =>
-      (v.role === 'guard' || v.role === 'militia') && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
+      (v.role === 'guard' || v.role === 'militia' || v.state === 'on_expedition') && v.hp > 0 && isAdjacent(e.x, e.y, v.x, v.y)
     );
     if (fightingCombatant) continue;
     // Attack adjacent non-combatant villager

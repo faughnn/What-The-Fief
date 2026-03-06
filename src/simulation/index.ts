@@ -16,12 +16,13 @@ import { processVillagerStateMachine } from './villagers.js';
 import { processRaidAndCombat } from './combat.js';
 import { processAnimals } from './animals.js';
 import { processFire } from './buildings.js';
+import { processExpeditions } from './expeditions.js';
 
 // Re-export public API
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
 export { placeBuilding, claimTerritory, processFire } from './buildings.js';
-export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute, holdFestival, liberateVillage, recruitFromVillage, setJobPriority, callToArms, standDown } from './commands.js';
+export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute, holdFestival, liberateVillage, recruitFromVillage, setJobPriority, callToArms, standDown, sendExpedition, recallExpedition } from './commands.js';
 
 // ================================================================
 // TICK — V2 spatial simulation
@@ -101,6 +102,9 @@ export function tick(state: GameState): GameState {
     nextRouteId: state.nextRouteId,
     lastFestivalDay: state.lastFestivalDay,
     callToArms: state.callToArms,
+    pointsOfInterest: state.pointsOfInterest.map(p => ({ ...p, rewards: { ...p.rewards }, guardEnemies: p.guardEnemies ? p.guardEnemies.map(g => ({ ...g })) : undefined })),
+    expeditions: state.expeditions.map(e => ({ ...e, memberIds: [...e.memberIds] })),
+    nextExpeditionId: state.nextExpeditionId,
     buildingMap: new Map(),
   };
   ts.buildingMap = buildBuildingMap(ts.buildings);
@@ -126,6 +130,9 @@ export function tick(state: GameState): GameState {
 
   // Lightning (per-tick, storms only)
   processLightning(ts);
+
+  // Expeditions (per-tick, after combat so members can fight)
+  processExpeditions(ts);
 
   // Wildlife (per-tick)
   processAnimals(ts);
@@ -186,6 +193,9 @@ export function tick(state: GameState): GameState {
     nextRouteId: ts.nextRouteId,
     lastFestivalDay: ts.lastFestivalDay,
     callToArms: ts.callToArms,
+    pointsOfInterest: ts.pointsOfInterest as any,
+    expeditions: ts.expeditions as any,
+    nextExpeditionId: ts.nextExpeditionId,
   };
 
   const errors = validateState(newState);

@@ -733,7 +733,8 @@ export type VillagerState =
   | 'supply_traveling_to_source'
   | 'supply_loading'
   | 'supply_traveling_to_dest'
-  | 'supply_unloading';
+  | 'supply_unloading'
+  | 'on_expedition';
 export type FoodEaten = 'bread' | 'flour' | 'wheat' | 'food' | 'nothing';
 export type Direction = 'n' | 's' | 'e' | 'w';
 
@@ -800,6 +801,8 @@ export interface Villager {
   supplyRouteId: string | null; // ID of supply route this hauler is assigned to
   // Call to Arms
   previousRole: VillagerRole | null; // saved role for stand-down restoration
+  // Expedition
+  expeditionId: string | null;
 }
 
 // --- Combat ---
@@ -1150,7 +1153,50 @@ export interface GameState {
   lastFestivalDay: number;
   // Call to Arms
   callToArms: boolean;
+  // Expeditions
+  pointsOfInterest: PointOfInterest[];
+  expeditions: Expedition[];
+  nextExpeditionId: number;
 }
+
+// --- Points of Interest (exploration targets) ---
+export type POIType = 'ruins' | 'resource_cache' | 'animal_den' | 'abandoned_camp' | 'herb_grove';
+
+export interface POIGuardEnemy {
+  type: EnemyType;
+  count: number;
+}
+
+export interface PointOfInterest {
+  id: string;
+  type: POIType;
+  x: number;
+  y: number;
+  discovered: boolean;
+  explored: boolean;
+  rewards: Partial<Resources>;
+  renownReward: number;
+  guardEnemies?: POIGuardEnemy[]; // hostile POIs have guards
+}
+
+// --- Expeditions (player-sent exploration squads) ---
+export type ExpeditionState = 'traveling_out' | 'exploring' | 'fighting' | 'traveling_back';
+
+export interface Expedition {
+  id: string;
+  memberIds: string[];
+  targetX: number;
+  targetY: number;
+  homeX: number;
+  homeY: number;
+  state: ExpeditionState;
+  exploreProgress: number;
+  exploreTicks: number; // ticks to fully explore a POI
+  targetPOIId: string | null;
+}
+
+export const EXPEDITION_EXPLORE_TICKS = 10; // ticks to explore a POI
+export const EXPEDITION_FOG_RADIUS = 3;     // fog reveal radius while traveling
 
 // --- Supply Routes (player-directed hauling between storehouses/outposts) ---
 export interface SupplyRoute {
@@ -1284,7 +1330,41 @@ export function createVillager(id: number, x: number, y: number): Villager {
     jobPriorities: {},
     supplyRouteId: null,
     previousRole: null,
+    expeditionId: null,
   };
+}
+
+function generatePOIs(width: number, height: number, cx: number, cy: number, rng: () => number): PointOfInterest[] {
+  if (width < 30 || height < 30) return [];
+  const pois: PointOfInterest[] = [];
+  const POI_TEMPLATES: { type: POIType; rewards: Partial<Resources>; renown: number; guards?: POIGuardEnemy[] }[] = [
+    { type: 'ruins', rewards: { stone: 10, iron_ore: 3 }, renown: 5 },
+    { type: 'resource_cache', rewards: { gold: 8, wood: 5 }, renown: 2 },
+    { type: 'animal_den', rewards: { leather: 4, food: 5 }, renown: 3, guards: [{ type: 'wolf', count: 2 }] },
+    { type: 'abandoned_camp', rewards: { gold: 15, wood: 10 }, renown: 8, guards: [{ type: 'bandit', count: 2 }] },
+    { type: 'herb_grove', rewards: { herbs: 10 }, renown: 2 },
+    { type: 'ruins', rewards: { stone: 5, gold: 5 }, renown: 4 },
+    { type: 'resource_cache', rewards: { iron_ore: 5, stone: 8 }, renown: 3 },
+    { type: 'abandoned_camp', rewards: { gold: 20 }, renown: 10, guards: [{ type: 'bandit', count: 3 }, { type: 'bandit_archer', count: 1 }] },
+  ];
+  // Place POIs outside starting territory
+  const margin = 5;
+  for (let i = 0; i < POI_TEMPLATES.length; i++) {
+    const t = POI_TEMPLATES[i];
+    let px = 0, py = 0, attempts = 0;
+    do {
+      px = margin + Math.floor(rng() * (width - margin * 2));
+      py = margin + Math.floor(rng() * (height - margin * 2));
+      attempts++;
+    } while (Math.abs(px - cx) < 15 && Math.abs(py - cy) < 15 && attempts < 50);
+    pois.push({
+      id: `poi${i + 1}`, type: t.type, x: px, y: py,
+      discovered: false, explored: false,
+      rewards: t.rewards, renownReward: t.renown,
+      guardEnemies: t.guards,
+    });
+  }
+  return pois;
 }
 
 export function createWorld(width: number, height: number, seed: number = 42): GameState {
@@ -1394,5 +1474,8 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     nextRouteId: 1,
     lastFestivalDay: -100,
     callToArms: false,
+    pointsOfInterest: generatePOIs(width, height, cx, cy, rng),
+    expeditions: [],
+    nextExpeditionId: 1,
   };
 }

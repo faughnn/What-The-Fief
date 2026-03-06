@@ -10,6 +10,7 @@ import {
   FESTIVAL_FOOD_COST, FESTIVAL_GOLD_COST, FESTIVAL_COOLDOWN, TICKS_PER_DAY,
   LIBERATION_BRIGAND_COUNT, ENEMY_TEMPLATES, EnemyEntity,
   createVillager, RENOWN_PER_RECRUIT, BUILDING_TECH_REQUIREMENTS,
+  Expedition, EXPEDITION_EXPLORE_TICKS,
 } from '../world.js';
 import { roleForBuilding, bufferTotal, findNearestStorehouse, isStorehouse, deductFromBuffer, findHome } from './helpers.js';
 
@@ -585,6 +586,69 @@ export function callToArms(state: GameState): GameState {
         state: 'idle',
       };
     }),
+  };
+}
+
+// --- Expedition Commands ---
+
+export function sendExpedition(state: GameState, villagerIds: string[], targetX: number, targetY: number): GameState {
+  if (villagerIds.length === 0) return state;
+  // Filter out villagers already on expedition or invalid
+  const valid = villagerIds.filter(id => {
+    const v = state.villagers.find(vi => vi.id === id);
+    return v && v.state !== 'on_expedition';
+  });
+  if (valid.length === 0) return state;
+
+  const expId = `exp${state.nextExpeditionId}`;
+  const leader = state.villagers.find(v => v.id === valid[0])!;
+
+  // Find nearest POI to target
+  let targetPOIId: string | null = null;
+  let bestDist = Infinity;
+  for (const poi of state.pointsOfInterest) {
+    if (poi.explored) continue;
+    const d = Math.abs(poi.x - targetX) + Math.abs(poi.y - targetY);
+    if (d < bestDist && d <= 3) { bestDist = d; targetPOIId = poi.id; }
+  }
+
+  const expedition: Expedition = {
+    id: expId,
+    memberIds: valid,
+    targetX, targetY,
+    homeX: leader.x, homeY: leader.y,
+    state: 'traveling_out',
+    exploreProgress: 0,
+    exploreTicks: EXPEDITION_EXPLORE_TICKS,
+    targetPOIId,
+  };
+
+  return {
+    ...state,
+    expeditions: [...state.expeditions, expedition],
+    nextExpeditionId: state.nextExpeditionId + 1,
+    villagers: state.villagers.map(v => {
+      if (!valid.includes(v.id)) return v;
+      return {
+        ...v,
+        state: 'on_expedition' as const,
+        expeditionId: expId,
+        role: 'scout' as VillagerRole,
+        path: [], pathIndex: 0,
+      };
+    }),
+    events: [...state.events, `An expedition of ${valid.length} has been sent to explore (${targetX}, ${targetY}).`],
+  };
+}
+
+export function recallExpedition(state: GameState, expeditionId: string): GameState {
+  const exp = state.expeditions.find(e => e.id === expeditionId);
+  if (!exp) return state;
+  return {
+    ...state,
+    expeditions: state.expeditions.map(e =>
+      e.id === expeditionId ? { ...e, state: 'traveling_back' as const } : e
+    ),
   };
 }
 

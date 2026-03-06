@@ -71,6 +71,10 @@ export interface TickState {
   nextRouteId: number;
   lastFestivalDay: number;
   callToArms: boolean;
+  // Expeditions
+  pointsOfInterest: { id: string; type: string; x: number; y: number; discovered: boolean; explored: boolean; rewards: Partial<Record<string, number>>; renownReward: number; guardEnemies?: { type: string; count: number }[] }[];
+  expeditions: { id: string; memberIds: string[]; targetX: number; targetY: number; homeX: number; homeY: number; state: string; exploreProgress: number; exploreTicks: number; targetPOIId: string | null }[];
+  nextExpeditionId: number;
   // O(1) lookup maps — built once per tick, used instead of buildings.find/villagers.find
   buildingMap: Map<string, Building>;
 }
