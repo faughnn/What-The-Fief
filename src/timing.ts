@@ -38,7 +38,7 @@ const CONSTRUCTION_TICKS_BASE: Record<string, number> = {
   herb_garden: 40, flax_field: 40, hemp_field: 40, iron_mine: 120,
   sawmill: 75, smelter: 100, mill: 60, bakery: 60,
   tanner: 60, weaver: 60, ropemaker: 50,
-  blacksmith: 80, toolmaker: 100, armorer: 120, coal_burner: 60,
+  blacksmith: 80, toolmaker: 100, armorer: 120, coal_burner: 60, carpenter: 70,
   town_hall: 240, wall: 20, fence: 10,
   research_desk: 60, chicken_coop: 45, livestock_barn: 75,
   apiary: 35, marketplace: 120, hunting_lodge: 50, foraging_hut: 40, fishing_hut: 45, gate: 15,

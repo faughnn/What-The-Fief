@@ -36,6 +36,20 @@ export const HOUSING_INFO: Partial<Record<BuildingType, { capacity: number; mora
   inn: { capacity: 4, morale: 15 },
 };
 
+// --- Housing comfort levels ---
+export const HOUSING_COMFORT: Partial<Record<BuildingType, number>> = {
+  tent: 1,
+  house: 2,
+  manor: 3,
+  inn: 2,
+};
+
+// Morale bonus from comfort: comfort 1 = +0, 2 = +5, 3+ = +10
+export const COMFORT_MORALE: Record<number, number> = { 1: 0, 2: 5, 3: 10 };
+// Furniture bonus: each furniture in storehouse adds +1 comfort to all housing (capped)
+export const FURNITURE_COMFORT_PER_UNIT = 1;
+export const FURNITURE_COMFORT_CAP = 2; // max +2 comfort from furniture
+
 // --- Decoration morale bonuses (range 5 tiles from home) ---
 export const DECORATION_MORALE: Partial<Record<BuildingType, number>> = {
   garden: 5,
@@ -60,7 +74,7 @@ export type BuildingType =
   | 'house' | 'tent' | 'manor' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse'
   | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine'
   | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker'
-  | 'blacksmith' | 'toolmaker' | 'armorer' | 'coal_burner'
+  | 'blacksmith' | 'toolmaker' | 'armorer' | 'coal_burner' | 'carpenter'
   | 'town_hall' | 'wall' | 'fence'
   | 'research_desk'
   | 'chicken_coop' | 'livestock_barn' | 'apiary' | 'marketplace' | 'hunting_lodge' | 'foraging_hut' | 'fishing_hut'
@@ -111,6 +125,7 @@ export type ResourceType =
   | 'planks' | 'charcoal' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
   | 'basic_tools' | 'sturdy_tools' | 'iron_tools'
   | 'sword' | 'bow'
+  | 'furniture'
   | 'leather_armor' | 'iron_armor'
   | 'gold';
 
@@ -137,6 +152,7 @@ export interface Resources {
   iron_tools: number;
   sword: number;
   bow: number;
+  furniture: number;
   leather_armor: number;
   iron_armor: number;
   gold: number;
@@ -148,6 +164,7 @@ export function emptyResources(): Resources {
     planks: 0, charcoal: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
     basic_tools: 0, sturdy_tools: 0, iron_tools: 0,
     sword: 0, bow: 0,
+    furniture: 0,
     leather_armor: 0, iron_armor: 0,
     gold: 0,
   };
@@ -159,6 +176,7 @@ export const ALL_RESOURCES: ResourceType[] = [
   'planks', 'charcoal', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
   'basic_tools', 'sturdy_tools', 'iron_tools',
   'sword', 'bow',
+  'furniture',
   'leather_armor', 'iron_armor',
   'gold',
 ];
@@ -466,6 +484,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 10, stone: 5 }, description: 'Burns wood into charcoal for fuel',
     maxWorkers: 1, production: { output: 'charcoal', amountPerWorker: 2, inputs: { wood: 2 } }, mapChar: 'c',
   },
+  carpenter: {
+    type: 'carpenter', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 12, stone: 5, planks: 5 }, description: 'Crafts furniture from planks',
+    maxWorkers: 1, production: { output: 'furniture', amountPerWorker: 1, inputs: { planks: 3 } }, mapChar: 'P',
+  },
   town_hall: {
     type: 'town_hall', width: 3, height: 3, allowedTerrain: ['grass'],
     cost: { wood: 30, stone: 20, planks: 10 }, description: 'Enables territory expansion',
@@ -650,7 +673,7 @@ export const ALL_SKILLS: SkillType[] = ['farming', 'mining', 'crafting', 'woodcu
 export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   farm: 'farming', flax_field: 'farming', hemp_field: 'farming',
   quarry: 'mining', iron_mine: 'mining',
-  sawmill: 'crafting', smelter: 'crafting', coal_burner: 'crafting', tanner: 'crafting', weaver: 'crafting', ropemaker: 'crafting',
+  sawmill: 'crafting', smelter: 'crafting', coal_burner: 'crafting', carpenter: 'crafting', tanner: 'crafting', weaver: 'crafting', ropemaker: 'crafting',
   woodcutter: 'woodcutting',
   mill: 'cooking', bakery: 'cooking',
   herb_garden: 'herbalism',
@@ -682,7 +705,7 @@ export type VillagerRole =
   | 'idle' | 'farmer' | 'woodcutter' | 'quarrier' | 'herbalist'
   | 'flaxer' | 'hemper' | 'miner' | 'sawyer' | 'smelter'
   | 'miller' | 'baker' | 'tanner_worker' | 'weaver_worker' | 'ropemaker_worker'
-  | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker' | 'charcoal_burner'
+  | 'blacksmith_worker' | 'toolmaker_worker' | 'armorer_worker' | 'charcoal_burner' | 'carpenter_worker'
   | 'weaponsmith_worker' | 'fletcher_worker' | 'leather_workshop_worker'
   | 'scout' | 'guard' | 'researcher' | 'hunter' | 'forager'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
@@ -892,7 +915,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   herb_garden: 25, flax_field: 25, hemp_field: 25, iron_mine: 50,
   sawmill: 40, smelter: 50, mill: 35, bakery: 35,
   tanner: 35, weaver: 35, ropemaker: 35,
-  blacksmith: 45, toolmaker: 45, armorer: 50, coal_burner: 35,
+  blacksmith: 45, toolmaker: 45, armorer: 50, coal_burner: 35, carpenter: 40,
   town_hall: 100, wall: 100, fence: 30,
   research_desk: 30, chicken_coop: 25, livestock_barn: 40,
   apiary: 20, marketplace: 60, hunting_lodge: 30, foraging_hut: 25, fishing_hut: 30, gate: 80,
@@ -1002,6 +1025,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   deep_quarry: 'masonry',
   town_hall: 'masonry',
   toolmaker: 'improved_tools',
+  carpenter: 'improved_tools',
   watchtower: 'fortification',
   chicken_coop: 'animal_husbandry',
   livestock_barn: 'animal_husbandry',

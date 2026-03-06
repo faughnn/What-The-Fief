@@ -5,7 +5,8 @@ import {
   createVillager, SPOILAGE, FOOD_PRIORITY, BUILDING_TEMPLATES,
   BUILDING_SKILL_MAP, DECORATION_MORALE,
   Season, WeatherType,
-  SEASON_MORALE, WEATHER_MORALE, HOUSING_INFO,
+  SEASON_MORALE, WEATHER_MORALE, HOUSING_INFO, HOUSING_COMFORT,
+  COMFORT_MORALE, FURNITURE_COMFORT_PER_UNIT, FURNITURE_COMFORT_CAP,
   FoodEaten, TICKS_PER_DAY,
   RENOWN_PER_RECRUIT, FREE_SETTLERS,
   CONSTRUCTION_POINT_PER_IMMIGRANT,
@@ -138,7 +139,16 @@ export function processDailyChecks(ts: TickState): void {
         }
       }
     }
-    v.morale = calculateMorale(v, housingMorale, ts.season, ts.weather, familyNearby, churchNearby, decorationBonus, ts.newDay, festivalActive);
+    // Comfort bonus — based on housing type + furniture in storehouses
+    let comfortBonus = 0;
+    if (home) {
+      const baseComfort = HOUSING_COMFORT[home.type] || 0;
+      const furnitureInStorage = ts.resources.furniture || 0;
+      const furnitureBonus = Math.min(furnitureInStorage > 0 ? FURNITURE_COMFORT_PER_UNIT : 0, FURNITURE_COMFORT_CAP);
+      const totalComfort = Math.min(baseComfort + furnitureBonus, 4);
+      comfortBonus = COMFORT_MORALE[totalComfort] ?? COMFORT_MORALE[3] ?? 10;
+    }
+    v.morale = calculateMorale(v, housingMorale + comfortBonus, ts.season, ts.weather, familyNearby, churchNearby, decorationBonus, ts.newDay, festivalActive);
   }
 
   // Reset lastAte AFTER morale calculation — so yesterday's meals influence today's morale
