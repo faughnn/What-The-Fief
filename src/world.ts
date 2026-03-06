@@ -97,6 +97,8 @@ export type BuildingType =
   | 'garden' | 'fountain' | 'statue'
   // Outpost
   | 'outpost'
+  // Water
+  | 'water_collector'
   // Roads
   | 'road';
 
@@ -125,7 +127,7 @@ export type ResourceType =
   | 'planks' | 'charcoal' | 'ingots' | 'flour' | 'bread' | 'leather' | 'linen' | 'rope'
   | 'basic_tools' | 'sturdy_tools' | 'iron_tools'
   | 'sword' | 'bow'
-  | 'furniture'
+  | 'furniture' | 'water'
   | 'leather_armor' | 'iron_armor'
   | 'gold';
 
@@ -153,6 +155,7 @@ export interface Resources {
   sword: number;
   bow: number;
   furniture: number;
+  water: number;
   leather_armor: number;
   iron_armor: number;
   gold: number;
@@ -164,7 +167,7 @@ export function emptyResources(): Resources {
     planks: 0, charcoal: 0, ingots: 0, flour: 0, bread: 0, leather: 0, linen: 0, rope: 0,
     basic_tools: 0, sturdy_tools: 0, iron_tools: 0,
     sword: 0, bow: 0,
-    furniture: 0,
+    furniture: 0, water: 0,
     leather_armor: 0, iron_armor: 0,
     gold: 0,
   };
@@ -176,7 +179,7 @@ export const ALL_RESOURCES: ResourceType[] = [
   'planks', 'charcoal', 'ingots', 'flour', 'bread', 'leather', 'linen', 'rope',
   'basic_tools', 'sturdy_tools', 'iron_tools',
   'sword', 'bow',
-  'furniture',
+  'furniture', 'water',
   'leather_armor', 'iron_armor',
   'gold',
 ];
@@ -566,8 +569,13 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   },
   well: {
     type: 'well', width: 1, height: 1, allowedTerrain: ['grass'],
-    cost: { stone: 10 }, description: 'Reduces fire risk in nearby buildings',
-    maxWorkers: 0, production: null, mapChar: 'O',
+    cost: { stone: 10 }, description: 'Produces water and reduces fire risk nearby',
+    maxWorkers: 1, production: { output: 'water', amountPerWorker: 3 }, mapChar: 'O',
+  },
+  water_collector: {
+    type: 'water_collector', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 5 }, description: 'Collects rainwater passively (more in rain)',
+    maxWorkers: 0, production: { output: 'water', amountPerWorker: 1 }, mapChar: '~',
   },
   church: {
     type: 'church', width: 2, height: 2, allowedTerrain: ['grass'],
@@ -613,7 +621,7 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   kitchen: {
     type: 'kitchen', width: 2, height: 1, allowedTerrain: ['grass'],
     cost: { wood: 15, stone: 10, planks: 5 }, description: 'Kitchen — 2 workers, 4 bread each',
-    maxWorkers: 2, production: { output: 'bread', amountPerWorker: 4, inputs: { flour: 2 } }, mapChar: 'B',
+    maxWorkers: 2, production: { output: 'bread', amountPerWorker: 4, inputs: { flour: 2, water: 1 } }, mapChar: 'B',
   },
   large_storehouse: {
     type: 'large_storehouse', width: 2, height: 2, allowedTerrain: ['grass'],
@@ -676,7 +684,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   sawmill: 'crafting', smelter: 'crafting', coal_burner: 'crafting', carpenter: 'crafting', tanner: 'crafting', weaver: 'crafting', ropemaker: 'crafting',
   woodcutter: 'woodcutting',
   mill: 'cooking', bakery: 'cooking',
-  herb_garden: 'herbalism',
+  herb_garden: 'herbalism', well: 'farming',
   research_desk: 'crafting',
   chicken_coop: 'farming',
   livestock_barn: 'farming',
@@ -709,7 +717,7 @@ export type VillagerRole =
   | 'weaponsmith_worker' | 'fletcher_worker' | 'leather_workshop_worker'
   | 'scout' | 'guard' | 'researcher' | 'hunter' | 'forager'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
-  | 'fisher' | 'hauler' | 'militia';
+  | 'fisher' | 'hauler' | 'militia' | 'well_worker';
 
 export type VillagerState =
   | 'sleeping'
@@ -939,6 +947,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   watchtower: 70,
   tavern: 40,
   well: 50,
+  water_collector: 20,
   church: 80,
   graveyard: 20,
   rubble: 1,

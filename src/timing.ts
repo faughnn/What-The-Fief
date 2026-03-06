@@ -44,7 +44,7 @@ const CONSTRUCTION_TICKS_BASE: Record<string, number> = {
   apiary: 35, marketplace: 120, hunting_lodge: 50, foraging_hut: 40, fishing_hut: 45, gate: 15,
   watchtower: 90,
   tavern: 60,
-  well: 40,
+  well: 40, water_collector: 20,
   church: 120,
   graveyard: 30,
   rubble: 30,
