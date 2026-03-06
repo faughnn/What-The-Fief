@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1449 tests passing (78 test files). 100-day stress test: 13 pop, 2 deaths, 0 errors, 9 techs researched, prosperity 90.
+- **Status**: V2 spatial simulation. 1459 tests passing (79 test files). 100-day stress test: 13 pop, 2 deaths, 0 errors, 9 techs researched, prosperity 90.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -124,6 +124,7 @@
 - ✅ **Expanded traits (17 total)**: Original 12 + stalwart (+3 atk, +2 def, -50% production), marksman (+50% ranged dmg, -1 melee def), neurotic (+50% production, +25% hunger), porter (+3 carry capacity), tough (+5 max HP). 24 tests.
 - ✅ **Apothecary building**: herbs→bandages crafting. Healer role (herbalism skill). Bandages provide +2 HP/day regen and speed disease recovery. Requires medicine tech. 18 tests.
 - ✅ **Night danger**: All enemies get +2 attack during night ticks. Makes nighttime raids significantly more dangerous. Encourages wall building and guard patrols. 10 tests.
+- ✅ **Library**: Passive building (no workers). +50% research speed when constructed. Requires civil_engineering. 10 tests.
 - ✅ **Expedition/exploration**: sendExpedition sends squads to explore map. POIs (ruins, resource_cache, animal_den, abandoned_camp, herb_grove) generated outside territory. Squads walk 1 tile/tick, reveal fog, discover POIs, fight guards, collect rewards. recallExpedition. Skip sleep. 65 tests.
 - ✅ **Water resource**: well (produces water, fire prevention), water_collector (passive). Kitchen requires flour+water→bread. 20 tests.
 - ✅ **Food processing chain**: butchery (food→meat+leather byproduct, 2.5 satisfaction), compost_pile (food→fertilizer), drying_rack (food→dried_food, 4x slower spoilage). ProductionRule.byproduct support. 31 tests.
@@ -173,7 +174,7 @@
 
 ### New gaps identified:
 22. Building tier progression (foraging camp→hut→lodge, mining camp→hut, logging camp)
-23. Library building (research speed boost)
+23. ~~Library building~~ ✅ Done — passive +50% research speed boost. Requires civil_engineering. 10 tests.
 24. Weapon rack / armory storage building
 25. Smoking rack (alternative food preservation)
 26. More quest variety (defend, escort, trade missions)
@@ -183,7 +184,7 @@
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 78 test files, 1449 tests total
+- `src/tests/test-v2-*.ts` — 79 test files, 1459 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
