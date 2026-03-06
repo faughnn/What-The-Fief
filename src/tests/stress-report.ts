@@ -6,7 +6,7 @@ import {
   TICKS_PER_DAY, BUILDING_TEMPLATES, FOOD_PRIORITY, BUILDING_TECH_REQUIREMENTS,
 } from '../world.js';
 import {
-  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp, setFormation, holdFestival,
+  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp, setFormation, holdFestival, callToArms, standDown,
 } from '../simulation.js';
 
 // ================================================================
@@ -357,6 +357,13 @@ function playerAI(state: GameState): GameState {
       state = assaultCamp(state, availableGuards[0].id, weakestCamp.id);
       state = assaultCamp(state, availableGuards[1].id, weakestCamp.id);
     }
+  }
+
+  // --- CALL TO ARMS: mobilize militia when enemies threaten ---
+  if (state.enemies.length >= 3 && !state.callToArms) {
+    state = callToArms(state);
+  } else if (state.enemies.length === 0 && state.callToArms) {
+    state = standDown(state);
   }
 
   // --- ECONOMY DEPTH: production chains + building upgrades ---

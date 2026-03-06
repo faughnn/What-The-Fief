@@ -69,6 +69,22 @@ function pickRaidEnemyType(index: number, totalBandits: number, strength: number
   return 'bandit';
 }
 
+// --- Describe raid composition for event messages ---
+function raidCompositionLabel(numBandits: number, strength: number): string {
+  let regulars = 0, archers = 0, brutes = 0;
+  for (let i = 0; i < numBandits; i++) {
+    const type = pickRaidEnemyType(i, numBandits, strength);
+    if (type === 'bandit_archer') archers++;
+    else if (type === 'bandit_brute') brutes++;
+    else regulars++;
+  }
+  const parts: string[] = [];
+  if (regulars > 0) parts.push(`${regulars} bandits`);
+  if (archers > 0) parts.push(`${archers} archers`);
+  if (brutes > 0) parts.push(`${brutes} brutes`);
+  return parts.join(', ');
+}
+
 // --- Spawn enemies at a camp's location ---
 function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
   const numBandits = camp.strength + 1;
@@ -112,7 +128,8 @@ function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
   }
   camp.lastRaidDay = ts.newDay;
   const dirLabels = camp.y === 0 ? 'north' : camp.y >= ts.height - 1 ? 'south' : camp.x === 0 ? 'west' : 'east';
-  ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${camp.strength >= RAM_SPAWN_THRESHOLD ? ' with siege equipment' : ''} attacks from the bandit camp to the ${dirLabels}!`);
+  const composition = raidCompositionLabel(numBandits, camp.strength);
+  ts.events.push(`A raid of ${composition}${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${camp.strength >= RAM_SPAWN_THRESHOLD ? ' with siege equipment' : ''} attacks from the bandit camp to the ${dirLabels}!`);
 }
 
 export function processRaidAndCombat(ts: TickState): void {
@@ -231,7 +248,8 @@ export function processRaidAndCombat(ts: TickState): void {
         });
         ts.nextEnemyId++;
       }
-      ts.events.push(`A raid of ${numBandits} bandits${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${ts.raidLevel >= RAM_SPAWN_THRESHOLD ? ' with siege equipment' : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
+      const fallbackComp = raidCompositionLabel(numBandits, ts.raidLevel);
+      ts.events.push(`A raid of ${fallbackComp}${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${ts.raidLevel >= RAM_SPAWN_THRESHOLD ? ' with siege equipment' : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
     }
   }
 
