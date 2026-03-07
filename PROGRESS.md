@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1792 tests passing (93 test files). 100-day stress test: 23 pop, 5 deaths, 0 errors, 10 techs researched, prosperity 85.
+- **Status**: V2 spatial simulation. 1831 tests passing (94 test files). 100-day stress test: 20 pop, 15 deaths, 0 errors, 10 techs researched, prosperity 95.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse, watchtower→guard_tower, woodcutter→logging_camp.
@@ -58,6 +58,7 @@
   - **Crop variety**: barley_field (2x2, barley, satisfaction 0.8) and vegetable_garden (1x1, vegetables, satisfaction 1.3). Both outdoor, farming skill, require crop_rotation. Seasonal (no winter). 10 food types total for variety bonus. 58 tests.
   - **Brewery**: barley → ale processing (1x1, cooking skill, requires basic_cooking). Ale is a luxury — not food. Tavern visits consume ale for +5 extra morale. Creates meaningful crop choice: barley for brewing vs wheat for bread.
   - **Demolish building**: demolishBuilding command. Removes building, creates rubble, unassigns workers/residents, 50% material refund, local buffer salvaged. Critical buildings (town_hall, storehouse) protected. 17 tests.
+  - **Dynamic event quests**: 5 quest types (defend, supply, hunt, rescue, trade). Spawn every 10-15 days after day 20. Max 2 active, no duplicate types. Defend warns 3 days then spawns scaled raid (requires guards). Supply: NPC village requests resources (acceptSupplyQuest command). Hunt: elite beast (25 HP, 5 atk, 2 def) at map edge. Rescue: villager reaches traveler for free recruit. Trade: 50% better prices for 3 days. Expiry cleanup. 34 tests.
   - **Guard tower**: watchtower → guard_tower upgrade. Range 7 (vs 5), damage 3 (vs 2), 120 HP. Requires architecture. 33 tests for both upgrades.
   - **Logging camp**: woodcutter → logging_camp upgrade. 2 workers (vs 1), same production rate. Requires advanced_farming.
 - **What's next**: See gap analysis below.
@@ -68,7 +69,7 @@
 
 **No.** The physical foundation, economy depth, combat systems, persistent threats, and worker management are strong. The 100-day stress test proves a competent player AI can grow to 23 population with 10 techs researched and prosperity 85. But several core Bellwright systems are still missing.
 
-### What IS working (proven by 1083 tests + 100-day stress test):
+### What IS working (proven by 1831 tests + 100-day stress test):
 - ✅ 4000 ticks/day (RimWorld pacing), 1 tile/tick max, BFS pathfinding
 - ✅ Physical production: presence required, local buffers, hauling to storehouse
 - ✅ Processing buildings: miller fetches wheat from storehouse, produces flour at mill
@@ -150,7 +151,7 @@
 - ✅ **Seasonal events**: Auto-trigger on season transitions. Spring planting (+10 morale), summer warmth (+5), autumn harvest festival (+15 with food≥50), winter's bite (-5). 16 tests.
 - ✅ **Fertilizer farm boost**: compost pile → fertilizer → farm +50% output. Consumes 1 fertilizer per production cycle. 3 tests.
 - ✅ **Building repair priority**: urgent repair (< 50% HP) before construction. Normal repair (50-100%) after rubble clearing. 3 tests.
-- ✅ 100-day stress test: 60x60 map, player AI grows to 23 pop, 5 deaths, 10 techs, prosperity 85, 0 errors. Builds food processing chain (butchery, compost, drying rack), crop variety (barley field, vegetable garden, brewery). Sends safe expeditions.
+- ✅ 100-day stress test: 60x60 map, player AI grows to 20 pop, 15 deaths, 10 techs, prosperity 95, 0 errors. Builds food processing chain (butchery, compost, drying rack), crop variety (barley field, vegetable garden, brewery). Sends safe expeditions. Accepts supply quests when resources plentiful.
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
@@ -196,7 +197,7 @@
 23. ~~Library building~~ ✅ Done — passive +50% research speed boost. Requires civil_engineering. 10 tests.
 24. ~~Weapon rack~~ ✅ Done — passive storage building, guards within 5 tiles auto-equip from rack buffer. 18 tests.
 25. ~~Smoking rack~~ ✅ Done — meat + charcoal → smoked_food (satisfaction 2.2, spoilage 0.003). 26 tests.
-26. More quest variety (defend, escort, trade missions)
+26. ~~More quest variety (defend, escort, trade missions)~~ ✅ Done — 5 dynamic quest types (defend, supply, hunt, rescue, trade). Time-limited, reward-giving. 34 tests.
 27. ~~Villager aging~~ ✅ Done — age 18-45 start, +1/year, elder penalty at 60, old age death at 65+. 14 tests.
 28. ~~Foraging lodge~~ ✅ Done — upgraded foraging_hut (2 workers, 3 food/worker). 18 tests.
 29. ~~Mint building~~ ✅ Done — ingots → gold, sustainable income. 17 tests.
@@ -213,7 +214,7 @@
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 93 test files, 1792 tests total
+- `src/tests/test-v2-*.ts` — 94 test files, 1831 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
