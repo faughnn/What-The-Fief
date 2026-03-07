@@ -22,7 +22,7 @@ import { processExpeditions } from './expeditions.js';
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
 export { placeBuilding, claimTerritory, processFire } from './buildings.js';
-export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute, holdFestival, liberateVillage, recruitFromVillage, setJobPriority, callToArms, standDown, sendExpedition, recallExpedition } from './commands.js';
+export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute, holdFestival, liberateVillage, recruitFromVillage, setJobPriority, callToArms, standDown, sendExpedition, recallExpedition, demolishBuilding } from './commands.js';
 
 // ================================================================
 // TICK — V2 spatial simulation

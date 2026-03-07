@@ -12,7 +12,7 @@ import {
   createVillager, RENOWN_PER_RECRUIT, BUILDING_TECH_REQUIREMENTS,
   Expedition, EXPEDITION_EXPLORE_TICKS,
 } from '../world.js';
-import { roleForBuilding, bufferTotal, findNearestStorehouse, isStorehouse, deductFromBuffer, findHome } from './helpers.js';
+import { roleForBuilding, bufferTotal, findNearestStorehouse, isStorehouse, deductFromBuffer, findHome, destroyBuildingAndCreateRubble } from './helpers.js';
 
 export function assignVillager(state: GameState, villagerId: string, buildingId: string): GameState {
   const villager = state.villagers.find(v => v.id === villagerId);
@@ -670,5 +670,67 @@ export function standDown(state: GameState): GameState {
         state: 'idle',
       };
     }),
+  };
+}
+
+// --- Demolish Building ---
+const CRITICAL_BUILDINGS: BuildingType[] = ['town_hall', 'village_hall', 'storehouse', 'large_storehouse'];
+const DEMOLISH_REFUND_RATE = 0.5;
+
+export function demolishBuilding(state: GameState, buildingId: string): GameState {
+  const building = state.buildings.find(b => b.id === buildingId);
+  if (!building) { console.log(`ERROR: Building ${buildingId} not found`); return state; }
+  if (CRITICAL_BUILDINGS.includes(building.type)) { console.log(`ERROR: Cannot demolish critical building ${building.type}`); return state; }
+
+  // Clone mutable state
+  const buildings = state.buildings.map(b => ({ ...b, localBuffer: { ...b.localBuffer } }));
+  const villagers = state.villagers.map(v => ({ ...v }));
+  const resources = { ...state.resources };
+  const grid = state.grid.map(row => row.map(t => ({ ...t })));
+
+  const target = buildings.find(b => b.id === buildingId)!;
+
+  // Salvage local buffer to global resources and nearest storehouse
+  const nearestSH = findNearestStorehouse(buildings, grid, state.width, state.height, target.x, target.y);
+  for (const [res, amt] of Object.entries(target.localBuffer)) {
+    if (amt && amt > 0) {
+      resources[res as ResourceType] = (resources[res as ResourceType] || 0) + amt;
+      if (nearestSH) {
+        const space = Math.max(0, nearestSH.bufferCapacity - bufferTotal(nearestSH.localBuffer));
+        const toAdd = Math.min(amt, space);
+        nearestSH.localBuffer[res as ResourceType] = (nearestSH.localBuffer[res as ResourceType] || 0) + toAdd;
+      }
+    }
+  }
+
+  // Material refund (50% of build cost) — only for constructed buildings
+  if (target.constructed) {
+    const template = BUILDING_TEMPLATES[target.type];
+    for (const [res, amt] of Object.entries(template.cost)) {
+      if (amt && amt > 0) {
+        const refund = Math.floor((amt as number) * DEMOLISH_REFUND_RATE);
+        if (refund > 0) {
+          resources[res as ResourceType] = (resources[res as ResourceType] || 0) + refund;
+          if (nearestSH) {
+            const space = Math.max(0, nearestSH.bufferCapacity - bufferTotal(nearestSH.localBuffer));
+            const toAdd = Math.min(refund, space);
+            nearestSH.localBuffer[res as ResourceType] = (nearestSH.localBuffer[res as ResourceType] || 0) + toAdd;
+          }
+        }
+      }
+    }
+  }
+
+  // Destroy and create rubble
+  const nextBldIdRef = { value: state.nextBuildingId };
+  destroyBuildingAndCreateRubble(target, buildings, grid, villagers, state.width, state.height, nextBldIdRef);
+
+  return {
+    ...state,
+    buildings,
+    villagers: villagers as typeof state.villagers,
+    resources,
+    grid,
+    nextBuildingId: nextBldIdRef.value,
   };
 }
