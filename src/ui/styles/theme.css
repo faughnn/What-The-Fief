@@ -46,3 +46,90 @@
   background: rgba(184, 150, 78, 0.3);
   color: var(--parchment);
 }
+
+/* === Shared component styles === */
+
+/* Section containers */
+.section { margin-bottom: 0.25rem; }
+.section-border { border-top: 1px solid #3a3025; padding-top: 0.3rem; }
+.section-title {
+  color: #a09880;
+  font-family: 'Cinzel', serif;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  margin-bottom: 0.15rem;
+}
+.label {
+  color: #a09880;
+  font-family: 'Cinzel', serif;
+  font-size: 0.7rem;
+  margin-bottom: 0.2rem;
+  text-transform: uppercase;
+}
+
+/* Command buttons */
+.cmd-btn {
+  background: #3a3025;
+  border: 1px solid #5a4a35;
+  color: #f0e6d0;
+  padding: 0.2rem 0.45rem;
+  font-family: 'Cinzel', serif;
+  font-size: 0.6rem;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.cmd-btn:hover { background: #4a3a2a; border-color: #b8964e; }
+.cmd-btn.active { background: #b8964e; color: #2a2118; }
+
+/* Stat bars */
+.stat-section { display: flex; align-items: center; gap: 0.3rem; }
+.stat-label {
+  color: #a09880;
+  font-size: 0.65rem;
+  min-width: 24px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.bar-bg {
+  flex: 1;
+  background: #2a2218;
+  height: 8px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.bar-fill { height: 100%; transition: width 0.3s; }
+.bar-text {
+  color: #c8c0a8;
+  font-size: 0.6rem;
+  min-width: 40px;
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+}
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: #c8c0a8;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Entity rows */
+.entity-row {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 0.35rem;
+  background: #2a2218;
+  border: 1px solid #3a3025;
+  border-radius: 2px;
+  cursor: pointer;
+  color: #c8c0a8;
+  font-size: 0.7rem;
+  font-family: 'JetBrains Mono', monospace;
+  text-align: left;
+}
+.entity-row:hover { background: #3a3025; border-color: #b8964e; }
+
+/* Muted text */
+.muted { color: #6a5a4a; font-size: 0.7rem; font-style: italic; }
+
+/* Button row */
+.btn-row { display: flex; gap: 4px; flex-wrap: wrap; }

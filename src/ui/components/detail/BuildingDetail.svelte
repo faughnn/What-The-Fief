@@ -124,24 +124,15 @@
 
 <style>
   .building-detail { display: flex; flex-direction: column; gap: 0.4rem; }
-  h3 {
-    font-family: 'Cinzel', serif;
-    color: #b8964e;
-    font-size: 0.95rem;
-    margin: 0;
-  }
+  h3 { font-family: 'Cinzel', serif; color: #b8964e; font-size: 0.95rem; margin: 0; }
   .subtitle { color: #a09880; font-size: 0.68rem; font-family: 'JetBrains Mono', monospace; }
   .alert { color: #e86820; font-weight: bold; font-size: 0.8rem; font-family: 'Cinzel', serif; }
-  .stat-section { display: flex; align-items: center; gap: 0.3rem; }
-  .stat-label { color: #a09880; font-size: 0.65rem; min-width: 30px; font-family: 'JetBrains Mono', monospace; }
-  .bar-bg { flex: 1; background: #2a2218; height: 8px; border-radius: 2px; overflow: hidden; }
-  .bar-fill { height: 100%; transition: width 0.3s; }
+  .stat-label { min-width: 30px; }
   .bar-fill.healthy { background: #4a7a42; }
   .bar-fill.damaged { background: #c04030; }
   .bar-fill.construction { background: #b8964e; }
-  .bar-text { color: #c8c0a8; font-size: 0.6rem; min-width: 45px; text-align: right; font-family: 'JetBrains Mono', monospace; }
+  .bar-text { min-width: 45px; }
   .section { border-top: 1px solid #3a3025; padding-top: 0.3rem; }
-  .section-title { color: #a09880; font-family: 'Cinzel', serif; font-size: 0.65rem; text-transform: uppercase; margin-bottom: 0.15rem; }
   .info-text { color: #c8c0a8; font-size: 0.68rem; font-family: 'JetBrains Mono', monospace; }
   .buffer-grid { display: flex; flex-direction: column; gap: 1px; }
   .buffer-item { display: flex; justify-content: space-between; font-size: 0.68rem; color: #c8b890; font-family: 'JetBrains Mono', monospace; }
@@ -161,11 +152,4 @@
     margin: 1px; font-family: 'JetBrains Mono', monospace;
   }
   .assign-btn:hover { background: #3a3a28; border-color: #b8964e; }
-  .btn-row { display: flex; gap: 4px; }
-  .cmd-btn {
-    background: #3a3025; border: 1px solid #5a4a35; color: #f0e6d0;
-    padding: 0.2rem 0.45rem; font-family: 'Cinzel', serif; font-size: 0.6rem;
-    cursor: pointer; border-radius: 2px;
-  }
-  .cmd-btn:hover { background: #4a3a2a; border-color: #b8964e; }
 </style>

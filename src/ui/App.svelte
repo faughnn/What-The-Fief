@@ -3,13 +3,30 @@
   import { selectedEntity, selectEntity, clearSelection } from './stores/selection';
   import { uiMode, placingType, placingValid, cancelPlacement } from './stores/placement';
   import { placeBuildingCmd, claimTerritoryCmd } from './stores/commands';
-  import { BUILDING_TEMPLATES, type BuildingType } from '../world.js';
+  import { BUILDING_TEMPLATES, type BuildingType, type GameState } from '../world.js';
   import TopBar from './components/TopBar.svelte';
   import GameCanvas from './components/GameCanvas.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import BuildBar from './components/BuildBar.svelte';
   import ResearchOverlay from './components/ResearchOverlay.svelte';
   import Notifications from './components/Notifications.svelte';
+
+  // Spatial index for fast entity lookup by tile
+  type EntityRef = { type: 'villager' | 'enemy' | 'animal'; id: string };
+  let entityIndex = new Map<string, EntityRef>();
+
+  function rebuildEntityIndex(gs: GameState) {
+    entityIndex = new Map();
+    for (const v of gs.villagers) entityIndex.set(`${v.x},${v.y}`, { type: 'villager', id: v.id });
+    for (const e of gs.enemies) entityIndex.set(`${e.x},${e.y}`, { type: 'enemy', id: e.id });
+    for (const a of gs.animals) entityIndex.set(`${a.x},${a.y}`, { type: 'animal', id: a.id });
+  }
+
+  // Rebuild index when gameState changes
+  $effect(() => {
+    const gs = $gameState;
+    if (gs) rebuildEntityIndex(gs);
+  });
 
   function handleTileClick(tile: { x: number; y: number }, e: MouseEvent) {
     const gs = $gameState;
@@ -28,29 +45,15 @@
       return;
     }
 
-    // Normal mode — find entity at tile
-    // Check villagers first
-    const villager = gs.villagers.find(v => v.x === tile.x && v.y === tile.y);
-    if (villager) {
-      selectEntity({ type: 'villager', id: villager.id });
+    // Normal mode — find entity at tile via spatial index
+    const key = `${tile.x},${tile.y}`;
+    const entity = entityIndex.get(key);
+    if (entity) {
+      selectEntity(entity);
       return;
     }
 
-    // Check enemies
-    const enemy = gs.enemies.find(e => e.x === tile.x && e.y === tile.y);
-    if (enemy) {
-      selectEntity({ type: 'enemy', id: enemy.id });
-      return;
-    }
-
-    // Check animals
-    const animal = gs.animals.find(a => a.x === tile.x && a.y === tile.y);
-    if (animal) {
-      selectEntity({ type: 'animal', id: animal.id });
-      return;
-    }
-
-    // Check buildings
+    // Check buildings (multi-tile, use linear scan)
     const building = gs.buildings.find(b =>
       tile.x >= b.x && tile.x < b.x + b.width &&
       tile.y >= b.y && tile.y < b.y + b.height

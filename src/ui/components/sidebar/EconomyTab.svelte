@@ -67,14 +67,6 @@
     border-bottom: 1px solid #3a3025;
     padding-bottom: 0.25rem;
   }
-  .section { margin-bottom: 0.25rem; }
-  .label {
-    color: #a09880;
-    font-family: 'Cinzel', serif;
-    font-size: 0.7rem;
-    margin-bottom: 0.2rem;
-    text-transform: uppercase;
-  }
   .route-row, .caravan-row {
     display: flex;
     justify-content: space-between;
@@ -85,19 +77,4 @@
     border-bottom: 1px solid rgba(58, 48, 37, 0.3);
   }
   .route-info, .caravan-info { color: #a09880; }
-  .entity-row {
-    display: block;
-    width: 100%;
-    padding: 0.25rem 0.35rem;
-    background: #2a2218;
-    border: 1px solid #3a3025;
-    border-radius: 2px;
-    cursor: pointer;
-    color: #c8c0a8;
-    font-size: 0.7rem;
-    font-family: 'JetBrains Mono', monospace;
-    text-align: left;
-  }
-  .entity-row:hover { background: #3a3025; border-color: #b8964e; }
-  .muted { color: #6a5a4a; font-size: 0.7rem; font-style: italic; }
 </style>

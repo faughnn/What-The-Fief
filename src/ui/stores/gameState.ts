@@ -7,6 +7,16 @@ import { tick } from '../../simulation/index.js';
 export const gameState = writable<GameState | null>(null);
 export const speed = writable(1);
 export const paused = writable(false);
+export const stateChanged = writable(false);
+
+// Track reference changes
+let lastStateRef: GameState | null = null;
+gameState.subscribe(gs => {
+  if (gs !== lastStateRef) {
+    lastStateRef = gs;
+    stateChanged.set(true);
+  }
+});
 
 // Derived stores for UI reactivity
 export const day = derived(gameState, $gs => $gs?.day ?? 0);

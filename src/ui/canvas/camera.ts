@@ -2,8 +2,12 @@ import { writable, get } from 'svelte/store';
 
 export const camera = writable({ x: 0, y: 0, zoom: 1.5 });
 export const hoveredTile = writable<{ x: number; y: number } | null>(null);
+export const cameraDirty = writable(true);
 
 const TILE = 16;
+
+// Mark camera dirty on every change
+camera.subscribe(() => cameraDirty.set(true));
 
 export function screenToTile(sx: number, sy: number, canvas: HTMLCanvasElement): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();
@@ -26,13 +30,13 @@ export function centerOnTile(x: number, y: number, canvasWidth: number, canvasHe
   });
 }
 
-export function setupCameraControls(canvas: HTMLCanvasElement, onClick?: (tile: { x: number; y: number }, e: MouseEvent) => void) {
+export function setupCameraControls(canvas: HTMLCanvasElement, onClick?: (tile: { x: number; y: number }, e: MouseEvent) => void): () => void {
   let dragging = false;
   let dragStartX = 0, dragStartY = 0;
   let cameraStartX = 0, cameraStartY = 0;
   let hasDragged = false;
 
-  canvas.addEventListener('mousedown', (e) => {
+  function onMouseDown(e: MouseEvent) {
     if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
       dragging = true;
       hasDragged = false;
@@ -47,9 +51,9 @@ export function setupCameraControls(canvas: HTMLCanvasElement, onClick?: (tile: 
       dragStartX = e.clientX; dragStartY = e.clientY;
       cameraStartX = cam.x; cameraStartY = cam.y;
     }
-  });
+  }
 
-  window.addEventListener('mousemove', (e) => {
+  function onMouseMove(e: MouseEvent) {
     if (dragging) {
       const dx = e.clientX - dragStartX;
       const dy = e.clientY - dragStartY;
@@ -69,17 +73,17 @@ export function setupCameraControls(canvas: HTMLCanvasElement, onClick?: (tile: 
     } else {
       hoveredTile.set(null);
     }
-  });
+  }
 
-  window.addEventListener('mouseup', (e) => {
+  function onMouseUp(e: MouseEvent) {
     if (dragging && !hasDragged && e.button === 0 && onClick) {
       const tile = screenToTile(e.clientX, e.clientY, canvas);
       onClick(tile, e);
     }
     dragging = false;
-  });
+  }
 
-  canvas.addEventListener('wheel', (e) => {
+  function onWheel(e: WheelEvent) {
     e.preventDefault();
     camera.update(cam => {
       const oldZoom = cam.zoom;
@@ -94,16 +98,18 @@ export function setupCameraControls(canvas: HTMLCanvasElement, onClick?: (tile: 
         y: my - (e.clientY - rect.top) / (TILE * newZoom),
       };
     });
-  });
+  }
 
   // Keyboard pan
   const KEYS_DOWN = new Set<string>();
   const PAN_SPEED = 5;
-  window.addEventListener('keydown', (e) => KEYS_DOWN.add(e.key));
-  window.addEventListener('keyup', (e) => KEYS_DOWN.delete(e.key));
 
+  function onKeyDown(e: KeyboardEvent) { KEYS_DOWN.add(e.key); }
+  function onKeyUp(e: KeyboardEvent) { KEYS_DOWN.delete(e.key); }
+
+  let keyPanId: number;
   function keyPan() {
-    requestAnimationFrame(keyPan);
+    keyPanId = requestAnimationFrame(keyPan);
     let dx = 0, dy = 0;
     if (KEYS_DOWN.has('ArrowLeft') || KEYS_DOWN.has('a')) dx -= PAN_SPEED;
     if (KEYS_DOWN.has('ArrowRight') || KEYS_DOWN.has('d')) dx += PAN_SPEED;
@@ -116,5 +122,23 @@ export function setupCameraControls(canvas: HTMLCanvasElement, onClick?: (tile: 
       });
     }
   }
-  keyPan();
+
+  canvas.addEventListener('mousedown', onMouseDown);
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+  canvas.addEventListener('wheel', onWheel);
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  keyPanId = requestAnimationFrame(keyPan);
+
+  // Return cleanup function
+  return () => {
+    canvas.removeEventListener('mousedown', onMouseDown);
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    canvas.removeEventListener('wheel', onWheel);
+    window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('keyup', onKeyUp);
+    cancelAnimationFrame(keyPanId);
+  };
 }

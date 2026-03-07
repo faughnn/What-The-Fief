@@ -30,12 +30,7 @@
 <style>
   .animal-detail { display: flex; flex-direction: column; gap: 0.4rem; }
   h3 { font-family: 'Cinzel', serif; color: #b8964e; font-size: 0.95rem; margin: 0; }
-  .stat-section { display: flex; align-items: center; gap: 0.3rem; }
-  .stat-label { color: #a09880; font-size: 0.65rem; min-width: 24px; font-family: 'JetBrains Mono', monospace; }
-  .bar-bg { flex: 1; background: #2a2218; height: 8px; border-radius: 2px; overflow: hidden; }
-  .bar-fill { height: 100%; background: #8a7a5a; }
+  .bar-fill { background: #8a7a5a; }
   .bar-fill.hostile { background: #a84030; }
-  .bar-text { color: #c8c0a8; font-size: 0.6rem; min-width: 40px; text-align: right; font-family: 'JetBrains Mono', monospace; }
   .stats { display: flex; flex-direction: column; gap: 2px; }
-  .stat-row { display: flex; justify-content: space-between; font-size: 0.7rem; color: #c8c0a8; font-family: 'JetBrains Mono', monospace; }
 </style>

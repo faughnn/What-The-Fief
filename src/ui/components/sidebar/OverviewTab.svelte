@@ -82,33 +82,9 @@
     border-bottom: 1px solid #3a3025;
     padding-bottom: 0.25rem;
   }
-  .section { margin-bottom: 0.25rem; }
-  .label {
-    color: #a09880;
-    font-family: 'Cinzel', serif;
-    font-size: 0.7rem;
-    margin-bottom: 0.2rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .stat-row {
-    display: flex;
-    gap: 0.75rem;
-    color: #c8c0a8;
-    font-size: 0.75rem;
-    font-family: 'JetBrains Mono', monospace;
-  }
-  .bar-bg {
-    background: #2a2218;
-    border: 1px solid #3a3025;
-    height: 8px;
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .bar-fill {
-    height: 100%;
-    transition: width 0.3s;
-  }
+  .label { letter-spacing: 0.05em; }
+  .stat-row { gap: 0.75rem; font-size: 0.75rem; }
+  .bar-bg { border: 1px solid #3a3025; }
   .bar-fill.threat { background: linear-gradient(90deg, #a83a2a, #c04030); }
   .resource-grid {
     display: grid;

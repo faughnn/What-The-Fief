@@ -45,5 +45,4 @@
     align-self: flex-start;
   }
   .close-btn:hover { background: #3a3025; }
-  .muted { color: #6a5a4a; font-size: 0.7rem; font-style: italic; }
 </style>

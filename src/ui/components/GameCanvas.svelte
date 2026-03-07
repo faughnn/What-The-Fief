@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { gameState } from '../stores/gameState';
-  import { camera, hoveredTile, setupCameraControls, centerOnTile } from '../canvas/camera';
+  import { gameState, stateChanged } from '../stores/gameState';
+  import { camera, hoveredTile, setupCameraControls, centerOnTile, cameraDirty } from '../canvas/camera';
   import {
     drawTerrain, drawTerritory, drawBuildings, drawResourceDrops,
     drawAnimals, drawEnemies, drawVillagers, drawCaravans,
@@ -9,7 +9,7 @@
     drawFog, drawPlacementPreview, drawClaimableOverlay,
     drawSelection, drawHover, drawNight, drawWeather, drawMinimap,
     type RenderContext,
-  } from '../canvas/draw';
+  } from '../canvas/draw/index.js';
   import type { Building } from '../../world.js';
 
   interface Props {
@@ -34,6 +34,7 @@
   let gridBuildings = new Map<string, Building>();
   let rafId: number;
   let centered = false;
+  let cleanupCamera: (() => void) | null = null;
 
   function rebuildGridBuildings(gs: any) {
     gridBuildings = new Map();
@@ -52,6 +53,12 @@
     animFrame++;
     const gs = $gameState;
     if (!gs || !canvas) return;
+
+    const isDirty = $cameraDirty || $stateChanged;
+    // Skip full redraw if nothing changed (still redraw every 4th frame for animations)
+    if (!isDirty && animFrame % 4 !== 0) return;
+    cameraDirty.set(false);
+    stateChanged.set(false);
 
     const ctx = canvas.getContext('2d')!;
     // Match canvas pixel size to display size
@@ -112,7 +119,7 @@
   }
 
   onMount(() => {
-    setupCameraControls(canvas, onTileClick);
+    cleanupCamera = setupCameraControls(canvas, onTileClick);
     rebuildGridBuildings($gameState);
 
     // Center on first villager once game starts
@@ -130,6 +137,7 @@
 
   onDestroy(() => {
     if (rafId) cancelAnimationFrame(rafId);
+    if (cleanupCamera) cleanupCamera();
   });
 </script>
 
