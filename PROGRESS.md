@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1684 tests passing (90 test files). 100-day stress test: 19 pop, 3 deaths, 0 errors, 10 techs researched, prosperity 80.
+- **Status**: V2 spatial simulation. 1742 tests passing (91 test files). 100-day stress test: 23 pop, 5 deaths, 0 errors, 10 techs researched, prosperity 85.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -55,13 +55,15 @@
   - **Primary production byproduct**: byproduct support extended to primary (no-input) buildings, not just processing.
   - **Stone blocks integration**: reinforced_wall, church, fountain, statue require stone_blocks. Manor and large_storehouse upgrades require stone_blocks. Creates meaningful progression: quarry → stone → stonemason → stone_blocks → advanced buildings.
   - **Village Hall**: town_hall → village_hall upgrade. Extended maintenance aura (15 tiles vs 10). +50% research speed (stacks with library). +5 construction points. Requires architecture + stone_blocks. 18 tests.
+  - **Crop variety**: barley_field (2x2, barley, satisfaction 0.8) and vegetable_garden (1x1, vegetables, satisfaction 1.3). Both outdoor, farming skill, require crop_rotation. Seasonal (no winter). 10 food types total for variety bonus. 58 tests.
+  - **Brewery**: barley → ale processing (1x1, cooking skill, requires basic_cooking). Ale is a luxury — not food. Tavern visits consume ale for +5 extra morale. Creates meaningful crop choice: barley for brewing vs wheat for bread.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
 
 **Is this a complete 2D Bellwright? Be extremely strict and pedantic.**
 
-**No.** The physical foundation, economy depth, combat systems, persistent threats, and worker management are strong. The 100-day stress test proves a competent player AI can grow to 14 population with 9 techs researched and prosperity 85. But several core Bellwright systems are still missing.
+**No.** The physical foundation, economy depth, combat systems, persistent threats, and worker management are strong. The 100-day stress test proves a competent player AI can grow to 23 population with 10 techs researched and prosperity 85. But several core Bellwright systems are still missing.
 
 ### What IS working (proven by 1083 tests + 100-day stress test):
 - ✅ 4000 ticks/day (RimWorld pacing), 1 tile/tick max, BFS pathfinding
@@ -145,7 +147,7 @@
 - ✅ **Seasonal events**: Auto-trigger on season transitions. Spring planting (+10 morale), summer warmth (+5), autumn harvest festival (+15 with food≥50), winter's bite (-5). 16 tests.
 - ✅ **Fertilizer farm boost**: compost pile → fertilizer → farm +50% output. Consumes 1 fertilizer per production cycle. 3 tests.
 - ✅ **Building repair priority**: urgent repair (< 50% HP) before construction. Normal repair (50-100%) after rubble clearing. 3 tests.
-- ✅ 100-day stress test: 60x60 map, player AI grows to 19 pop, 4 deaths, 11 techs, prosperity 80, 0 errors. Builds food processing chain (butchery, compost, drying rack). Sends safe expeditions.
+- ✅ 100-day stress test: 60x60 map, player AI grows to 23 pop, 5 deaths, 10 techs, prosperity 85, 0 errors. Builds food processing chain (butchery, compost, drying rack), crop variety (barley field, vegetable garden, brewery). Sends safe expeditions.
 
 ### GAPS — What Bellwright has that this sim doesn't:
 
@@ -208,7 +210,7 @@
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 86 test files, 1599 tests total
+- `src/tests/test-v2-*.ts` — 91 test files, 1742 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
