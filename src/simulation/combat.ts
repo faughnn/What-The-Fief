@@ -294,11 +294,12 @@ export function processRaidAndCombat(ts: TickState): void {
   const nextBldIdRef = { value: ts.nextBuildingId };
 
   // Enemy lifespan: raiders don't siege forever — despawn after 2 days (240 ticks)
+  // Quest-spawned enemies (hunt_beast_, defend_) are exempt from despawn
   const ENEMY_MAX_LIFESPAN = 240;
   for (const e of ts.enemies) {
     if (e.hp <= 0) continue;
     e.ticksAlive++;
-    if (e.ticksAlive >= ENEMY_MAX_LIFESPAN) {
+    if (e.ticksAlive >= ENEMY_MAX_LIFESPAN && !e.id.startsWith('hunt_beast_') && !e.id.startsWith('defend_')) {
       e.hp = 0; // Will be cleaned up by dead enemy removal
     }
   }
@@ -307,6 +308,9 @@ export function processRaidAndCombat(ts: TickState): void {
   const center = findSettlementCenter(ts.buildings);
   for (const e of ts.enemies) {
     if (e.hp <= 0) continue;
+
+    // Hunt quest beasts don't march toward settlement — they stay at spawn
+    if (e.id.startsWith('hunt_beast_')) continue;
 
     // Hill movement penalty: enemies on hills move at half speed
     if (ts.grid[e.y]?.[e.x]?.terrain === 'hill' && ts.newTick % 2 === 1) continue;

@@ -375,6 +375,41 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
   { id: 'fortress', name: 'Fortress', desc: 'Build 10 defensive structures', renown: 20, gold: 40 },
 ];
 
+// --- Dynamic Event Quests ---
+export type DynamicQuestType = 'defend' | 'supply' | 'hunt' | 'rescue' | 'trade';
+export type DynamicQuestStatus = 'active' | 'completed' | 'expired';
+
+export interface DynamicQuest {
+  id: string;
+  type: DynamicQuestType;
+  name: string;
+  description: string;
+  startDay: number;
+  deadline: number;
+  status: DynamicQuestStatus;
+  target?: { x: number; y: number };
+  requirements?: Partial<Record<ResourceType, number>>;
+  villageId?: string;
+  reward: { gold: number; renown: number; trust?: number; villager?: boolean };
+  spawnedEntityId?: string;  // ID of spawned enemy (hunt) or traveler villager (rescue)
+  raidSpawned?: boolean;     // defend: has the raid been spawned yet
+  tradeMultiplier?: number;  // trade: price modifier
+}
+
+export const DYNAMIC_QUEST_START_DAY = 20;
+export const DYNAMIC_QUEST_MIN_INTERVAL = 10;
+export const DYNAMIC_QUEST_MAX_INTERVAL = 15;
+export const DYNAMIC_QUEST_MAX_ACTIVE = 2;
+
+// Quest type weights for random selection
+export const DYNAMIC_QUEST_WEIGHTS: { type: DynamicQuestType; weight: number }[] = [
+  { type: 'defend', weight: 20 },
+  { type: 'supply', weight: 25 },
+  { type: 'hunt', weight: 25 },
+  { type: 'rescue', weight: 15 },
+  { type: 'trade', weight: 15 },
+];
+
 export const DEFAULT_BUFFER_CAP = 20;
 export const STOREHOUSE_BUFFER_CAP = 2000;
 export const OUTPOST_BUFFER_CAP = 100;
@@ -1083,7 +1118,7 @@ export interface Villager {
 }
 
 // --- Combat ---
-export type EnemyType = 'bandit' | 'bandit_archer' | 'bandit_brute' | 'bandit_warlord' | 'wolf' | 'boar';
+export type EnemyType = 'bandit' | 'bandit_archer' | 'bandit_brute' | 'bandit_warlord' | 'wolf' | 'boar' | 'elite_beast';
 
 export interface Enemy {
   type: EnemyType;
@@ -1104,6 +1139,7 @@ export const ENEMY_TEMPLATES: Record<EnemyType, Omit<Enemy, 'hp'> & { maxHp: num
   bandit_warlord: { type: 'bandit_warlord', maxHp: 30, attack: 7, defense: 5 },
   wolf: { type: 'wolf', maxHp: 6, attack: 4, defense: 0 },
   boar: { type: 'boar', maxHp: 15, attack: 2, defense: 2 },
+  elite_beast: { type: 'elite_beast', maxHp: 25, attack: 5, defense: 2 },
 };
 
 // Enemy loot drops
@@ -1119,6 +1155,7 @@ export const ENEMY_LOOT: Record<EnemyType, LootDrop[]> = {
   bandit_warlord: [{ resource: 'gold', amount: 10 }, { resource: 'sword', amount: 1 }],
   wolf: [{ resource: 'leather', amount: 1 }],
   boar: [{ resource: 'food', amount: 2 }],
+  elite_beast: [{ resource: 'leather', amount: 3 }, { resource: 'food', amount: 5 }],
 };
 
 // Raid composition thresholds
@@ -1515,6 +1552,10 @@ export interface GameState {
   pointsOfInterest: PointOfInterest[];
   expeditions: Expedition[];
   nextExpeditionId: number;
+  // Dynamic event quests
+  dynamicQuests: DynamicQuest[];
+  lastDynamicQuestDay: number;
+  nextDynamicQuestId: number;
 }
 
 // --- Points of Interest (exploration targets) ---
@@ -1861,5 +1902,8 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     pointsOfInterest: generatePOIs(width, height, cx, cy, rng),
     expeditions: [],
     nextExpeditionId: 1,
+    dynamicQuests: [],
+    lastDynamicQuestDay: -100,
+    nextDynamicQuestId: 1,
   };
 }

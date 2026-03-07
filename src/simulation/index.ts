@@ -1,5 +1,5 @@
 // simulation/index.ts — tick() orchestration and re-exports
-// V2 spatial simulation. Pure functions: old state in, new state out.
+// V2 spatial simulation. Mutates GameState in place for performance.
 // TICKS_PER_DAY ticks = 1 day. Villagers move 1 tile/tick. All interactions require physical presence.
 
 import {
@@ -17,12 +17,14 @@ import { processRaidAndCombat } from './combat.js';
 import { processAnimals } from './animals.js';
 import { processFire } from './buildings.js';
 import { processExpeditions } from './expeditions.js';
+import { processDynamicQuests } from './dynamic-quests.js';
 
 // Re-export public API
 export { findPath, findPathEnemy } from './movement.js';
 export { validateState } from './validation.js';
 export { placeBuilding, claimTerritory, processFire } from './buildings.js';
 export { assignVillager, buyResource, sellResource, setResearch, setGuard, setPatrol, setFormation, sendScout, upgradeBuilding, payTribute, assaultCamp, setPreferredJob, createSupplyRoute, cancelSupplyRoute, holdFestival, liberateVillage, recruitFromVillage, setJobPriority, callToArms, standDown, sendExpedition, recallExpedition, demolishBuilding } from './commands.js';
+export { acceptSupplyQuest, getActiveTradeMultiplier } from './dynamic-quests.js';
 
 // ================================================================
 // TICK — V2 spatial simulation
@@ -35,81 +37,20 @@ export function tick(state: GameState): GameState {
   const isDawn = dayTick === NIGHT_TICKS;
   const isNewDay = dayTick === 0 && newTick > 0;
 
-  // Deep copy mutable state into TickState
-  const ts: TickState = {
-    width: state.width,
-    height: state.height,
-    newTick, newDay, dayTick, isNight, isDawn, isNewDay,
-    toolDurBonus: (hasTech(state.research, 'improved_tools') ? 0.2 : 0) + (hasTech(state.research, 'steel_forging') ? 0.5 : 0),
-    originalVillagerCount: state.villagers.length,
-    villagers: state.villagers.map(v => ({
-      ...v,
-      skills: { ...v.skills },
-      skillCaps: { ...v.skillCaps },
-      traits: [...v.traits],
-      path: [...v.path],
-      carrying: { ...v.carrying },
-      jobPriorities: { ...v.jobPriorities },
-      patrolRoute: [...v.patrolRoute],
-      recentMeals: [...v.recentMeals],
-      family: [...v.family],
-      friends: [...v.friends],
-      coworkDays: { ...v.coworkDays },
-    })),
-    resources: { ...state.resources },
-    buildings: state.buildings.map(b => ({
-      ...b,
-      assignedWorkers: [...b.assignedWorkers],
-      localBuffer: { ...b.localBuffer },
-    })),
-    storageCap: 0,
-    fog: state.fog,         // shared — only mutated in-place (expedition fog reveal)
-    territory: state.territory, // shared — never mutated during tick
-    grid: state.grid,        // shared — only mutated in-place (building field nulled on rubble clear)
-    research: {
-      completed: [...state.research.completed],
-      current: state.research.current,
-      progress: state.research.progress,
-    },
-    enemies: state.enemies.map(e => ({ ...e })),
-    animals: state.animals.map(a => ({ ...a })),
-    resourceDrops: state.resourceDrops.map(d => ({ ...d, resources: { ...d.resources } })),
-    nextAnimalId: state.nextAnimalId,
-    nextDropId: state.nextDropId,
-    nextBuildingId: state.nextBuildingId,
-    events: [],
-    season: state.season,
-    weather: state.weather,
-    raidBar: state.raidBar,
-    raidLevel: state.raidLevel,
-    activeRaid: state.activeRaid
-      ? { enemies: state.activeRaid.enemies.map(e => ({ ...e })), resolved: state.activeRaid.resolved }
-      : null,
-    nextEnemyId: state.nextEnemyId,
-    merchant: state.merchant ? { ...state.merchant } : null,
-    merchantTimer: state.merchantTimer,
-    prosperity: state.prosperity,
-    renown: state.renown,
-    completedQuests: [...state.completedQuests],
-    banditUltimatum: state.banditUltimatum ? { ...state.banditUltimatum } : null,
-    graveyard: state.graveyard.map(g => ({ ...g })),
-    npcSettlements: state.npcSettlements.map(s => ({ ...s })),
-    caravans: state.caravans.map(c => ({ ...c, goods: { ...c.goods } })),
-    banditCamps: state.banditCamps.map(c => ({ ...c })),
-    nextCampId: state.nextCampId,
-    lastCampSpawnDay: state.lastCampSpawnDay,
-    nextVillagerId: state.nextVillagerId,
-    constructionPoints: state.constructionPoints,
-    constructionPointsMilestones: [...state.constructionPointsMilestones],
-    supplyRoutes: state.supplyRoutes.map(r => ({ ...r })),
-    nextRouteId: state.nextRouteId,
-    lastFestivalDay: state.lastFestivalDay,
-    callToArms: state.callToArms,
-    pointsOfInterest: state.pointsOfInterest.map(p => ({ ...p, rewards: { ...p.rewards }, guardEnemies: p.guardEnemies ? p.guardEnemies.map(g => ({ ...g })) : undefined })),
-    expeditions: state.expeditions.map(e => ({ ...e, memberIds: [...e.memberIds] })),
-    nextExpeditionId: state.nextExpeditionId,
-    buildingMap: new Map(),
-  };
+  // Mutate state in place — cast to TickState to add computed fields
+  const ts = state as TickState;
+  ts.tick = newTick;
+  ts.day = newDay;
+  ts.newTick = newTick;
+  ts.newDay = newDay;
+  ts.dayTick = dayTick;
+  ts.isNight = isNight;
+  ts.isDawn = isDawn;
+  ts.isNewDay = isNewDay;
+  ts.toolDurBonus = (hasTech(state.research, 'improved_tools') ? 0.2 : 0)
+                  + (hasTech(state.research, 'steel_forging') ? 0.5 : 0);
+  ts.originalVillagerCount = state.villagers.length;
+  ts.events = [];
   ts.buildingMap = buildBuildingMap(ts.buildings);
   ts.storageCap = computeStorageCap(ts.buildings);
 
@@ -152,59 +93,14 @@ export function tick(state: GameState): GameState {
   // Events & quests (daily)
   processEventsAndQuests(ts);
 
-  const newState: GameState = {
-    ...state,
-    tick: newTick,
-    day: newDay,
-    grid: ts.grid,
-    resources: ts.resources,
-    storageCap: ts.storageCap,
-    buildings: ts.buildings,
-    villagers: ts.villagers,
-    enemies: ts.enemies,
-    animals: ts.animals,
-    resourceDrops: ts.resourceDrops,
-    fog: ts.fog,
-    territory: ts.territory,
-    raidBar: ts.raidBar,
-    raidLevel: ts.raidLevel,
-    activeRaid: ts.activeRaid,
-    research: ts.research,
-    merchant: ts.merchant,
-    merchantTimer: ts.merchantTimer,
-    prosperity: ts.prosperity,
-    season: ts.season,
-    weather: ts.weather,
-    renown: ts.renown,
-    events: ts.events,
-    completedQuests: ts.completedQuests,
-    banditUltimatum: ts.banditUltimatum,
-    graveyard: ts.graveyard,
-    npcSettlements: ts.npcSettlements,
-    caravans: ts.caravans,
-    banditCamps: ts.banditCamps,
-    nextCampId: ts.nextCampId,
-    lastCampSpawnDay: ts.lastCampSpawnDay,
-    nextVillagerId: ts.nextVillagerId,
-    nextEnemyId: ts.nextEnemyId,
-    nextAnimalId: ts.nextAnimalId,
-    nextDropId: ts.nextDropId,
-    nextBuildingId: ts.nextBuildingId,
-    constructionPoints: ts.constructionPoints,
-    constructionPointsMilestones: ts.constructionPointsMilestones,
-    supplyRoutes: ts.supplyRoutes,
-    nextRouteId: ts.nextRouteId,
-    lastFestivalDay: ts.lastFestivalDay,
-    callToArms: ts.callToArms,
-    pointsOfInterest: ts.pointsOfInterest as any,
-    expeditions: ts.expeditions as any,
-    nextExpeditionId: ts.nextExpeditionId,
-  };
+  // Dynamic event quests (daily)
+  processDynamicQuests(ts);
 
-  // Validate once per day instead of every tick (perf: avoids 4000x overhead)
+  // Validate once per day
   if (isNewDay || newTick === 1) {
-    const errors = validateState(newState);
+    const errors = validateState(state);
     for (const err of errors) console.log(err);
   }
-  return newState;
+
+  return state;
 }

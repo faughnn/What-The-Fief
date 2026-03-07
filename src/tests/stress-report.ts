@@ -6,7 +6,7 @@ import {
   TICKS_PER_DAY, BUILDING_TEMPLATES, FOOD_PRIORITY, BUILDING_TECH_REQUIREMENTS,
 } from '../world.js';
 import {
-  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp, setFormation, holdFestival, callToArms, standDown, sendExpedition,
+  tick, placeBuilding, assignVillager, setGuard, setPatrol, upgradeBuilding, setResearch, assaultCamp, setFormation, holdFestival, callToArms, standDown, sendExpedition, acceptSupplyQuest,
 } from '../simulation.js';
 
 // ================================================================
@@ -517,6 +517,21 @@ function playerAI(state: GameState): GameState {
   }
 
   // Festival — hold when tavern exists, morale is sagging, and we can afford it
+  // Dynamic quests: accept supply quests when resources are plentiful
+  if (state.dynamicQuests) {
+    for (const quest of state.dynamicQuests) {
+      if (quest.type === 'supply' && quest.status === 'active' && quest.requirements) {
+        // Only accept if we have 2x the required amount (keep reserves)
+        let canFulfill = true;
+        for (const [res, amt] of Object.entries(quest.requirements)) {
+          const available = (state.resources as any)[res] || 0;
+          if (available < (amt as number) * 2) { canFulfill = false; break; }
+        }
+        if (canFulfill) state = acceptSupplyQuest(state, quest.id);
+      }
+    }
+  }
+
   const avgMorale = state.villagers.reduce((sum, v) => sum + v.morale, 0) / Math.max(1, state.villagers.length);
   if (avgMorale < 65 && (countConstructed(state, 'tavern') > 0 || countConstructed(state, 'inn') > 0) && state.resources.food >= 30 && state.resources.gold >= 20) {
     const result = holdFestival(state);
