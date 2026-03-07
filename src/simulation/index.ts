@@ -63,9 +63,9 @@ export function tick(state: GameState): GameState {
       localBuffer: { ...b.localBuffer },
     })),
     storageCap: 0,
-    fog: state.fog.map(row => [...row]),
-    territory: state.territory.map(row => [...row]),
-    grid: state.grid.map(row => row.map(t => ({ ...t }))),
+    fog: state.fog,         // shared — only mutated in-place (expedition fog reveal)
+    territory: state.territory, // shared — never mutated during tick
+    grid: state.grid,        // shared — only mutated in-place (building field nulled on rubble clear)
     research: {
       completed: [...state.research.completed],
       current: state.research.current,
@@ -201,7 +201,10 @@ export function tick(state: GameState): GameState {
     nextExpeditionId: ts.nextExpeditionId,
   };
 
-  const errors = validateState(newState);
-  for (const err of errors) console.log(err);
+  // Validate once per day instead of every tick (perf: avoids 4000x overhead)
+  if (isNewDay || newTick === 1) {
+    const errors = validateState(newState);
+    for (const err of errors) console.log(err);
+  }
   return newState;
 }
