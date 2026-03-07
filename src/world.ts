@@ -407,6 +407,9 @@ export const VILLAGER_BASE_HP = 10;
 export const HP_REGEN_PER_DAY = 2;
 export const MEDICINE_REGEN_BONUS = 1;
 
+// --- Town Hall Maintenance ---
+export const TOWN_HALL_MAINT_RANGE = 10;  // buildings within this range of town hall don't decay
+
 // --- Weapon Rack ---
 export const WEAPON_RACK_RANGE = 5;      // guards within this range auto-equip from weapon rack buffer
 export const WEAPON_RACK_BUFFER = 50;     // weapon rack stores up to 50 items

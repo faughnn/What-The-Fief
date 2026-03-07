@@ -18,7 +18,7 @@ import {
   FESTIVAL_MORALE_BOOST, FESTIVAL_DURATION,
   FRIENDSHIP_COWORK_THRESHOLD, FRIENDSHIP_MORALE_BONUS,
   FRIENDSHIP_GRIEF_DAYS, FRIENDSHIP_GRIEF_PENALTY, MAX_FRIENDS,
-  ELDER_AGE, OLD_AGE_DEATH_START, OLD_AGE_DEATH_CHANCE,
+  ELDER_AGE, OLD_AGE_DEATH_START, OLD_AGE_DEATH_CHANCE, TOWN_HALL_MAINT_RANGE,
   WEAPON_RACK_RANGE, WEAPON_EQUIP_PRIORITY, WEAPON_RESOURCE, WEAPON_DURABILITY,
   ARMOR_EQUIP_PRIORITY, ARMOR_RESOURCE, ARMOR_DURABILITY,
   WeaponType, ArmorType,
@@ -212,10 +212,18 @@ export function processDailyChecks(ts: TickState): void {
 
   // Building maintenance decay — 1 HP every 5 days for constructed buildings
   // Exempt: walls, fences, gates, rubble, roads, unconstructed
+  // Town hall aura: buildings within TOWN_HALL_MAINT_RANGE don't decay
   const DECAY_EXEMPT: Set<string> = new Set(['wall', 'reinforced_wall', 'fence', 'gate', 'rubble', 'road']);
   if (ts.newDay % 5 === 0) {
+    const townHall = ts.buildings.find(b => b.type === 'town_hall' && b.constructed);
     for (const b of ts.buildings) {
       if (!b.constructed || DECAY_EXEMPT.has(b.type) || b.hp <= 0) continue;
+      // Town hall maintenance aura prevents decay
+      if (townHall) {
+        const dx = Math.abs(b.x - townHall.x);
+        const dy = Math.abs(b.y - townHall.y);
+        if (dx <= TOWN_HALL_MAINT_RANGE && dy <= TOWN_HALL_MAINT_RANGE) continue;
+      }
       b.hp = Math.max(1, b.hp - 1); // Never decay below 1 HP (rubble happens only from combat)
     }
   }
