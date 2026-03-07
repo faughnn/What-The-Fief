@@ -327,7 +327,7 @@ function playerAI(state: GameState): GameState {
 
   // --- DEFENSE: fence perimeter once economy is established ---
   // Only build defenses when raids are imminent (raidBar > 60) or have already started
-  const raidThreatening = state.raidBar > 60 || state.raidLevel > 0;
+  const raidThreatening = state.raidBar > 30 || state.raidLevel > 0 || day >= 40;
   if (raidThreatening && pop >= 5) {
     // Compact perimeter: 5x5 instead of 7x7 (less wood, faster construction)
     const gatePositions = new Set(['13,15', '17,15', '15,13', '15,17']);
@@ -342,10 +342,10 @@ function playerAI(state: GameState): GameState {
     for (let y = 14; y <= 16; y++) if (!gatePositions.has(`17,${y}`)) perimeterSpots.push({ x: 17, y });
 
     // Only build fences when we have wood to spare
-    if (state.resources.wood >= 20) {
+    if (state.resources.wood >= 10) {
       let fencesBuilt = 0;
       for (const spot of perimeterSpots) {
-        if (fencesBuilt >= 3) break;
+        if (fencesBuilt >= 5) break;
         if (gatePositions.has(`${spot.x},${spot.y}`)) continue;
         if (spot.y >= state.height || spot.x >= state.width) continue;
         const tile = state.grid[spot.y][spot.x];

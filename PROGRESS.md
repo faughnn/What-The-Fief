@@ -216,11 +216,11 @@
 ### Remaining polish-level gaps (newly identified):
 38. Travel sign building (waypoint markers for faster navigation)
 39. ~~More trait variety~~ ✅ Done — 24 total traits (7 new: defender, fierce, nomad, prodigy, dullard, scholar, swordsman). 15 tests.
-40. Endgame victory condition (total liberation + prosperity milestone)
+40. ~~Endgame victory condition~~ ✅ Done — all villages liberated + all techs + prosperity 100 + pop 15. 12 tests.
 41. Save/load game state
 42. Better death/combat balance (15 deaths in 100 days is high)
 43. Building destruction events (fire, siege damage) need more dramatic impact
-44. More diverse raid events (night raids, multi-wave sieges)
+44. ~~More diverse raid events~~ ✅ Done — night raids (30% chance), multi-wave sieges (str 6+), reclamation parties after liberation. 11 tests.
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)

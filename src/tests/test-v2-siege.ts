@@ -273,13 +273,13 @@ heading('High-Level Raid Spawns Siege Equipment');
     ...state,
     tick: TICKS_PER_DAY - 1,
     raidBar: 100,
-    raidLevel: 2, // Will become 3 after triggering → battering ram
+    raidLevel: 4, // Will become 5 after triggering → battering ram (RAM_SPAWN_THRESHOLD=5)
   };
 
   state = advance(state, 1); // Trigger new day and raid
 
   const siegeEnemies = state.enemies.filter(e => e.siege !== 'none');
-  assert(siegeEnemies.length > 0, `Raid level 3 spawns siege equipment (found ${siegeEnemies.length})`);
+  assert(siegeEnemies.length > 0, `Raid level 5 spawns siege equipment (found ${siegeEnemies.length})`);
 
   const rams = state.enemies.filter(e => e.siege === 'battering_ram');
   assert(rams.length > 0, `Battering ram spawned (count=${rams.length})`);
