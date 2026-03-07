@@ -513,6 +513,10 @@ function produceAtWorkplace(v: Villager, job: Building, template: typeof BUILDIN
       amount = Math.max(1, Math.floor(amount * WEATHER_OUTDOOR_MULT[ts.weather]));
     }
     addToBuffer(job.localBuffer, prod.output, amount, job.bufferCapacity);
+    // Byproduct for primary production (e.g., trappers_camp → leather)
+    if (prod.byproduct) {
+      addToBuffer(job.localBuffer, prod.byproduct.resource, prod.byproduct.amount, job.bufferCapacity);
+    }
   }
   v.workProgress = 0;
 

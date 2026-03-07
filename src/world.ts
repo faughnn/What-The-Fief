@@ -40,7 +40,7 @@ export const SEASONAL_EVENTS: Record<Season, SeasonalEvent> = {
 export const OUTDOOR_BUILDINGS: BuildingType[] = [
   'farm', 'woodcutter', 'quarry', 'herb_garden', 'flax_field', 'hemp_field',
   'chicken_coop', 'apiary', 'livestock_barn', 'foraging_hut', 'fishing_hut', 'forester',
-  'large_farm', 'deep_quarry',
+  'large_farm', 'deep_quarry', 'trappers_camp',
 ];
 
 // --- Housing Tiers ---
@@ -147,7 +147,11 @@ export type BuildingType =
   // Research
   | 'library'
   // Upgraded resource buildings
-  | 'foraging_lodge';
+  | 'foraging_lodge'
+  // Stone processing
+  | 'stonemason'
+  // Passive animal trapping
+  | 'trappers_camp';
 
 export interface Building {
   id: string;
@@ -177,7 +181,8 @@ export type ResourceType =
   | 'furniture' | 'water' | 'meat' | 'fertilizer' | 'dried_food' | 'smoked_food'
   | 'leather_armor' | 'iron_armor'
   | 'bandage'
-  | 'gold';
+  | 'gold'
+  | 'stone_blocks';
 
 export interface Resources {
   wood: number;
@@ -211,6 +216,7 @@ export interface Resources {
   leather_armor: number;
   iron_armor: number;
   gold: number;
+  stone_blocks: number;
 }
 
 export function emptyResources(): Resources {
@@ -223,6 +229,7 @@ export function emptyResources(): Resources {
     leather_armor: 0, iron_armor: 0,
     bandage: 0,
     gold: 0,
+    stone_blocks: 0,
   };
 }
 
@@ -236,6 +243,7 @@ export const ALL_RESOURCES: ResourceType[] = [
   'leather_armor', 'iron_armor',
   'bandage',
   'gold',
+  'stone_blocks',
 ];
 
 // --- Tools ---
@@ -843,6 +851,16 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { stone: 15, planks: 8, ingots: 5 }, description: 'Mints gold coins from ingots',
     maxWorkers: 1, production: { output: 'gold', amountPerWorker: 2, inputs: { ingots: 1 } }, mapChar: '$',
   },
+  stonemason: {
+    type: 'stonemason', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 10, stone: 8 }, description: 'Cuts raw stone into shaped stone blocks',
+    maxWorkers: 1, production: { output: 'stone_blocks', amountPerWorker: 2, inputs: { stone: 3 } }, mapChar: 'S',
+  },
+  trappers_camp: {
+    type: 'trappers_camp', width: 1, height: 1, allowedTerrain: ['grass', 'forest'],
+    cost: { wood: 8, rope: 2 }, description: 'Sets traps for small game — food and leather',
+    maxWorkers: 1, production: { output: 'food', amountPerWorker: 2, inputs: null, byproduct: { resource: 'leather', amount: 1 } }, mapChar: 'T',
+  },
 };
 
 // --- Skills ---
@@ -869,6 +887,8 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   windmill: 'cooking', kitchen: 'cooking',
   training_ground: 'combat',
   apothecary: 'herbalism',
+  stonemason: 'mining',
+  trappers_camp: 'herbalism',
 };
 
 export function skillMultiplier(level: number): number {
@@ -910,6 +930,7 @@ export type VillagerRole =
   | 'fisher' | 'hauler' | 'militia' | 'well_worker'
   | 'butcher' | 'composter' | 'dryer' | 'smoker' | 'minter'
   | 'forester_worker'
+  | 'stonemason_worker' | 'trapper'
   | 'healer';
 
 export type VillagerState =
@@ -1171,6 +1192,8 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   foraging_lodge: 35,
   weapon_rack: 30,
   mint: 40,
+  stonemason: 40,
+  trappers_camp: 25,
 };
 
 
@@ -1312,6 +1335,8 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   apothecary: 'medicine',
   library: 'civil_engineering',
   foraging_lodge: 'advanced_farming',
+  stonemason: 'masonry',
+  trappers_camp: 'animal_husbandry',
 };
 
 export interface ResearchState {
@@ -1339,6 +1364,7 @@ export const TRADE_PRICES: Partial<Record<ResourceType, { buy: number; sell: num
   leather: { buy: 5, sell: 3 },
   linen: { buy: 6, sell: 3 },
   rope: { buy: 5, sell: 2 },
+  stone_blocks: { buy: 7, sell: 4 },
 };
 
 // --- Dynamic pricing: supply/demand adjusts prices ±30% ---
