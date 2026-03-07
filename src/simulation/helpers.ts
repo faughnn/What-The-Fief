@@ -1,6 +1,7 @@
 // helpers.ts — Shared utility functions for the simulation
 
 import {
+  GameState,
   BuildingType, Building, Resources, ResourceType, Villager, VillagerRole,
   Tile, BUILDING_TEMPLATES, BUILDING_SKILL_MAP,
   skillMultiplier, ToolTier, TOOL_MULTIPLIER, TOOL_DURABILITY,
@@ -18,12 +19,8 @@ import {
   ELDER_AGE, ELDER_SPEED_PENALTY,
 } from '../world.js';
 
-// --- TickState: mutable working copy of game state during a tick ---
-export interface TickState {
-  // Dimensions (read-only)
-  width: number;
-  height: number;
-  // Time
+// --- TickState: GameState + computed per-tick fields ---
+export interface TickState extends GameState {
   newTick: number;
   newDay: number;
   dayTick: number;
@@ -32,52 +29,6 @@ export interface TickState {
   isNewDay: boolean;
   toolDurBonus: number;
   originalVillagerCount: number;
-  // Mutable game state
-  villagers: Villager[];
-  resources: Resources;
-  buildings: Building[];
-  grid: Tile[][];
-  fog: boolean[][];
-  territory: boolean[][];
-  enemies: EnemyEntity[];
-  animals: AnimalEntity[];
-  resourceDrops: ResourceDrop[];
-  research: ResearchState;
-  events: string[];
-  storageCap: number;
-  season: Season;
-  weather: WeatherType;
-  raidBar: number;
-  raidLevel: number;
-  activeRaid: ActiveRaid | null;
-  merchant: MerchantState | null;
-  merchantTimer: number;
-  prosperity: number;
-  renown: number;
-  completedQuests: string[];
-  banditUltimatum: { goldDemand: number; daysLeft: number } | null;
-  graveyard: { name: string; day: number }[];
-  npcSettlements: { id: string; name: string; direction: string; specialty: string; x: number; y: number; trust: number; trustRank: string; liberated: boolean; liberationInProgress: boolean }[];
-  caravans: { id: string; settlementId: string; x: number; y: number; goods: Partial<Record<string, number>>; ticksLeft: number }[];
-  banditCamps: BanditCamp[];
-  nextCampId: number;
-  lastCampSpawnDay: number;
-  nextEnemyId: number;
-  nextAnimalId: number;
-  nextDropId: number;
-  nextBuildingId: number;
-  nextVillagerId: number;
-  constructionPoints: number;
-  constructionPointsMilestones: number[];
-  supplyRoutes: { id: string; fromBuildingId: string; toBuildingId: string; resourceType: string; active: boolean }[];
-  nextRouteId: number;
-  lastFestivalDay: number;
-  callToArms: boolean;
-  // Expeditions
-  pointsOfInterest: { id: string; type: string; x: number; y: number; discovered: boolean; explored: boolean; rewards: Partial<Record<string, number>>; renownReward: number; guardEnemies?: { type: string; count: number }[] }[];
-  expeditions: { id: string; memberIds: string[]; targetX: number; targetY: number; homeX: number; homeY: number; state: string; exploreProgress: number; exploreTicks: number; targetPOIId: string | null }[];
-  nextExpeditionId: number;
-  // O(1) lookup maps — built once per tick, used instead of buildings.find/villagers.find
   buildingMap: Map<string, Building>;
 }
 
