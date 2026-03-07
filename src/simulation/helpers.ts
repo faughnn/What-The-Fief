@@ -282,6 +282,8 @@ export function gainSkillXp(v: Villager, buildingType: BuildingType): void {
   if (!skill) return;
   let xpGain = 1;
   if (v.traits.includes('fast_learner')) xpGain = Math.ceil(xpGain * 1.5);
+  if (v.traits.includes('prodigy')) xpGain = Math.ceil(xpGain * 1.5);
+  if (v.traits.includes('dullard')) xpGain = Math.max(1, Math.floor(xpGain * 0.7));
   if (skill === 'crafting' && v.traits.includes('skilled_crafter')) xpGain = Math.ceil(xpGain * 1.5);
   const cap = v.skillCaps?.[skill] ?? 100;
   v.skills[skill] = Math.min(cap, v.skills[skill] + xpGain);
@@ -293,6 +295,8 @@ export function gainSkillXp(v: Villager, buildingType: BuildingType): void {
 export function gainCombatXp(v: Villager, buildings?: Building[]): void {
   let xpGain = 1;
   if (v.traits.includes('fast_learner')) xpGain = Math.ceil(xpGain * 1.5);
+  if (v.traits.includes('prodigy')) xpGain = Math.ceil(xpGain * 1.5);
+  if (v.traits.includes('dullard')) xpGain = Math.max(1, Math.floor(xpGain * 0.7));
   if (buildings && v.homeBuildingId) {
     const home = buildings.find(b => b.id === v.homeBuildingId);
     if (home?.type === 'barracks') xpGain *= 2;

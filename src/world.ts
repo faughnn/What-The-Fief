@@ -991,10 +991,12 @@ export function skillMultiplier(level: number): number {
 // --- Traits ---
 export type Trait = 'strong' | 'lazy' | 'skilled_crafter' | 'fast_learner' | 'glutton' | 'frugal' | 'cheerful' | 'gloomy'
   | 'brave' | 'coward' | 'resilient' | 'nimble'
-  | 'stalwart' | 'marksman' | 'neurotic' | 'porter' | 'tough';
+  | 'stalwart' | 'marksman' | 'neurotic' | 'porter' | 'tough'
+  | 'defender' | 'fierce' | 'nomad' | 'prodigy' | 'dullard' | 'scholar' | 'swordsman';
 
 export const ALL_TRAITS: Trait[] = ['strong', 'lazy', 'skilled_crafter', 'fast_learner', 'glutton', 'frugal', 'cheerful', 'gloomy',
-  'brave', 'coward', 'resilient', 'nimble', 'stalwart', 'marksman', 'neurotic', 'porter', 'tough'];
+  'brave', 'coward', 'resilient', 'nimble', 'stalwart', 'marksman', 'neurotic', 'porter', 'tough',
+  'defender', 'fierce', 'nomad', 'prodigy', 'dullard', 'scholar', 'swordsman'];
 
 // Porter carry capacity bonus
 export const PORTER_CARRY_BONUS = 3;

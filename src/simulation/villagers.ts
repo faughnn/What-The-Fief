@@ -903,10 +903,10 @@ export function processVillagerStateMachine(ts: TickState): void {
     }
 
     // Storm movement penalty: skip traveling on odd ticks (50% speed)
-    if (ts.weather === 'storm' && ts.newTick % 2 === 1 && v.state.startsWith('traveling')) continue;
+    if (ts.weather === 'storm' && ts.newTick % 2 === 1 && v.state.startsWith('traveling') && !v.traits.includes('nomad')) continue;
 
     // Hill movement penalty: skip traveling on odd ticks when on a hill (50% speed)
-    if (ts.grid[v.y]?.[v.x]?.terrain === 'hill' && ts.newTick % 2 === 1 && v.state.startsWith('traveling')) continue;
+    if (ts.grid[v.y]?.[v.x]?.terrain === 'hill' && ts.newTick % 2 === 1 && v.state.startsWith('traveling') && !v.traits.includes('nomad')) continue;
 
     // DAYTIME STATE MACHINE — dispatch to handlers
     switch (v.state) {
