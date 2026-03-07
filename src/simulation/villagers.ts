@@ -9,7 +9,7 @@ import {
   TICKS_PER_DAY, NIGHT_TICKS, TechId, TECH_TREE,
   FOOD_CAP, FOOD_EAT_THRESHOLD, FOOD_HUNGRY, FOOD_CRITICAL,
   FOOD_STARVATION_LOSS, RECENT_MEALS_LIMIT,
-  TAVERN_MORALE_THRESHOLD, TAVERN_MORALE_BOOST, TAVERN_COOLDOWN_DAYS,
+  TAVERN_MORALE_THRESHOLD, TAVERN_MORALE_BOOST, TAVERN_COOLDOWN_DAYS, ALE_MORALE_BONUS,
   RESEARCH_TICKS_PER_POINT, INPUT_PICKUP_MULTIPLIER,
 } from '../world.js';
 import {
@@ -502,7 +502,7 @@ function produceAtWorkplace(v: Villager, job: Building, template: typeof BUILDIN
     let amount = 1 + bonus;
     // Season/weather multipliers for outdoor buildings
     if (OUTDOOR_BUILDINGS.includes(job.type)) {
-      const isFarm = ['farm', 'large_farm', 'flax_field', 'hemp_field', 'chicken_coop'].includes(job.type);
+      const isFarm = ['farm', 'large_farm', 'flax_field', 'hemp_field', 'chicken_coop', 'barley_field', 'vegetable_garden'].includes(job.type);
       if (isFarm) {
         let farmMult = SEASON_FARM_MULT[ts.season];
         if (ts.season === 'autumn' && ts.research.completed.includes('irrigation' as TechId)) farmMult = 1.0;
@@ -616,7 +616,13 @@ function handleRelaxing(v: Villager, ts: TickState): void {
     }
   }
   if (consumed) {
-    v.morale = Math.min(100, v.morale + TAVERN_MORALE_BOOST);
+    let moraleGain = TAVERN_MORALE_BOOST;
+    // Ale bonus: if ale available, consume 1 for extra morale
+    if (nearestSH && (nearestSH.localBuffer.ale || 0) > 0 && ts.resources.ale > 0) {
+      deductFromStorehouseAndGlobal(nearestSH.localBuffer, ts.resources, 'ale', 1);
+      moraleGain += ALE_MORALE_BONUS;
+    }
+    v.morale = Math.min(100, v.morale + moraleGain);
     v.tavernVisitCooldown = TAVERN_COOLDOWN_DAYS;
   }
   startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height, ts.buildingMap);

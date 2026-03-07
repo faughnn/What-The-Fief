@@ -41,6 +41,7 @@ export const OUTDOOR_BUILDINGS: BuildingType[] = [
   'farm', 'woodcutter', 'quarry', 'herb_garden', 'flax_field', 'hemp_field',
   'chicken_coop', 'apiary', 'livestock_barn', 'foraging_hut', 'fishing_hut', 'forester',
   'large_farm', 'deep_quarry', 'trappers_camp',
+  'barley_field', 'vegetable_garden',
 ];
 
 // --- Housing Tiers ---
@@ -101,7 +102,7 @@ export interface Tile {
 // --- Building ---
 export type BuildingType =
   | 'house' | 'tent' | 'cottage' | 'manor' | 'farm' | 'woodcutter' | 'quarry' | 'storehouse'
-  | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine'
+  | 'herb_garden' | 'flax_field' | 'hemp_field' | 'iron_mine' | 'barley_field' | 'vegetable_garden'
   | 'sawmill' | 'smelter' | 'mill' | 'bakery' | 'tanner' | 'weaver' | 'ropemaker'
   | 'blacksmith' | 'toolmaker' | 'armorer' | 'coal_burner' | 'carpenter'
   | 'town_hall' | 'wall' | 'fence'
@@ -153,7 +154,9 @@ export type BuildingType =
   // Stone processing
   | 'stonemason'
   // Passive animal trapping
-  | 'trappers_camp';
+  | 'trappers_camp'
+  // Brewing
+  | 'brewery';
 
 export interface Building {
   id: string;
@@ -184,7 +187,8 @@ export type ResourceType =
   | 'leather_armor' | 'iron_armor'
   | 'bandage'
   | 'gold'
-  | 'stone_blocks';
+  | 'stone_blocks'
+  | 'barley' | 'vegetables' | 'ale';
 
 export interface Resources {
   wood: number;
@@ -219,6 +223,9 @@ export interface Resources {
   iron_armor: number;
   gold: number;
   stone_blocks: number;
+  barley: number;
+  vegetables: number;
+  ale: number;
 }
 
 export function emptyResources(): Resources {
@@ -232,6 +239,9 @@ export function emptyResources(): Resources {
     bandage: 0,
     gold: 0,
     stone_blocks: 0,
+    barley: 0,
+    vegetables: 0,
+    ale: 0,
   };
 }
 
@@ -379,6 +389,7 @@ export const RECENT_MEALS_LIMIT = 5;    // track last N meals for variety bonus
 export const TAVERN_MORALE_THRESHOLD = 60;  // visit tavern only when morale < this
 export const TAVERN_MORALE_BOOST = 15;      // morale gained per tavern visit
 export const TAVERN_COOLDOWN_DAYS = 3;      // days between tavern visits
+export const ALE_MORALE_BONUS = 5;          // extra morale from ale at tavern
 
 // --- Friendships ---
 export const FRIENDSHIP_COWORK_THRESHOLD = 10; // days working together to become friends
@@ -454,8 +465,10 @@ export const FOOD_PRIORITY: { resource: ResourceType; satisfaction: number }[] =
   { resource: 'dried_food', satisfaction: 1.8 },
   { resource: 'fish', satisfaction: 1.5 },
   { resource: 'flour', satisfaction: 1.5 },
+  { resource: 'vegetables', satisfaction: 1.3 },
   { resource: 'wheat', satisfaction: 1 },
   { resource: 'food', satisfaction: 1 },
+  { resource: 'barley', satisfaction: 0.8 },
 ];
 
 // --- Production ---
@@ -869,6 +882,21 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 8, rope: 2 }, description: 'Sets traps for small game — food and leather',
     maxWorkers: 1, production: { output: 'food', amountPerWorker: 2, inputs: null, byproduct: { resource: 'leather', amount: 1 } }, mapChar: 'T',
   },
+  barley_field: {
+    type: 'barley_field', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { wood: 5 }, description: 'Grows barley for brewing',
+    maxWorkers: 2, production: { output: 'barley', amountPerWorker: 3, inputs: null }, mapChar: 'B',
+  },
+  vegetable_garden: {
+    type: 'vegetable_garden', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 4 }, description: 'Grows vegetables',
+    maxWorkers: 1, production: { output: 'vegetables', amountPerWorker: 3, inputs: null }, mapChar: 'V',
+  },
+  brewery: {
+    type: 'brewery', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { wood: 10, stone: 5, planks: 3 }, description: 'Brews ale from barley',
+    maxWorkers: 1, production: { output: 'ale', amountPerWorker: 2, inputs: { barley: 2 } }, mapChar: 'b',
+  },
 };
 
 // --- Skills ---
@@ -877,13 +905,13 @@ export type SkillType = 'farming' | 'mining' | 'crafting' | 'woodcutting' | 'coo
 export const ALL_SKILLS: SkillType[] = ['farming', 'mining', 'crafting', 'woodcutting', 'cooking', 'herbalism', 'combat'];
 
 export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
-  farm: 'farming', flax_field: 'farming', hemp_field: 'farming',
+  farm: 'farming', flax_field: 'farming', hemp_field: 'farming', barley_field: 'farming', vegetable_garden: 'farming',
   quarry: 'mining', iron_mine: 'mining',
   sawmill: 'crafting', smelter: 'crafting', coal_burner: 'crafting', carpenter: 'crafting', tanner: 'crafting', weaver: 'crafting', ropemaker: 'crafting',
   woodcutter: 'woodcutting', forester: 'woodcutting',
   mill: 'cooking', bakery: 'cooking',
   herb_garden: 'herbalism', well: 'farming',
-  butchery: 'cooking', compost_pile: 'farming', drying_rack: 'cooking', smoking_rack: 'cooking',
+  butchery: 'cooking', compost_pile: 'farming', drying_rack: 'cooking', smoking_rack: 'cooking', brewery: 'cooking',
   research_desk: 'crafting',
   chicken_coop: 'farming',
   livestock_barn: 'farming',
@@ -939,7 +967,8 @@ export type VillagerRole =
   | 'butcher' | 'composter' | 'dryer' | 'smoker' | 'minter'
   | 'forester_worker'
   | 'stonemason_worker' | 'trapper'
-  | 'healer';
+  | 'healer'
+  | 'barley_farmer' | 'gardener' | 'brewer';
 
 export type VillagerState =
   | 'sleeping'
@@ -1203,6 +1232,9 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   village_hall: 150,
   stonemason: 40,
   trappers_camp: 25,
+  barley_field: 30,
+  vegetable_garden: 20,
+  brewery: 40,
 };
 
 
@@ -1310,6 +1342,9 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   bakery: 'basic_cooking',
   food_cellar: 'basic_cooking',
   smoking_rack: 'basic_cooking',
+  brewery: 'basic_cooking',
+  barley_field: 'crop_rotation',
+  vegetable_garden: 'crop_rotation',
   foraging_hut: 'herbalism_lore',
   // Tier 2
   smelter: 'metallurgy',
@@ -1376,6 +1411,9 @@ export const TRADE_PRICES: Partial<Record<ResourceType, { buy: number; sell: num
   linen: { buy: 6, sell: 3 },
   rope: { buy: 5, sell: 2 },
   stone_blocks: { buy: 7, sell: 4 },
+  barley: { buy: 2, sell: 1 },
+  vegetables: { buy: 3, sell: 2 },
+  ale: { buy: 6, sell: 4 },
 };
 
 // --- Dynamic pricing: supply/demand adjusts prices ±30% ---

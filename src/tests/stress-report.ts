@@ -305,6 +305,19 @@ function playerAI(state: GameState): GameState {
   if (day >= 35 && countBuildings(state, 'mint') === 0 && countBuildings(state, 'smelter') > 0 && canBuildTech(state, 'mint') && canAfford(state, 'mint')) {
     state = tryBuild(state, 'mint', 17, 14);
   }
+  // Barley field — for food variety and brewing (requires crop_rotation)
+  if (day >= 15 && countBuildings(state, 'barley_field') === 0 && canBuildTech(state, 'barley_field') && canAfford(state, 'barley_field')) {
+    state = tryBuild(state, 'barley_field', 14, 17);
+  }
+  // Vegetable garden — for food variety (requires crop_rotation)
+  if (day >= 12 && countBuildings(state, 'vegetable_garden') === 0 && canBuildTech(state, 'vegetable_garden') && canAfford(state, 'vegetable_garden')) {
+    state = tryBuild(state, 'vegetable_garden', 16, 14);
+  }
+  // Brewery — barley → ale for tavern morale boost (requires basic_cooking + barley_field)
+  if (day >= 25 && countBuildings(state, 'brewery') === 0 && countBuildings(state, 'barley_field') > 0 && canBuildTech(state, 'brewery') && canAfford(state, 'brewery')) {
+    state = tryBuild(state, 'brewery', 16, 16);
+  }
+
   // Decoration buildings (garden, fountain, statue) are available but the player AI
   // doesn't build them — they compete with defense for space/resources.
   // Decorations are tested independently in test-v2-decorations.ts.

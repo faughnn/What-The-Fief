@@ -115,6 +115,7 @@ export const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   forester: 'forester_worker',
   stonemason: 'stonemason_worker',
   trappers_camp: 'trapper',
+  barley_field: 'barley_farmer', vegetable_garden: 'gardener', brewery: 'brewer',
   apothecary: 'healer',
   watchtower: 'guard',
   training_ground: 'guard',
