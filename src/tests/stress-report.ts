@@ -281,6 +281,22 @@ function playerAI(state: GameState): GameState {
   if (day >= 30 && countBuildings(state, 'church') === 0 && canAfford(state, 'church') && canBuildTech(state, 'church')) {
     state = tryBuild(state, 'church', 14, 15);
   }
+  // Library — passive research speed boost (requires civil_engineering)
+  if (day >= 25 && countBuildings(state, 'library') === 0 && canBuildTech(state, 'library') && canAfford(state, 'library')) {
+    state = tryBuild(state, 'library', 16, 14);
+  }
+  // Apothecary — healer crafts bandages from herbs (requires medicine tech)
+  if (day >= 20 && countBuildings(state, 'apothecary') === 0 && countBuildings(state, 'herb_garden') > 0 && canBuildTech(state, 'apothecary') && canAfford(state, 'apothecary')) {
+    state = tryBuild(state, 'apothecary', 16, 17);
+  }
+  // Smoking rack — meat + charcoal → smoked_food (requires basic_cooking + butchery + coal_burner)
+  if (day >= 25 && countBuildings(state, 'smoking_rack') === 0 && countBuildings(state, 'butchery') > 0 && countBuildings(state, 'coal_burner') > 0 && canBuildTech(state, 'smoking_rack') && canAfford(state, 'smoking_rack')) {
+    state = tryBuild(state, 'smoking_rack', 16, 15);
+  }
+  // Weapon rack — near watchtower for guards to auto-equip (requires military_tactics)
+  if (day >= 25 && countBuildings(state, 'weapon_rack') === 0 && canBuildTech(state, 'weapon_rack') && canAfford(state, 'weapon_rack')) {
+    state = tryBuild(state, 'weapon_rack', 13, 12);
+  }
   // Decoration buildings (garden, fountain, statue) are available but the player AI
   // doesn't build them — they compete with defense for space/resources.
   // Decorations are tested independently in test-v2-decorations.ts.
@@ -427,7 +443,7 @@ function playerAI(state: GameState): GameState {
 
   // Research — always queue tech if not researching (even before desk is built)
   if (!state.research.current) {
-    const techOrder = ['basic_cooking', 'crop_rotation', 'improved_tools', 'fortification', 'masonry', 'herbalism_lore', 'animal_husbandry', 'advanced_farming', 'archery', 'military_tactics', 'civil_engineering', 'trade_routes', 'metallurgy', 'steel_forging', 'master_crafting', 'architecture'] as const;
+    const techOrder = ['basic_cooking', 'crop_rotation', 'improved_tools', 'fortification', 'masonry', 'herbalism_lore', 'animal_husbandry', 'advanced_farming', 'archery', 'military_tactics', 'civil_engineering', 'trade_routes', 'metallurgy', 'medicine', 'steel_forging', 'master_crafting', 'architecture', 'siege_engineering'] as const;
     for (const tech of techOrder) {
       if (!state.research.completed.includes(tech as any) && state.research.current !== tech) {
         state = setResearch(state, tech as any);

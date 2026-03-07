@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1459 tests passing (79 test files). 100-day stress test: 13 pop, 2 deaths, 0 errors, 9 techs researched, prosperity 90.
+- **Status**: V2 spatial simulation. 1535 tests passing (83 test files). 100-day stress test: 13 pop, 2 deaths, 0 errors, 9 techs researched, prosperity 90.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -173,18 +173,19 @@
 21. ~~Night danger~~ ✅ Done — enemies get +2 attack at night. Makes nighttime raids more dangerous. 10 tests.
 
 ### New gaps identified:
-22. Building tier progression (foraging camp→hut→lodge, mining camp→hut, logging camp)
+22. ~~Building tier progression~~ ✅ Partially done — foraging_hut→foraging_lodge upgrade (2 workers, 3 food/worker). 18 tests.
 23. ~~Library building~~ ✅ Done — passive +50% research speed boost. Requires civil_engineering. 10 tests.
-24. Weapon rack / armory storage building
-25. Smoking rack (alternative food preservation)
+24. ~~Weapon rack~~ ✅ Done — passive storage building, guards within 5 tiles auto-equip from rack buffer. 18 tests.
+25. ~~Smoking rack~~ ✅ Done — meat + charcoal → smoked_food (satisfaction 2.2, spoilage 0.003). 26 tests.
 26. More quest variety (defend, escort, trade missions)
-27. Villager aging and natural death
+27. ~~Villager aging~~ ✅ Done — age 18-45 start, +1/year, elder penalty at 60, old age death at 65+. 14 tests.
+28. Foraging lodge ✅ Done — upgraded foraging_hut (2 workers, 3 food/worker). 18 tests.
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 79 test files, 1459 tests total
+- `src/tests/test-v2-*.ts` — 83 test files, 1535 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
