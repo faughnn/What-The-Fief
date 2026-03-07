@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1576 tests passing (84 test files). 100-day stress test: 21 pop, 2 deaths, 0 errors, 10 techs researched, prosperity 90.
+- **Status**: V2 spatial simulation. 1599 tests passing (86 test files). 100-day stress test: 21 pop, 2 deaths, 0 errors, 10 techs researched, prosperity 90.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -47,6 +47,9 @@
   - **Weapon rack**: Passive storage for weapons/armor. Guards within 5 tiles auto-equip from rack buffer. 18 tests.
   - **Mint**: Converts ingots → gold (1:2). Sustainable gold income for recruitment/festivals. Requires trade_routes. 17 tests.
   - **18 milestone quests**: 12 original + 6 new (camp_cleared, food_empire, explorer, elder_village, tech_master, fortress).
+  - **Bandit warlord**: Boss enemy at camp strength 8+ (30 HP, 7 atk, 5 def). Drops 10 gold + sword. 14 tests.
+  - **Town hall maintenance aura**: Buildings within 10 tiles of town hall don't decay. Incentivizes compact layout. 4 tests.
+  - **Mint**: ingots → gold (1:2 ratio). Sustainable gold for recruitment/festivals. Requires trade_routes. 17 tests.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -187,16 +190,18 @@
 27. ~~Villager aging~~ ✅ Done — age 18-45 start, +1/year, elder penalty at 60, old age death at 65+. 14 tests.
 28. ~~Foraging lodge~~ ✅ Done — upgraded foraging_hut (2 workers, 3 food/worker). 18 tests.
 29. ~~Mint building~~ ✅ Done — ingots → gold, sustainable income. 17 tests.
-30. Trapper's camp (passive animal trapping)
-31. Stonemason building (stone processing)
-32. River dock (water transport)
-33. More building upgrade paths (woodcutter→lumber_mill, hunting_lodge upgrade)
+30. ~~Bandit warlord~~ ✅ Done — boss enemy (30 HP, 7 atk, 5 def) at camp strength 8+. Drops 10 gold + sword. 14 tests.
+31. ~~Town hall maintenance~~ ✅ Done — buildings within 10 tiles of town hall don't decay. 4 tests.
+32. Trapper's camp (passive animal trapping)
+33. Stonemason building (stone processing)
+34. River dock (water transport)
+35. More building upgrade paths (woodcutter→lumber_mill, hunting_lodge upgrade)
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 84 test files, 1576 tests total
+- `src/tests/test-v2-*.ts` — 86 test files, 1599 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
