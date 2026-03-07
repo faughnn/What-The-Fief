@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1831 tests passing (94 test files). 100-day stress test: 20 pop, 15 deaths, 0 errors, 10 techs researched, prosperity 95.
+- **Status**: V2 spatial simulation. 1849 tests passing (95 test files). 100-day stress test: 20 pop, 15 deaths, 0 errors, 10 techs researched, prosperity 95.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse, watchtower→guard_tower, woodcutter→logging_camp.
@@ -58,6 +58,7 @@
   - **Crop variety**: barley_field (2x2, barley, satisfaction 0.8) and vegetable_garden (1x1, vegetables, satisfaction 1.3). Both outdoor, farming skill, require crop_rotation. Seasonal (no winter). 10 food types total for variety bonus. 58 tests.
   - **Brewery**: barley → ale processing (1x1, cooking skill, requires basic_cooking). Ale is a luxury — not food. Tavern visits consume ale for +5 extra morale. Creates meaningful crop choice: barley for brewing vs wheat for bread.
   - **Demolish building**: demolishBuilding command. Removes building, creates rubble, unassigns workers/residents, 50% material refund, local buffer salvaged. Critical buildings (town_hall, storehouse) protected. 17 tests.
+  - **River dock**: Placed adjacent to water, enables pathfinding across adjacent water tiles. Requires civil_engineering. 18 tests.
   - **Dynamic event quests**: 5 quest types (defend, supply, hunt, rescue, trade). Spawn every 10-15 days after day 20. Max 2 active, no duplicate types. Defend warns 3 days then spawns scaled raid (requires guards). Supply: NPC village requests resources (acceptSupplyQuest command). Hunt: elite beast (25 HP, 5 atk, 2 def) at map edge. Rescue: villager reaches traveler for free recruit. Trade: 50% better prices for 3 days. Expiry cleanup. 34 tests.
   - **Guard tower**: watchtower → guard_tower upgrade. Range 7 (vs 5), damage 3 (vs 2), 120 HP. Requires architecture. 33 tests for both upgrades.
   - **Logging camp**: woodcutter → logging_camp upgrade. 2 workers (vs 1), same production rate. Requires advanced_farming.
@@ -67,9 +68,9 @@
 
 **Is this a complete 2D Bellwright? Be extremely strict and pedantic.**
 
-**No.** The physical foundation, economy depth, combat systems, persistent threats, and worker management are strong. The 100-day stress test proves a competent player AI can grow to 23 population with 10 techs researched and prosperity 85. But several core Bellwright systems are still missing.
+**No, but very close.** The physical foundation, economy depth, combat systems, persistent threats, dynamic quests, and worker management are strong. The 100-day stress test proves a competent player AI can grow to 20 population with 10 techs researched and prosperity 95. All previously identified gaps are closed. Remaining gaps are polish-level.
 
-### What IS working (proven by 1831 tests + 100-day stress test):
+### What IS working (proven by 1849 tests + 100-day stress test):
 - ✅ 4000 ticks/day (RimWorld pacing), 1 tile/tick max, BFS pathfinding
 - ✅ Physical production: presence required, local buffers, hauling to storehouse
 - ✅ Processing buildings: miller fetches wheat from storehouse, produces flour at mill
@@ -151,6 +152,8 @@
 - ✅ **Seasonal events**: Auto-trigger on season transitions. Spring planting (+10 morale), summer warmth (+5), autumn harvest festival (+15 with food≥50), winter's bite (-5). 16 tests.
 - ✅ **Fertilizer farm boost**: compost pile → fertilizer → farm +50% output. Consumes 1 fertilizer per production cycle. 3 tests.
 - ✅ **Building repair priority**: urgent repair (< 50% HP) before construction. Normal repair (50-100%) after rubble clearing. 3 tests.
+- ✅ **Dynamic event quests**: 5 types (defend, supply, hunt, rescue, trade). Spawn every 10-15 days after day 20. Max 2 active, no duplicate types. Defend warns 3 days ahead (requires guards). Supply: NPC village requests resources. Hunt: elite beast at map edge. Rescue: free villager. Trade: better prices. 34 tests.
+- ✅ **River dock**: placed adjacent to water, enables pathfinding across adjacent water tiles. Requires civil_engineering. Passable for villagers. 18 tests.
 - ✅ 100-day stress test: 60x60 map, player AI grows to 20 pop, 15 deaths, 10 techs, prosperity 95, 0 errors. Builds food processing chain (butchery, compost, drying rack), crop variety (barley field, vegetable garden, brewery). Sends safe expeditions. Accepts supply quests when resources plentiful.
 
 ### GAPS — What Bellwright has that this sim doesn't:
@@ -205,16 +208,25 @@
 31. ~~Town hall maintenance~~ ✅ Done — buildings within 10 tiles of town hall don't decay. 4 tests.
 32. ~~Trapper's camp~~ ✅ Done — passive food + leather byproduct. Outdoor, herbalism skill. 29 tests.
 33. ~~Stonemason building~~ ✅ Done — stone → stone_blocks processing. Mining skill. 25 tests.
-34. River dock (water transport)
+34. ~~River dock (water transport)~~ ✅ Done — river_dock building enables water crossing via pathfinding. 18 tests.
 35. ~~More building upgrade paths~~ ✅ Done — watchtower→guard_tower, woodcutter→logging_camp. 33 tests.
 36. ~~Village Hall~~ ✅ Done — town_hall → village_hall. Extended aura, research boost, +5 CP. 18 tests.
 37. ~~Stone blocks integration~~ ✅ Done — advanced buildings require stone_blocks. 13 tests.
+
+### Remaining polish-level gaps (newly identified):
+38. Travel sign building (waypoint markers for faster navigation)
+39. More trait variety (Bellwright has 24 traits vs our 17 — missing defender, fierce, nomad, prodigy, dullard, scholar, swordsman)
+40. Endgame victory condition (total liberation + prosperity milestone)
+41. Save/load game state
+42. Better death/combat balance (15 deaths in 100 days is high)
+43. Building destruction events (fire, siege damage) need more dramatic impact
+44. More diverse raid events (night raids, multi-wave sieges)
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 94 test files, 1831 tests total
+- `src/tests/test-v2-*.ts` — 95 test files, 1849 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
