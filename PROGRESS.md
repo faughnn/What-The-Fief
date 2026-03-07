@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1849 tests passing (95 test files). 100-day stress test: 20 pop, 15 deaths, 0 errors, 10 techs researched, prosperity 95.
+- **Status**: V2 spatial simulation. 1867 tests passing (96 test files). 100-day stress test: 16 pop, 12 deaths, 0 errors, 11 techs researched, prosperity 90.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse, watchtower→guard_tower, woodcutter→logging_camp.
@@ -142,7 +142,7 @@
 - ✅ **Cottage housing tier**: tent→cottage→house→manor (4-tier housing). Cottage costs 3 wood to upgrade from tent. 19 tests.
 - ✅ **Villager skill caps**: Each villager has deterministic per-skill max potential (40-100). Generated via seeded RNG from villager ID. Skills cannot exceed caps. Varied caps encourage specialization. 8 tests.
 - ✅ **Villager friendships**: Coworkers track shared work days. After 10 days at same building, become friends (max 2). +3 morale per living friend. Symmetric. 9 tests.
-- ✅ **Expanded traits (17 total)**: Original 12 + stalwart (+3 atk, +2 def, -50% production), marksman (+50% ranged dmg, -1 melee def), neurotic (+50% production, +25% hunger), porter (+3 carry capacity), tough (+5 max HP). 24 tests.
+- ✅ **Expanded traits (24 total)**: 17 original + defender (+1 atk, +2 def), fierce (+3 atk, -1 def), swordsman (+3 melee atk), prodigy (+50% XP), dullard (-30% XP), nomad (immune storm/hill penalties), scholar (+50% research speed). 39 tests.
 - ✅ **Apothecary building**: herbs→bandages crafting. Healer role (herbalism skill). Bandages provide +2 HP/day regen and speed disease recovery. Requires medicine tech. 18 tests.
 - ✅ **Night danger**: All enemies get +2 attack during night ticks. Makes nighttime raids significantly more dangerous. Encourages wall building and guard patrols. 10 tests.
 - ✅ **Library**: Passive building (no workers). +50% research speed when constructed. Requires civil_engineering. 10 tests.
@@ -215,7 +215,7 @@
 
 ### Remaining polish-level gaps (newly identified):
 38. Travel sign building (waypoint markers for faster navigation)
-39. More trait variety (Bellwright has 24 traits vs our 17 — missing defender, fierce, nomad, prodigy, dullard, scholar, swordsman)
+39. ~~More trait variety~~ ✅ Done — 24 total traits (7 new: defender, fierce, nomad, prodigy, dullard, scholar, swordsman). 15 tests.
 40. Endgame victory condition (total liberation + prosperity milestone)
 41. Save/load game state
 42. Better death/combat balance (15 deaths in 100 days is high)
