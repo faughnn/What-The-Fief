@@ -122,6 +122,8 @@ export type BuildingType =
   | 'inn'
   // Weapon/armor production
   | 'weaponsmith' | 'fletcher' | 'leather_workshop'
+  // Economy
+  | 'mint'
   // Decoration / morale buildings
   | 'garden' | 'fountain' | 'statue'
   // Outpost
@@ -833,6 +835,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 6, planks: 3, ingots: 2 }, description: 'Stores weapons and armor — nearby guards auto-equip',
     maxWorkers: 0, production: null, mapChar: 'R',
   },
+  mint: {
+    type: 'mint', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { stone: 15, planks: 8, ingots: 5 }, description: 'Mints gold coins from ingots',
+    maxWorkers: 1, production: { output: 'gold', amountPerWorker: 2, inputs: { ingots: 1 } }, mapChar: '$',
+  },
 };
 
 // --- Skills ---
@@ -852,7 +859,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   chicken_coop: 'farming',
   livestock_barn: 'farming',
   apiary: 'herbalism', foraging_hut: 'herbalism', foraging_lodge: 'herbalism', fishing_hut: 'farming',
-  weaponsmith: 'crafting', fletcher: 'crafting', leather_workshop: 'crafting',
+  weaponsmith: 'crafting', fletcher: 'crafting', leather_workshop: 'crafting', mint: 'crafting',
   // T2 upgraded buildings inherit parent skills
   large_farm: 'farming', deep_quarry: 'mining',
   lumber_mill: 'crafting', advanced_smelter: 'crafting',
@@ -898,7 +905,7 @@ export type VillagerRole =
   | 'scout' | 'guard' | 'researcher' | 'hunter' | 'forager'
   | 'chicken_keeper' | 'rancher' | 'beekeeper' | 'trader'
   | 'fisher' | 'hauler' | 'militia' | 'well_worker'
-  | 'butcher' | 'composter' | 'dryer' | 'smoker'
+  | 'butcher' | 'composter' | 'dryer' | 'smoker' | 'minter'
   | 'forester_worker'
   | 'healer';
 
@@ -1157,6 +1164,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   library: 50,
   foraging_lodge: 35,
   weapon_rack: 30,
+  mint: 40,
 };
 
 
@@ -1271,6 +1279,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   armorer: 'metallurgy',
   marketplace: 'trade_routes',
   church: 'trade_routes',
+  mint: 'trade_routes',
   manor: 'civil_engineering',
   large_storehouse: 'civil_engineering',
   outpost: 'civil_engineering',
