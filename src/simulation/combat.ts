@@ -31,7 +31,7 @@ import {
   Building, BuildingType, Villager, Tile, TERRAIN_DEFENSE_BONUS,
   EnemyEntity, EnemyType, ENEMY_TEMPLATES, GUARD_COMBAT,
   CONSTRUCTION_TICKS, BUILDING_MAX_HP, ALL_RESOURCES,
-  WATCHTOWER_RANGE, WATCHTOWER_DAMAGE,
+  WATCHTOWER_RANGE, WATCHTOWER_DAMAGE, GUARD_TOWER_RANGE, GUARD_TOWER_DAMAGE,
   WEAPON_STATS, ARMOR_STATS,
   BanditCamp, CAMP_BASE_HP, CAMP_HP_PER_LEVEL, CAMP_RAID_INTERVAL,
   CAMP_SPAWN_DAY, CAMP_SPAWN_INTERVAL, CAMP_MAX_COUNT,
@@ -466,8 +466,10 @@ export function processRaidAndCombat(ts: TickState): void {
   }
 
   // Guard AI: detect enemies, move to intercept, fight adjacent
-  // Watchtower guards: stay at tower, shoot enemies within range
-  const watchtowerRange = WATCHTOWER_RANGE + (hasTech(ts.research, 'archery') ? 2 : 0);
+  // Watchtower/guard tower guards: stay at tower, shoot enemies within range
+  const baseWatchtowerRange = WATCHTOWER_RANGE;
+  const baseGuardTowerRange = GUARD_TOWER_RANGE;
+  const archeryBonus = hasTech(ts.research, 'archery') ? 2 : 0;
   let attackBonus = hasTech(ts.research, 'military_tactics') ? 2 : 0;
   let defenseBonus = hasTech(ts.research, 'fortification') ? 1 : 0;
   if (hasTech(ts.research, 'steel_forging')) attackBonus += 1;
@@ -481,8 +483,8 @@ export function processRaidAndCombat(ts: TickState): void {
 
     // Check if guard is assigned to a watchtower
     const towerJobCandidate = v.jobBuildingId ? ts.buildingMap.get(v.jobBuildingId) : null;
-    const towerJob = towerJobCandidate && towerJobCandidate.type === 'watchtower' && towerJobCandidate.constructed
-      ? towerJobCandidate : null;
+    const isTowerType = towerJobCandidate && (towerJobCandidate.type === 'watchtower' || towerJobCandidate.type === 'guard_tower') && towerJobCandidate.constructed;
+    const towerJob = isTowerType ? towerJobCandidate : null;
 
     if (towerJob) {
       // WATCHTOWER GUARD: stay at tower, shoot at range
@@ -497,12 +499,16 @@ export function processRaidAndCombat(ts: TickState): void {
       }
 
       // At tower — shoot nearest enemy within range
+      const isGuardTower = towerJob.type === 'guard_tower';
+      const towerRange = (isGuardTower ? baseGuardTowerRange : baseWatchtowerRange) + archeryBonus;
+      const baseTowerDmg = isGuardTower ? GUARD_TOWER_DAMAGE : WATCHTOWER_DAMAGE;
+
       let nearestEnemy: EnemyEntity | null = null;
       let nearestDist = Infinity;
       for (const e of ts.enemies) {
         if (e.hp <= 0) continue;
         const dist = Math.abs(e.x - v.x) + Math.abs(e.y - v.y);
-        if (dist <= watchtowerRange && dist < nearestDist) {
+        if (dist <= towerRange && dist < nearestDist) {
           nearestDist = dist;
           nearestEnemy = e;
         }
@@ -512,7 +518,7 @@ export function processRaidAndCombat(ts: TickState): void {
         // Ranged attack — flat damage, enemy can't retaliate
         // Bow-equipped tower guard gets bonus damage
         const bowBonus = v.weapon === 'bow' ? WEAPON_STATS.bow.attack : 0;
-        const towerDmg = WATCHTOWER_DAMAGE + bowBonus;
+        const towerDmg = baseTowerDmg + bowBonus;
         nearestEnemy.hp -= towerDmg + marksmanRangedBonus(v, towerDmg);
         if (bowBonus > 0) degradeWeapon(v, ts.resources, ts.buildings);
       }

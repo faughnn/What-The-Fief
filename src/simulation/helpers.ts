@@ -123,6 +123,7 @@ export const ROLE_MAP: Partial<Record<BuildingType, VillagerRole>> = {
   large_farm: 'farmer', deep_quarry: 'quarrier',
   lumber_mill: 'sawyer', advanced_smelter: 'smelter',
   windmill: 'miller', kitchen: 'baker',
+  guard_tower: 'guard', logging_camp: 'woodcutter',
 };
 
 export function roleForBuilding(type: BuildingType): VillagerRole {

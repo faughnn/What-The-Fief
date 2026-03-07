@@ -156,7 +156,9 @@ export type BuildingType =
   // Passive animal trapping
   | 'trappers_camp'
   // Brewing
-  | 'brewery';
+  | 'brewery'
+  // Upgraded military/resource buildings
+  | 'guard_tower' | 'logging_camp';
 
 export interface Building {
   id: string;
@@ -897,6 +899,16 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 10, stone: 5, planks: 3 }, description: 'Brews ale from barley',
     maxWorkers: 1, production: { output: 'ale', amountPerWorker: 2, inputs: { barley: 2 } }, mapChar: 'b',
   },
+  guard_tower: {
+    type: 'guard_tower', width: 1, height: 1, allowedTerrain: ['grass', 'hill'],
+    cost: { stone: 20, planks: 10, ingots: 5 }, description: 'Upgraded watchtower — range 7, damage 3',
+    maxWorkers: 1, production: null, mapChar: 'G',
+  },
+  logging_camp: {
+    type: 'logging_camp', width: 1, height: 1, allowedTerrain: ['grass', 'forest'],
+    cost: { wood: 15, stone: 5, planks: 5 }, description: 'Upgraded woodcutter — 2 workers',
+    maxWorkers: 2, production: { output: 'wood', amountPerWorker: 2, inputs: null }, mapChar: 'L',
+  },
 };
 
 // --- Skills ---
@@ -908,7 +920,7 @@ export const BUILDING_SKILL_MAP: Partial<Record<BuildingType, SkillType>> = {
   farm: 'farming', flax_field: 'farming', hemp_field: 'farming', barley_field: 'farming', vegetable_garden: 'farming',
   quarry: 'mining', iron_mine: 'mining',
   sawmill: 'crafting', smelter: 'crafting', coal_burner: 'crafting', carpenter: 'crafting', tanner: 'crafting', weaver: 'crafting', ropemaker: 'crafting',
-  woodcutter: 'woodcutting', forester: 'woodcutting',
+  woodcutter: 'woodcutting', forester: 'woodcutting', logging_camp: 'woodcutting',
   mill: 'cooking', bakery: 'cooking',
   herb_garden: 'herbalism', well: 'farming',
   butchery: 'cooking', compost_pile: 'farming', drying_rack: 'cooking', smoking_rack: 'cooking', brewery: 'cooking',
@@ -1235,6 +1247,8 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   barley_field: 30,
   vegetable_garden: 20,
   brewery: 40,
+  guard_tower: 120,
+  logging_camp: 40,
 };
 
 
@@ -1256,10 +1270,14 @@ export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cos
   town_hall: { to: 'village_hall', cost: { wood: 20, stone: 15, planks: 10, stone_blocks: 8 } },
   fence: { to: 'wall', cost: { stone: 3 } },
   wall: { to: 'reinforced_wall', cost: { stone_blocks: 3, ingots: 2 } },
+  watchtower: { to: 'guard_tower', cost: { stone: 10, planks: 5, ingots: 3 } },
+  woodcutter: { to: 'logging_camp', cost: { wood: 10, stone: 5, planks: 3 } },
 };
 
 export const WATCHTOWER_RANGE = 5;
 export const WATCHTOWER_DAMAGE = 2;
+export const GUARD_TOWER_RANGE = 7;
+export const GUARD_TOWER_DAMAGE = 3;
 
 export const GUARD_COMBAT: Record<ToolTier, { attack: number; defense: number }> = {
   none: { attack: 3, defense: 2 },
@@ -1371,6 +1389,8 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   windmill: 'architecture',
   kitchen: 'architecture',
   inn: 'architecture',
+  guard_tower: 'architecture',
+  logging_camp: 'advanced_farming',
   reinforced_wall: 'siege_engineering',
   barracks: 'military_tactics',
   weapon_rack: 'military_tactics',
