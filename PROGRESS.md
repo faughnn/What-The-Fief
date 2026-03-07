@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1599 tests passing (86 test files). 100-day stress test: 21 pop, 2 deaths, 0 errors, 10 techs researched, prosperity 90.
+- **Status**: V2 spatial simulation. 1653 tests passing (88 test files). 100-day stress test: 21 pop, 2 deaths, 0 errors, 10 techs researched, prosperity 90.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -50,6 +50,9 @@
   - **Bandit warlord**: Boss enemy at camp strength 8+ (30 HP, 7 atk, 5 def). Drops 10 gold + sword. 14 tests.
   - **Town hall maintenance aura**: Buildings within 10 tiles of town hall don't decay. Incentivizes compact layout. 4 tests.
   - **Mint**: ingots → gold (1:2 ratio). Sustainable gold for recruitment/festivals. Requires trade_routes. 17 tests.
+  - **Stonemason**: stone → stone_blocks (1x1, 1 worker, 3 stone → 2 blocks). Requires masonry. Mining skill. Tradeable. 25 tests.
+  - **Trapper's Camp**: passive food production with leather byproduct (1x1, 1 worker, outdoor). Requires animal_husbandry. Herbalism skill. 29 tests.
+  - **Primary production byproduct**: byproduct support extended to primary (no-input) buildings, not just processing.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -192,8 +195,8 @@
 29. ~~Mint building~~ ✅ Done — ingots → gold, sustainable income. 17 tests.
 30. ~~Bandit warlord~~ ✅ Done — boss enemy (30 HP, 7 atk, 5 def) at camp strength 8+. Drops 10 gold + sword. 14 tests.
 31. ~~Town hall maintenance~~ ✅ Done — buildings within 10 tiles of town hall don't decay. 4 tests.
-32. Trapper's camp (passive animal trapping)
-33. Stonemason building (stone processing)
+32. ~~Trapper's camp~~ ✅ Done — passive food + leather byproduct. Outdoor, herbalism skill. 29 tests.
+33. ~~Stonemason building~~ ✅ Done — stone → stone_blocks processing. Mining skill. 25 tests.
 34. River dock (water transport)
 35. More building upgrade paths (woodcutter→lumber_mill, hunting_lodge upgrade)
 
