@@ -1569,7 +1569,25 @@ export interface GameState {
   nextDynamicQuestId: number;
   // Victory condition
   victory: boolean;
+  // Raid variety
+  pendingRaidWaves: PendingRaidWave[];
+  forceNightRaid: boolean;
+  lastLiberationDay: number;
 }
+
+// --- Raid Variety ---
+export interface PendingRaidWave {
+  campId: string;
+  day: number;
+  strength: number;
+  x: number;
+  y: number;
+  isReclamation?: boolean;
+}
+export const MULTI_WAVE_MIN_STRENGTH = 6;
+export const MULTI_WAVE_DELAY_DAYS = 1;
+export const RECLAMATION_DELAY_DAYS = 3;
+export const NIGHT_RAID_CHANCE = 0.3;
 
 // --- Victory Condition ---
 export const VICTORY_MIN_POPULATION = 15;
@@ -1923,5 +1941,8 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     lastDynamicQuestDay: -100,
     nextDynamicQuestId: 1,
     victory: false,
+    pendingRaidWaves: [],
+    forceNightRaid: false,
+    lastLiberationDay: -100,
   };
 }

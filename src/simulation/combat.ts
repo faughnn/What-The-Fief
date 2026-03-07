@@ -3,12 +3,17 @@
 // Combat trait bonuses
 // brave: +2 attack, coward: -2 attack
 // resilient: +2 defense, nimble: +1 attack +1 defense
+// defender: +2 defense +1 attack, fierce: +3 attack -1 defense
+// swordsman: +3 melee attack
 function traitAttackBonus(v: { traits: string[] }): number {
   let bonus = 0;
   if (v.traits.includes('brave')) bonus += 2;
   if (v.traits.includes('coward')) bonus -= 2;
   if (v.traits.includes('nimble')) bonus += 1;
   if (v.traits.includes('stalwart')) bonus += 3;
+  if (v.traits.includes('defender')) bonus += 1;
+  if (v.traits.includes('fierce')) bonus += 3;
+  if (v.traits.includes('swordsman')) bonus += 3;
   return bonus;
 }
 
@@ -18,6 +23,8 @@ function traitDefenseBonus(v: { traits: string[] }): number {
   if (v.traits.includes('nimble')) bonus += 1;
   if (v.traits.includes('stalwart')) bonus += 2;
   if (v.traits.includes('marksman')) bonus -= 1;
+  if (v.traits.includes('defender')) bonus += 2;
+  if (v.traits.includes('fierce')) bonus -= 1;
   return bonus;
 }
 
@@ -40,6 +47,7 @@ import {
   SIEGE_TOWER_THRESHOLD, WOLF_STRENGTH_OFFSET,
   ARCHER_RAID_THRESHOLD, BRUTE_RAID_THRESHOLD, WARLORD_RAID_THRESHOLD,
   TRUST_KILL_BANDIT, TRUST_VILLAGE_RADIUS, TRUST_THRESHOLDS, TrustRank,
+  MULTI_WAVE_MIN_STRENGTH, MULTI_WAVE_DELAY_DAYS, RECLAMATION_DELAY_DAYS, NIGHT_RAID_CHANCE,
   LIBERATION_RENOWN_REWARD, MILITIA_COMBAT,
   ENEMY_LOOT,
   NIGHT_DANGER_ATK_BONUS,
@@ -122,47 +130,74 @@ function raidCompositionLabel(numBandits: number, strength: number): string {
   return parts.join(', ');
 }
 
-// --- Spawn enemies at a camp's location ---
-function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
-  const numBandits = camp.strength + 1;
-  const numWolves = camp.strength >= WOLF_SPAWN_THRESHOLD ? camp.strength - WOLF_STRENGTH_OFFSET : 0;
+// --- Shared enemy spawning: creates bandits, wolves, and siege equipment ---
+// troopPosFn(index) returns {x, y} for the i-th bandit/wolf
+// ramPosFn(index) returns {x, y} for the i-th battering ram
+// siegeTowerPosFn() returns {x, y} for the siege tower
+function spawnEnemies(
+  ts: TickState,
+  strength: number,
+  wolfThreshold: number,
+  troopPosFn: (index: number) => { x: number; y: number },
+  ramPosFn: (index: number) => { x: number; y: number },
+  siegeTowerPosFn: () => { x: number; y: number },
+): { numBandits: number; numWolves: number } {
+  const numBandits = strength + 1;
+  const numWolves = strength >= wolfThreshold ? strength - WOLF_STRENGTH_OFFSET : 0;
   for (let i = 0; i < numBandits + numWolves; i++) {
-    const type: EnemyType = i < numBandits ? pickRaidEnemyType(i, numBandits, camp.strength) : 'wolf';
+    const type: EnemyType = i < numBandits ? pickRaidEnemyType(i, numBandits, strength) : 'wolf';
     const t = ENEMY_TEMPLATES[type];
-    // Spread enemies around camp position
-    const ex = Math.max(0, Math.min(ts.width - 1, camp.x + (i % 3) - 1));
-    const ey = Math.max(0, Math.min(ts.height - 1, camp.y + Math.floor(i / 3) - 1));
+    const pos = troopPosFn(i);
     ts.enemies.push({
-      id: `e${ts.nextEnemyId}`, type, x: ex, y: ey,
+      id: `e${ts.nextEnemyId}`, type, x: pos.x, y: pos.y,
       hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
       range: t.range || 0, siege: 'none', ticksAlive: 0,
     });
     ts.nextEnemyId++;
   }
-  // Siege equipment at higher strength
-  if (camp.strength >= RAM_SPAWN_THRESHOLD) {
-    const numRams = Math.min(camp.strength - WOLF_STRENGTH_OFFSET, MAX_RAMS);
+  if (strength >= RAM_SPAWN_THRESHOLD) {
+    const numRams = Math.min(strength - WOLF_STRENGTH_OFFSET, MAX_RAMS);
     for (let i = 0; i < numRams; i++) {
+      const pos = ramPosFn(i);
       ts.enemies.push({
         id: `e${ts.nextEnemyId}`, type: 'bandit',
-        x: Math.max(0, Math.min(ts.width - 1, camp.x + i)),
-        y: Math.max(0, Math.min(ts.height - 1, camp.y + 1)),
+        x: pos.x, y: pos.y,
         hp: 25, maxHp: 25, attack: 5, defense: 3,
         range: 0, siege: 'battering_ram', ticksAlive: 0,
       });
       ts.nextEnemyId++;
     }
   }
-  if (camp.strength >= SIEGE_TOWER_THRESHOLD) {
+  if (strength >= SIEGE_TOWER_THRESHOLD) {
+    const pos = siegeTowerPosFn();
     ts.enemies.push({
       id: `e${ts.nextEnemyId}`, type: 'bandit',
-      x: Math.max(0, Math.min(ts.width - 1, camp.x - 1)),
-      y: Math.max(0, Math.min(ts.height - 1, camp.y + 1)),
+      x: pos.x, y: pos.y,
       hp: 20, maxHp: 20, attack: 2, defense: 2,
       range: 0, siege: 'siege_tower', ticksAlive: 0,
     });
     ts.nextEnemyId++;
   }
+  return { numBandits, numWolves };
+}
+
+// --- Spawn enemies at a camp's location ---
+function spawnRaidFromCamp(ts: TickState, camp: BanditCamp): void {
+  const { numBandits, numWolves } = spawnEnemies(
+    ts, camp.strength, WOLF_SPAWN_THRESHOLD,
+    (i) => ({
+      x: Math.max(0, Math.min(ts.width - 1, camp.x + (i % 3) - 1)),
+      y: Math.max(0, Math.min(ts.height - 1, camp.y + Math.floor(i / 3) - 1)),
+    }),
+    (i) => ({
+      x: Math.max(0, Math.min(ts.width - 1, camp.x + i)),
+      y: Math.max(0, Math.min(ts.height - 1, camp.y + 1)),
+    }),
+    () => ({
+      x: Math.max(0, Math.min(ts.width - 1, camp.x - 1)),
+      y: Math.max(0, Math.min(ts.height - 1, camp.y + 1)),
+    }),
+  );
   camp.lastRaidDay = ts.newDay;
   const dirLabels = camp.y === 0 ? 'north' : camp.y >= ts.height - 1 ? 'south' : camp.x === 0 ? 'west' : 'east';
   const composition = raidCompositionLabel(numBandits, camp.strength);
@@ -208,11 +243,71 @@ export function processRaidAndCombat(ts: TickState): void {
   if (ts.isNewDay && ts.banditCamps.length > 0 && ts.enemies.length === 0) {
     for (const camp of ts.banditCamps) {
       if (ts.newDay - camp.lastRaidDay >= camp.raidInterval) {
+        const isNightRaid = ts.forceNightRaid || Math.random() < NIGHT_RAID_CHANCE;
         spawnRaidFromCamp(ts, camp);
         ts.raidLevel = Math.max(ts.raidLevel, camp.strength);
+        // Night raid event annotation
+        if (isNightRaid) {
+          const lastEvent = ts.events[ts.events.length - 1];
+          if (lastEvent && lastEvent.includes('raid')) {
+            ts.events[ts.events.length - 1] = lastEvent.replace('attacks', 'launches a night raid');
+          }
+        }
+        // Multi-wave: strong camps (str >= 6) send a second wave after delay
+        if (camp.strength >= MULTI_WAVE_MIN_STRENGTH) {
+          ts.pendingRaidWaves.push({
+            campId: camp.id,
+            day: ts.newDay + MULTI_WAVE_DELAY_DAYS,
+            strength: Math.max(1, camp.strength - 2),
+            x: camp.x, y: camp.y,
+          });
+          ts.events.push('A second wave of reinforcements is on its way...');
+        }
+        ts.forceNightRaid = false;
         break; // One raid at a time
       }
     }
+  }
+
+  // --- PENDING WAVES (multi-wave / reclamation) ---
+  if (ts.isNewDay && ts.pendingRaidWaves.length > 0) {
+    const dueWaves = ts.pendingRaidWaves.filter(w => w.day <= ts.newDay);
+    ts.pendingRaidWaves = ts.pendingRaidWaves.filter(w => w.day > ts.newDay);
+    for (const wave of dueWaves) {
+      const numEnemies = wave.strength + 2;
+      for (let i = 0; i < numEnemies; i++) {
+        const enemyType = pickRaidEnemyType(i, numEnemies, wave.strength);
+        const template = ENEMY_TEMPLATES[enemyType];
+        const offset = i * 2;
+        const ex = Math.min(ts.width - 1, wave.x + offset);
+        const ey = Math.min(ts.height - 1, wave.y);
+        ts.enemies.push({
+          id: `wave_${wave.campId}_${i}`,
+          type: enemyType, x: ex, y: ey,
+          hp: template.hp, maxHp: template.hp,
+          attack: template.attack, defense: template.defense,
+          range: template.range ?? 0, siege: template.siege ?? 'none', ticksAlive: 0,
+        });
+      }
+      if (wave.isReclamation) {
+        ts.events.push(`A reclamation party of ${numEnemies} warriors arrives to retake lost territory!`);
+      } else {
+        ts.events.push(`A second wave of ${numEnemies} raiders arrives!`);
+      }
+    }
+  }
+
+  // --- RECLAMATION PARTIES (after village liberation) ---
+  if (ts.isNewDay && ts.lastLiberationDay === ts.newDay - 1 && ts.banditCamps.length > 0) {
+    const camp = ts.banditCamps[0]; // strongest camp retaliates
+    ts.pendingRaidWaves.push({
+      campId: camp.id,
+      day: ts.newDay + RECLAMATION_DELAY_DAYS,
+      strength: camp.strength + 1,
+      x: camp.x, y: camp.y,
+      isReclamation: true,
+    });
+    ts.events.push('Enemy forces are mustering a reclamation party...');
   }
 
   // --- FALLBACK: raidBar-based spawning (when no camps exist) ---
@@ -232,59 +327,23 @@ export function processRaidAndCombat(ts: TickState): void {
     if (ts.raidBar >= 100 && ts.enemies.length === 0 && ts.isNewDay) {
       ts.raidLevel += 1;
       ts.raidBar = 0;
-      const numBandits = ts.raidLevel + 1;
-      const numWolves = ts.raidLevel >= (WOLF_SPAWN_THRESHOLD + 1) ? ts.raidLevel - WOLF_STRENGTH_OFFSET : 0;
       const edgeSide = ts.newDay % 4;
-      for (let i = 0; i < numBandits + numWolves; i++) {
-        const type: EnemyType = i < numBandits ? pickRaidEnemyType(i, numBandits, ts.raidLevel) : 'wolf';
-        const t = ENEMY_TEMPLATES[type];
-        let ex: number, ey: number;
+      // Edge position helper: spread units along the chosen map edge
+      const edgePos = (offset: number): { x: number; y: number } => {
         switch (edgeSide) {
-          case 0: ex = Math.min(ts.width - 1, (i * 3) % ts.width); ey = 0; break;
-          case 1: ex = Math.min(ts.width - 1, (i * 3) % ts.width); ey = ts.height - 1; break;
-          case 2: ex = 0; ey = Math.min(ts.height - 1, (i * 3) % ts.height); break;
-          default: ex = ts.width - 1; ey = Math.min(ts.height - 1, (i * 3) % ts.height); break;
+          case 0: return { x: Math.min(ts.width - 1, (offset * 3) % ts.width), y: 0 };
+          case 1: return { x: Math.min(ts.width - 1, (offset * 3) % ts.width), y: ts.height - 1 };
+          case 2: return { x: 0, y: Math.min(ts.height - 1, (offset * 3) % ts.height) };
+          default: return { x: ts.width - 1, y: Math.min(ts.height - 1, (offset * 3) % ts.height) };
         }
-        ts.enemies.push({
-          id: `e${ts.nextEnemyId}`, type, x: ex, y: ey,
-          hp: t.maxHp, maxHp: t.maxHp, attack: t.attack, defense: t.defense,
-          range: t.range || 0, siege: 'none', ticksAlive: 0,
-        });
-        ts.nextEnemyId++;
-      }
-      if (ts.raidLevel >= RAM_SPAWN_THRESHOLD) {
-        const numRams = Math.min(ts.raidLevel - WOLF_STRENGTH_OFFSET, MAX_RAMS);
-        for (let i = 0; i < numRams; i++) {
-          let ex: number, ey: number;
-          switch (edgeSide) {
-            case 0: ex = Math.min(ts.width - 1, ((numBandits + numWolves + i) * 3) % ts.width); ey = 0; break;
-            case 1: ex = Math.min(ts.width - 1, ((numBandits + numWolves + i) * 3) % ts.width); ey = ts.height - 1; break;
-            case 2: ex = 0; ey = Math.min(ts.height - 1, ((numBandits + numWolves + i) * 3) % ts.height); break;
-            default: ex = ts.width - 1; ey = Math.min(ts.height - 1, ((numBandits + numWolves + i) * 3) % ts.height); break;
-          }
-          ts.enemies.push({
-            id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
-            hp: 25, maxHp: 25, attack: 5, defense: 3,
-            range: 0, siege: 'battering_ram', ticksAlive: 0,
-          });
-          ts.nextEnemyId++;
-        }
-      }
-      if (ts.raidLevel >= SIEGE_TOWER_THRESHOLD) {
-        let ex: number, ey: number;
-        switch (edgeSide) {
-          case 0: ex = Math.min(ts.width - 1, ((numBandits + numWolves + 5) * 3) % ts.width); ey = 0; break;
-          case 1: ex = Math.min(ts.width - 1, ((numBandits + numWolves + 5) * 3) % ts.width); ey = ts.height - 1; break;
-          case 2: ex = 0; ey = Math.min(ts.height - 1, ((numBandits + numWolves + 5) * 3) % ts.height); break;
-          default: ex = ts.width - 1; ey = Math.min(ts.height - 1, ((numBandits + numWolves + 5) * 3) % ts.height); break;
-        }
-        ts.enemies.push({
-          id: `e${ts.nextEnemyId}`, type: 'bandit', x: ex, y: ey,
-          hp: 20, maxHp: 20, attack: 2, defense: 2,
-          range: 0, siege: 'siege_tower', ticksAlive: 0,
-        });
-        ts.nextEnemyId++;
-      }
+      };
+      const numTroops = (ts.raidLevel + 1) + (ts.raidLevel >= (WOLF_SPAWN_THRESHOLD + 1) ? ts.raidLevel - WOLF_STRENGTH_OFFSET : 0);
+      const { numBandits, numWolves } = spawnEnemies(
+        ts, ts.raidLevel, WOLF_SPAWN_THRESHOLD + 1,
+        (i) => edgePos(i),
+        (i) => edgePos(numTroops + i),
+        () => edgePos(numTroops + 5),
+      );
       const fallbackComp = raidCompositionLabel(numBandits, ts.raidLevel);
       ts.events.push(`A raid of ${fallbackComp}${numWolves > 0 ? ` and ${numWolves} wolves` : ''}${ts.raidLevel >= RAM_SPAWN_THRESHOLD ? ' with siege equipment' : ''} attacks from the ${['north', 'south', 'west', 'east'][edgeSide]}!`);
     }
