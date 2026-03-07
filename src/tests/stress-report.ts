@@ -297,6 +297,10 @@ function playerAI(state: GameState): GameState {
   if (day >= 25 && countBuildings(state, 'weapon_rack') === 0 && canBuildTech(state, 'weapon_rack') && canAfford(state, 'weapon_rack')) {
     state = tryBuild(state, 'weapon_rack', 13, 12);
   }
+  // Mint — ingots → gold for recruitment/festivals (requires trade_routes + smelter chain)
+  if (day >= 35 && countBuildings(state, 'mint') === 0 && countBuildings(state, 'smelter') > 0 && canBuildTech(state, 'mint') && canAfford(state, 'mint')) {
+    state = tryBuild(state, 'mint', 17, 14);
+  }
   // Decoration buildings (garden, fountain, statue) are available but the player AI
   // doesn't build them — they compete with defense for space/resources.
   // Decorations are tested independently in test-v2-decorations.ts.
