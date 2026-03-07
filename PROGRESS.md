@@ -1,10 +1,10 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1742 tests passing (91 test files). 100-day stress test: 23 pop, 5 deaths, 0 errors, 10 techs researched, prosperity 85.
+- **Status**: V2 spatial simulation. 1792 tests passing (93 test files). 100-day stress test: 23 pop, 5 deaths, 0 errors, 10 techs researched, prosperity 85.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
-  - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
+  - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse, watchtower→guard_tower, woodcutter→logging_camp.
   - **Combat**: Spatial combat (enemies march from camps/edges, walls/fences block, guards intercept/patrol, melee, watchtower ranged 5-tile). Siege equipment (battering rams, siege towers).
   - **Weapons**: Sword (atk 6, def 2, melee) and bow (atk 2, range 4, ranged). Guards auto-equip. Weaponsmith + fletcher. Durability degrades per combat tick.
   - **Armor**: Craftable armor items (leather_armor def 2, iron_armor def 4). Leather_workshop (leather+linen→leather_armor). Armorer (ingots+leather→iron_armor). Guards auto-equip best available. Durability degrades in combat. 40 tests.
@@ -57,6 +57,9 @@
   - **Village Hall**: town_hall → village_hall upgrade. Extended maintenance aura (15 tiles vs 10). +50% research speed (stacks with library). +5 construction points. Requires architecture + stone_blocks. 18 tests.
   - **Crop variety**: barley_field (2x2, barley, satisfaction 0.8) and vegetable_garden (1x1, vegetables, satisfaction 1.3). Both outdoor, farming skill, require crop_rotation. Seasonal (no winter). 10 food types total for variety bonus. 58 tests.
   - **Brewery**: barley → ale processing (1x1, cooking skill, requires basic_cooking). Ale is a luxury — not food. Tavern visits consume ale for +5 extra morale. Creates meaningful crop choice: barley for brewing vs wheat for bread.
+  - **Demolish building**: demolishBuilding command. Removes building, creates rubble, unassigns workers/residents, 50% material refund, local buffer salvaged. Critical buildings (town_hall, storehouse) protected. 17 tests.
+  - **Guard tower**: watchtower → guard_tower upgrade. Range 7 (vs 5), damage 3 (vs 2), 120 HP. Requires architecture. 33 tests for both upgrades.
+  - **Logging camp**: woodcutter → logging_camp upgrade. 2 workers (vs 1), same production rate. Requires advanced_farming.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -202,7 +205,7 @@
 32. ~~Trapper's camp~~ ✅ Done — passive food + leather byproduct. Outdoor, herbalism skill. 29 tests.
 33. ~~Stonemason building~~ ✅ Done — stone → stone_blocks processing. Mining skill. 25 tests.
 34. River dock (water transport)
-35. More building upgrade paths (woodcutter→lumber_mill, hunting_lodge upgrade)
+35. ~~More building upgrade paths~~ ✅ Done — watchtower→guard_tower, woodcutter→logging_camp. 33 tests.
 36. ~~Village Hall~~ ✅ Done — town_hall → village_hall. Extended aura, research boost, +5 CP. 18 tests.
 37. ~~Stone blocks integration~~ ✅ Done — advanced buildings require stone_blocks. 13 tests.
 
@@ -210,7 +213,7 @@
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 91 test files, 1742 tests total
+- `src/tests/test-v2-*.ts` — 93 test files, 1792 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
