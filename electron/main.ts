@@ -22,6 +22,13 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist-app/index.html'));
   }
 
+  // Forward renderer console to terminal so we can read logs
+  mainWindow.webContents.on('console-message', (ev) => {
+    const tag = ['LOG', 'WARN', 'ERROR'][ev.level] ?? 'LOG';
+    const source = ev.sourceId ? ev.sourceId.split('/').pop() : '';
+    console.log(`[renderer:${tag}] ${ev.message}${source ? ` (${source}:${ev.line})` : ''}`);
+  });
+
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 

@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1867 tests passing (96 test files). 100-day stress test: 16 pop, 12 deaths, 0 errors, 11 techs researched, prosperity 90.
+- **Status**: V2 spatial simulation. 1775 tests passing (98 test files). 100-day stress test: 16 pop, 1 death, 0 errors, 11 techs researched, prosperity 95.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse, watchtower→guard_tower, woodcutter→logging_camp.
@@ -218,7 +218,7 @@
 39. ~~More trait variety~~ ✅ Done — 24 total traits (7 new: defender, fierce, nomad, prodigy, dullard, scholar, swordsman). 15 tests.
 40. ~~Endgame victory condition~~ ✅ Done — all villages liberated + all techs + prosperity 100 + pop 15. 12 tests.
 41. Save/load game state
-42. Better death/combat balance (15 deaths in 100 days is high)
+42. ~~Better death/combat balance~~ ✅ Done — siege at str 5+ (not 3), slower raidBar, smarter AI. 1 death in 100 days.
 43. Building destruction events (fire, siege damage) need more dramatic impact
 44. ~~More diverse raid events~~ ✅ Done — night raids (30% chance), multi-wave sieges (str 6+), reclamation parties after liberation. 11 tests.
 

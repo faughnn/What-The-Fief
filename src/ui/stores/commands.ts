@@ -11,12 +11,17 @@ import {
 } from '../../simulation/index.js';
 import type { GameState } from '../../world.js';
 
-function cmd<A extends unknown[]>(simFn: (gs: GameState, ...args: A) => GameState): (...args: A) => boolean {
+function cmd<A extends unknown[]>(simFn: (gs: GameState, ...args: A) => GameState, name?: string): (...args: A) => boolean {
+  const label = name ?? simFn.name ?? 'unknown';
   return (...args) => {
     const gs = get(gameState);
     if (!gs) return false;
     const result = simFn(gs, ...args);
-    if (result === gs) return false;
+    if (result === gs) {
+      console.log(`[cmd] ${label} REJECTED`, ...args);
+      return false;
+    }
+    console.log(`[cmd] ${label}`, ...args);
     gameState.set(result);
     return true;
   };

@@ -55,6 +55,13 @@ let lastEventCount = 0;
 
 export const events = writable<string[]>([]);
 
+let lastLogDay = -1;
+let lastLogSeason = '';
+let lastLogPop = -1;
+let ticksThisSecond = 0;
+let lastPerfTime = 0;
+let lastVillagerLogTime = 0;
+
 function gameLoop(timestamp: number) {
   animFrameId = requestAnimationFrame(gameLoop);
   const gs = get(gameState);
@@ -70,14 +77,57 @@ function gameLoop(timestamp: number) {
   if (ticksToRun > 0) {
     lastTickTime = timestamp;
     const maxTicks = Math.min(ticksToRun, spd * 2);
+    const t0 = performance.now();
     let state = gs;
     for (let i = 0; i < maxTicks; i++) {
       state = tick(state);
     }
-    // Collect new events
+    const tickMs = performance.now() - t0;
+
+    // Performance logging — once per second
+    ticksThisSecond += maxTicks;
+    if (timestamp - lastPerfTime >= 1000) {
+      console.log(`[perf] ${ticksThisSecond} ticks/s, ${tickMs.toFixed(1)}ms for ${maxTicks} ticks, speed=${spd}x`);
+      ticksThisSecond = 0;
+      lastPerfTime = timestamp;
+    }
+
+    // Villager state logging — every 5 seconds
+    if (timestamp - lastVillagerLogTime >= 5000) {
+      lastVillagerLogTime = timestamp;
+      for (const v of state.villagers) {
+        const carrying = v.carryTotal > 0 ? ` carry=${v.carryTotal}` : '';
+        const path = v.path.length > 0 ? ` path=${v.path.length}` : '';
+        const job = v.jobBuildingId ? ` job=${state.buildings.find(b => b.id === v.jobBuildingId)?.type ?? '?'}` : '';
+        console.log(`[villager] ${v.name} (${v.x},${v.y}) state=${v.state}${job}${carrying}${path} hunger=${Math.round(v.hunger)} hp=${v.hp}`);
+      }
+    }
+
+    // Milestone logging
+    if (state.day !== lastLogDay) {
+      lastLogDay = state.day;
+      const r = state.resources;
+      console.log(`[game] Day ${state.day} | ${state.season} | pop=${state.villagers.length} | food=${r.food} wood=${r.wood} stone=${r.stone} | buildings=${state.buildings.length} | prosperity=${Math.round(state.prosperity)}`);
+    }
+    if (state.season !== lastLogSeason) {
+      lastLogSeason = state.season;
+      console.log(`[game] Season changed to ${state.season}`);
+    }
+    if (state.villagers.length !== lastLogPop) {
+      const diff = state.villagers.length - (lastLogPop === -1 ? state.villagers.length : lastLogPop);
+      if (lastLogPop !== -1) {
+        console.log(`[game] Population ${diff > 0 ? '+' : ''}${diff} → ${state.villagers.length}`);
+      }
+      lastLogPop = state.villagers.length;
+    }
+
+    // Collect new events and log them
     const newEvents = state.events.slice(lastEventCount);
     lastEventCount = state.events.length;
     if (newEvents.length > 0) {
+      for (const ev of newEvents) {
+        console.log(`[event] ${ev}`);
+      }
       events.update(e => [...e.slice(-50), ...newEvents]);
     }
     gameState.set(state);

@@ -132,7 +132,7 @@ export function setGuard(state: GameState, villagerId: string): GameState {
   const newVillagers = state.villagers.map(v => {
     if (v.id === villagerId) {
       const maxHp = 15 + Math.floor(v.morale / 10);
-      return { ...v, skills: { ...v.skills }, traits: [...v.traits], role: 'guard' as const, jobBuildingId: null, hp: maxHp, maxHp };
+      return { ...v, role: 'guard' as const, jobBuildingId: null, hp: maxHp, maxHp };
     }
     return v;
   });
@@ -147,7 +147,7 @@ export function setPatrol(state: GameState, villagerId: string, waypoints: { x: 
 
   const newVillagers = state.villagers.map(v => {
     if (v.id === villagerId) {
-      return { ...v, skills: { ...v.skills }, traits: [...v.traits], patrolRoute: [...waypoints], patrolIndex: 0 };
+      return { ...v, patrolRoute: [...waypoints], patrolIndex: 0 };
     }
     return v;
   });
@@ -163,8 +163,7 @@ export function sendScout(state: GameState, villagerId: string, direction: Direc
   const newVillagers = state.villagers.map(v => {
     if (v.id === villagerId) {
       return {
-        ...v, skills: { ...v.skills }, traits: [...v.traits],
-        role: 'scout' as const, state: 'scouting' as const,
+        ...v, role: 'scout' as const, state: 'scouting' as const,
         jobBuildingId: null, scoutDirection: direction, scoutTicksLeft: 50,
       };
     }
@@ -198,7 +197,7 @@ export function setFormation(state: GameState, villagerId: string, mode: GuardMo
 
   const newVillagers = state.villagers.map(v => {
     if (v.id === villagerId) {
-      return { ...v, skills: { ...v.skills }, traits: [...v.traits], guardMode: mode, guardLine: line };
+      return { ...v, guardMode: mode, guardLine: line };
     }
     return v;
   });
@@ -215,7 +214,7 @@ export function assaultCamp(state: GameState, villagerId: string, campId: string
 
   const newVillagers = state.villagers.map(v => {
     if (v.id === villagerId) {
-      return { ...v, skills: { ...v.skills }, traits: [...v.traits], assaultTargetId: campId, state: 'assaulting_camp' as const };
+      return { ...v, assaultTargetId: campId, state: 'assaulting_camp' as const };
     }
     return v;
   });
@@ -234,7 +233,7 @@ export function setPreferredJob(state: GameState, villagerId: string, jobType: B
   }
 
   const newVillagers = state.villagers.map(v =>
-    v.id === villagerId ? { ...v, skills: { ...v.skills }, traits: [...v.traits], preferredJob: jobType } : v
+    v.id === villagerId ? { ...v, preferredJob: jobType } : v
   );
   return { ...state, villagers: newVillagers };
 }
@@ -392,10 +391,7 @@ export function createSupplyRoute(
 
   const newVillagers = state.villagers.map(v =>
     v.id === villagerId
-      ? { ...v, skills: { ...v.skills }, traits: [...v.traits], path: [...v.path],
-          carrying: { ...v.carrying }, patrolRoute: [...v.patrolRoute],
-          recentMeals: [...v.recentMeals], family: [...v.family],
-          role: 'hauler' as const, supplyRouteId: routeId, state: 'supply_traveling_to_source' as const,
+      ? { ...v, role: 'hauler' as const, supplyRouteId: routeId, state: 'supply_traveling_to_source' as const,
           jobBuildingId: null }
       : v
   );
@@ -415,10 +411,7 @@ export function cancelSupplyRoute(state: GameState, routeId: string): GameState 
   const newVillagers = state.villagers.map(v => {
     if (v.supplyRouteId === routeId) {
       return {
-        ...v, skills: { ...v.skills }, traits: [...v.traits], path: [...v.path],
-        carrying: { ...v.carrying }, patrolRoute: [...v.patrolRoute],
-        recentMeals: [...v.recentMeals], family: [...v.family],
-        role: 'idle' as const, supplyRouteId: null, state: 'idle' as const,
+        ...v, role: 'idle' as const, supplyRouteId: null, state: 'idle' as const,
         jobBuildingId: null,
       };
     }

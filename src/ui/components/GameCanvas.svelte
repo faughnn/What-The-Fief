@@ -39,6 +39,10 @@
   let centered = false;
   let cleanupCamera: (() => void) | null = null;
   let lastStateRef: GameState | null = null;
+  let renderCount = 0;
+  let terrainDraws = 0;
+  let worldDraws = 0;
+  let lastRenderPerfTime = 0;
 
   function rebuildGridBuildings(gs: GameState | null) {
     gridBuildings = new Map();
@@ -77,6 +81,17 @@
       rebuildGridBuildings(gs);
     }
 
+    // Render perf logging — once per second
+    renderCount++;
+    const now = performance.now();
+    if (now - lastRenderPerfTime >= 1000) {
+      console.log(`[render] ${renderCount} fps | terrain=${terrainDraws} world=${worldDraws} draws/s`);
+      renderCount = 0;
+      terrainDraws = 0;
+      worldDraws = 0;
+      lastRenderPerfTime = now;
+    }
+
     // Capture dirty state before clearing
     const tDirty = $terrainDirty;
     const wDirty = $worldDirty || $stateChanged;
@@ -97,6 +112,7 @@
 
     // Terrain layer — only on camera move or territory/fog change
     if (tDirty) {
+      terrainDraws++;
       const tCtx = terrainCanvas.getContext('2d')!;
       tCtx.clearRect(0, 0, displayW, displayH);
       tCtx.save();
@@ -110,6 +126,7 @@
 
     // World layer — on state change or camera move
     if (wDirty) {
+      worldDraws++;
       const wCtx = worldCanvas.getContext('2d')!;
       wCtx.clearRect(0, 0, displayW, displayH);
       wCtx.save();
@@ -152,14 +169,21 @@
   onMount(() => {
     cleanupCamera = setupCameraControls(terrainCanvas, onTileClick);
     rebuildGridBuildings($gameState);
-    const unsub = gameState.subscribe(gs => {
-      if (gs && gs.villagers.length > 0 && !centered) {
-        centered = true;
-        const v = gs.villagers[0];
-        centerOnTile(v.x, v.y, terrainCanvas.clientWidth, terrainCanvas.clientHeight);
-        unsub();
-      }
-    });
+    const gs = $gameState;
+    if (gs && gs.villagers.length > 0) {
+      centered = true;
+      const v = gs.villagers[0];
+      centerOnTile(v.x, v.y, terrainCanvas.clientWidth, terrainCanvas.clientHeight);
+    } else {
+      const unsub = gameState.subscribe(gs => {
+        if (gs && gs.villagers.length > 0 && !centered) {
+          centered = true;
+          const v = gs.villagers[0];
+          centerOnTile(v.x, v.y, terrainCanvas.clientWidth, terrainCanvas.clientHeight);
+          unsub();
+        }
+      });
+    }
     rafId = requestAnimationFrame(render);
   });
 

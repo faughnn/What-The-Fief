@@ -58,7 +58,7 @@ export function findPath(
   return findPathCore(grid, width, height, fromX, fromY, toX, toY, (tile) => {
     if (!tile.building) return true;
     const t = tile.building.type;
-    return t === 'gate' || t === 'rubble' || t === 'fence' || t === 'road' || t === 'spike_trap' || t === 'river_dock';
+    return t === 'gate' || t === 'rubble' || t === 'fence' || t === 'road' || t === 'spike_trap' || t === 'river_dock' || t === 'travel_sign';
   });
 }
 

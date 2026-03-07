@@ -313,7 +313,7 @@ function resumeWorkOrGoHome(v: Villager, ts: TickState): void {
 // Returns true if the guard was handled (caller should continue to next villager)
 function handleGuard(v: Villager, ts: TickState): boolean {
   if (v.state === 'traveling_to_eat') {
-    if (atDestination(v)) { v.state = 'eating'; } else { moveOneStep(v, ts.grid); }
+    if (atDestination(v)) { v.state = 'eating'; } else { moveOneStep(v, ts.grid, ts.buildings); }
     return true;
   }
   if (v.state === 'eating') {
@@ -370,7 +370,7 @@ function handleTravelingToWork(v: Villager, ts: TickState): void {
     v.state = 'working';
     v.workProgress = 0;
   } else {
-    moveOneStep(v, ts.grid);
+    moveOneStep(v, ts.grid, ts.buildings);
     if (ts.dayTick >= HOME_DEPARTURE_TICK) {
       startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height, ts.buildingMap);
     }
@@ -537,7 +537,7 @@ function handleTravelingToStorage(v: Villager, ts: TickState): void {
       handleDropoffAtStorehouse(v, ts);
     }
   } else {
-    moveOneStep(v, ts.grid);
+    moveOneStep(v, ts.grid, ts.buildings);
   }
 }
 
@@ -686,7 +686,7 @@ function handleEating(v: Villager, ts: TickState): void {
 // --- Supply route state handlers ---
 
 function handleSupplyTravelingToSource(v: Villager, ts: TickState): void {
-  if (!moveOneStep(v, ts.grid)) {
+  if (!moveOneStep(v, ts.grid, ts.buildings)) {
     const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
     const source = route ? ts.buildingMap.get(route.fromBuildingId) : null;
     if (!route || !source) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; return; }
@@ -752,7 +752,7 @@ function handleSupplyLoading(v: Villager, ts: TickState): void {
 }
 
 function handleSupplyTravelingToDest(v: Villager, ts: TickState): void {
-  if (!moveOneStep(v, ts.grid)) {
+  if (!moveOneStep(v, ts.grid, ts.buildings)) {
     const route = v.supplyRouteId ? ts.supplyRoutes.find(r => r.id === v.supplyRouteId) : null;
     const dest = route ? ts.buildingMap.get(route.toBuildingId) : null;
     if (!route || !dest) { v.state = 'idle'; v.role = 'idle'; v.supplyRouteId = null; return; }
@@ -914,14 +914,14 @@ export function processVillagerStateMachine(ts: TickState): void {
       case 'traveling_to_work':          handleTravelingToWork(v, ts); break;
       case 'working':                    handleWorking(v, ts); break;
       case 'traveling_to_storage':       handleTravelingToStorage(v, ts); break;
-      case 'traveling_home':             if (atDestination(v)) { v.state = 'sleeping'; } else { moveOneStep(v, ts.grid); } break;
-      case 'traveling_to_tavern':        if (atDestination(v)) { v.state = 'relaxing'; } else { moveOneStep(v, ts.grid); } break;
+      case 'traveling_home':             if (atDestination(v)) { v.state = 'sleeping'; } else { moveOneStep(v, ts.grid, ts.buildings); } break;
+      case 'traveling_to_tavern':        if (atDestination(v)) { v.state = 'relaxing'; } else { moveOneStep(v, ts.grid, ts.buildings); } break;
       case 'relaxing':                   handleRelaxing(v, ts); break;
-      case 'traveling_to_heal':          if (atDestination(v)) { v.state = 'healing'; } else { moveOneStep(v, ts.grid); } break;
+      case 'traveling_to_heal':          if (atDestination(v)) { v.state = 'healing'; } else { moveOneStep(v, ts.grid, ts.buildings); } break;
       case 'healing':                    handleHealing(v, ts); break;
-      case 'traveling_to_build':         if (atDestination(v)) { v.state = 'constructing'; } else { moveOneStep(v, ts.grid); if (ts.dayTick >= HOME_DEPARTURE_TICK) startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height, ts.buildingMap); } break;
+      case 'traveling_to_build':         if (atDestination(v)) { v.state = 'constructing'; } else { moveOneStep(v, ts.grid, ts.buildings); if (ts.dayTick >= HOME_DEPARTURE_TICK) startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height, ts.buildingMap); } break;
       case 'constructing':              handleConstructing(v, ts); break;
-      case 'traveling_to_eat':           if (atDestination(v)) { v.state = 'eating'; } else { moveOneStep(v, ts.grid); if (ts.dayTick >= HOME_DEPARTURE_TICK) startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height, ts.buildingMap); } break;
+      case 'traveling_to_eat':           if (atDestination(v)) { v.state = 'eating'; } else { moveOneStep(v, ts.grid, ts.buildings); if (ts.dayTick >= HOME_DEPARTURE_TICK) startGoingHome(v, ts.buildings, ts.grid, ts.width, ts.height, ts.buildingMap); } break;
       case 'eating':                     handleEating(v, ts); break;
       case 'supply_traveling_to_source': handleSupplyTravelingToSource(v, ts); break;
       case 'supply_loading':             handleSupplyLoading(v, ts); break;

@@ -28,18 +28,15 @@ A physically simulated medieval colony. The player is a god-like overseer — no
 ## The Loop
 
 ```
-OBSERVE  -> Run all tests and the stress test. Read the output.
-EVALUATE -> Ask the Bellwright Question. Research online.
-DESIGN   -> Pick the highest priority gap, design the fix.
-TEST     -> Write unit tests FIRST that enforce physical behavior.
-BUILD    -> Implement until ALL unit tests pass (new and existing).
-STRESS   -> Run the stress test. If it fails, ask the Bellwright Question to diagnose, fix, repeat.
-COMMIT   -> git commit, update PROGRESS.md.
+EVALUATE  -> Ask the Bellwright Question. Research online.
+DESIGN    -> Pick the highest priority gap, design the fix.
+TEST      -> Write unit tests FIRST that enforce physical behavior.
+BUILD     -> Implement until ALL unit tests pass (new and existing).
+REFACTOR  -> "Now that you've implemented this, how would you refactor it?" Do it. Re-run all tests.
+STRESS    -> Run the stress test. If it fails, ask the Bellwright Question to diagnose, fix, repeat.
+COMMIT    -> git commit, update PROGRESS.md.
 REPEAT
 ```
-
-### OBSERVE
-Run all unit tests and the stress test in quiet mode first (`-q`). If anything fails, run the specific failing test or verbose stress test to diagnose. Fix breakages before moving on.
 
 ### EVALUATE
 Ask the Bellwright Question (see below). This includes researching online how the real game handles whatever gaps you find. Don't skip the research step.
@@ -59,6 +56,9 @@ Write in `src/tests/`. Run ALL before committing.
 Implement until all unit tests pass — both the new ones and all existing ones. Never assume it works. Run them.
 
 If existing tests fail after a mechanics change, don't blindly fix the tests or revert the code. Ask the Bellwright Question: research how Bellwright handles it, then decide whether the test or the code is wrong. Update whichever one doesn't match Bellwright.
+
+### REFACTOR
+Now that you've implemented this, how would you refactor it? You have the full picture — the tests, the implementation, how it fits with existing systems. Look for duplication, unclear names, unnecessary complexity, functions doing too many things, or missed opportunities to reuse existing helpers. Refactor, then re-run all tests to confirm nothing broke.
 
 ### STRESS
 Run the stress test. If it fails, go back to the Bellwright Question: what's wrong, how does Bellwright handle it, research online, fix it, re-run. Loop until it passes.
