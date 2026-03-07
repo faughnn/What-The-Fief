@@ -158,7 +158,9 @@ export type BuildingType =
   // Brewing
   | 'brewery'
   // Upgraded military/resource buildings
-  | 'guard_tower' | 'logging_camp';
+  | 'guard_tower' | 'logging_camp'
+  // Water crossing
+  | 'river_dock';
 
 export interface Building {
   id: string;
@@ -944,6 +946,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { wood: 15, stone: 5, planks: 5 }, description: 'Upgraded woodcutter — 2 workers',
     maxWorkers: 2, production: { output: 'wood', amountPerWorker: 2, inputs: null }, mapChar: 'L',
   },
+  river_dock: {
+    type: 'river_dock', width: 1, height: 1, allowedTerrain: ['grass'],
+    cost: { planks: 10, rope: 5, wood: 5 }, description: 'Dock — allows crossing adjacent water tiles',
+    maxWorkers: 0, production: null, mapChar: 'D',
+  },
 };
 
 // --- Skills ---
@@ -1286,6 +1293,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   brewery: 40,
   guard_tower: 120,
   logging_camp: 40,
+  river_dock: 40,
 };
 
 
@@ -1440,6 +1448,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   village_hall: 'architecture',
   stonemason: 'masonry',
   trappers_camp: 'animal_husbandry',
+  river_dock: 'civil_engineering',
 };
 
 export interface ResearchState {

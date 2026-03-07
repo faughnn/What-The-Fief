@@ -2,6 +2,18 @@
 
 import { Tile, Villager } from '../world.js';
 
+// --- Check if a water tile is crossable via a river dock ---
+function isWaterCrossable(grid: Tile[][], width: number, height: number, x: number, y: number): boolean {
+  const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+  for (const { dx, dy } of dirs) {
+    const ax = x + dx, ay = y + dy;
+    if (ax < 0 || ay < 0 || ax >= width || ay >= height) continue;
+    const adj = grid[ay][ax];
+    if (adj.building?.type === 'river_dock' && adj.building.constructed) return true;
+  }
+  return false;
+}
+
 // --- Core BFS Pathfinding ---
 function findPathCore(
   grid: Tile[][], width: number, height: number,
@@ -23,7 +35,8 @@ function findPathCore(
       if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
       if (visited.has(key)) continue;
       const tile = grid[ny][nx];
-      if (tile.terrain === 'water') continue;
+      // Water blocks unless adjacent to a river dock
+      if (tile.terrain === 'water' && !isWaterCrossable(grid, width, height, nx, ny)) continue;
       // Destination tile is always passable (workers enter buildings)
       if (nx !== toX || ny !== toY) {
         if (!canPassTile(tile)) continue;
@@ -45,7 +58,7 @@ export function findPath(
   return findPathCore(grid, width, height, fromX, fromY, toX, toY, (tile) => {
     if (!tile.building) return true;
     const t = tile.building.type;
-    return t === 'gate' || t === 'rubble' || t === 'fence' || t === 'road' || t === 'spike_trap';
+    return t === 'gate' || t === 'rubble' || t === 'fence' || t === 'road' || t === 'spike_trap' || t === 'river_dock';
   });
 }
 

@@ -47,7 +47,7 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
   }
 
   // Fishing hut must be adjacent to at least one water tile
-  if (type === 'fishing_hut') {
+  if (type === 'fishing_hut' || type === 'river_dock') {
     let hasWater = false;
     for (let dy = 0; dy < bh && !hasWater; dy++) {
       for (let dx = 0; dx < bw && !hasWater; dx++) {
@@ -65,7 +65,7 @@ export function placeBuilding(state: GameState, type: BuildingType, x: number, y
       }
     }
     if (!hasWater) {
-      console.log(`ERROR: Cannot place fishing_hut at (${x},${y}) — must be adjacent to water`);
+      console.log(`ERROR: Cannot place ${type} at (${x},${y}) — must be adjacent to water`);
       return state;
     }
   }
