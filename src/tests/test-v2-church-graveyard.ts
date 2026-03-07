@@ -46,7 +46,7 @@ heading('Church Placement');
 
 {
   let state = flatWorld(20, 20);
-  state = { ...state, resources: { ...state.resources, wood: 100, stone: 50 } };
+  state = { ...state, resources: { ...state.resources, wood: 100, stone: 50, stone_blocks: 20 } };
   state = placeBuilding(state, 'church', 5, 5);
 
   const church = state.buildings.find(b => b.type === 'church');
@@ -60,7 +60,7 @@ heading('Church Morale Bonus');
 
 {
   let state = flatWorld(20, 20);
-  state = { ...state, resources: { ...state.resources, wood: 100, stone: 50 } };
+  state = { ...state, resources: { ...state.resources, wood: 100, stone: 50, stone_blocks: 20 } };
 
   state = placeBuilding(state, 'church', 5, 5);
   state = placeBuilding(state, 'house', 8, 5); // Adjacent to church (within 5 tiles)
@@ -123,7 +123,7 @@ heading('Graveyard Records Dead');
 
 {
   let state = flatWorld(20, 20);
-  state = { ...state, resources: { ...state.resources, wood: 100, stone: 50 } };
+  state = { ...state, resources: { ...state.resources, wood: 100, stone: 50, stone_blocks: 20 } };
 
   state = placeBuilding(state, 'graveyard', 5, 5);
   state = {

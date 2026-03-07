@@ -203,7 +203,7 @@ heading('Size-Changing Upgrade (House to Manor)');
 
 {
   let state = flatWorld(15, 10);
-  state = { ...state, resources: { ...state.resources, wood: 100, stone: 30, planks: 20 } };
+  state = { ...state, resources: { ...state.resources, wood: 100, stone: 30, planks: 20, stone_blocks: 20 } };
 
   // Place house at (3,3) — 1x1
   state = placeBuilding(state, 'house', 3, 3);
@@ -230,7 +230,7 @@ heading('Size-Changing Upgrade Blocked');
 
 {
   let state = flatWorld(15, 10);
-  state = { ...state, resources: { ...state.resources, wood: 100, stone: 30, planks: 20 } };
+  state = { ...state, resources: { ...state.resources, wood: 100, stone: 30, planks: 20, stone_blocks: 20 } };
 
   // Place house at (3,3) and a fence at (4,3) blocking expansion
   state = placeBuilding(state, 'house', 3, 3);
@@ -339,7 +339,7 @@ heading('Upgrade Storehouse to Large Storehouse');
 
 {
   let state = flatWorld(15, 10);
-  state = { ...state, resources: { ...state.resources, wood: 80, stone: 30, planks: 20 } };
+  state = { ...state, resources: { ...state.resources, wood: 80, stone: 30, planks: 20, stone_blocks: 20 } };
 
   state = placeBuilding(state, 'storehouse', 3, 3);
   const shId = state.buildings.find(b => b.type === 'storehouse')!.id;

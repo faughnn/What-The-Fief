@@ -28,8 +28,8 @@ function setupColony(villagersCount: number): GameState {
   state = placeBuilding(state, 'storehouse', 10, 10);
   const sh = state.buildings.find(b => b.type === 'storehouse')!;
   sh.constructed = true; sh.hp = sh.maxHp;
-  sh.localBuffer = { food: 200 };
-  state.resources.food = 200;
+  sh.localBuffer = { food: 200, stone: 100, stone_blocks: 50, gold: 50, wood: 200 };
+  state.resources = { ...state.resources, food: 200, stone: 100, stone_blocks: 50, gold: 50, wood: 200 };
 
   for (let i = 0; i < villagersCount; i++) {
     state = placeBuilding(state, 'tent', 5 + i, 5);

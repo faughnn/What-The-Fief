@@ -709,7 +709,7 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   },
   church: {
     type: 'church', width: 2, height: 2, allowedTerrain: ['grass'],
-    cost: { wood: 20, stone: 15 }, description: 'Boosts morale of nearby villagers',
+    cost: { wood: 20, stone: 10, stone_blocks: 5 }, description: 'Boosts morale of nearby villagers',
     maxWorkers: 0, production: null, mapChar: 'C',
   },
   graveyard: {
@@ -782,12 +782,12 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   },
   fountain: {
     type: 'fountain', width: 1, height: 1, allowedTerrain: ['grass'],
-    cost: { stone: 10 }, description: 'Fountain — boosts morale + reduces fire risk',
+    cost: { stone: 5, stone_blocks: 3 }, description: 'Fountain — boosts morale + reduces fire risk',
     maxWorkers: 0, production: null, mapChar: 'o',
   },
   statue: {
     type: 'statue', width: 1, height: 1, allowedTerrain: ['grass'],
-    cost: { stone: 15, gold: 5 }, description: 'Statue — strong morale boost to nearby homes',
+    cost: { stone_blocks: 5, gold: 5 }, description: 'Statue — strong morale boost to nearby homes',
     maxWorkers: 0, production: null, mapChar: '!',
   },
   // --- Outpost ---
@@ -803,7 +803,7 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
   },
   reinforced_wall: {
     type: 'reinforced_wall', width: 1, height: 1, allowedTerrain: ['grass', 'stone', 'hill'],
-    cost: { stone: 5, ingots: 2 }, description: 'Reinforced stone wall — extra durable',
+    cost: { stone_blocks: 3, ingots: 2 }, description: 'Reinforced stone wall — extra durable',
     maxWorkers: 0, production: null, mapChar: '#',
   },
   barracks: {
@@ -1201,7 +1201,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
 export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cost: Partial<Resources> }>> = {
   tent: { to: 'cottage', cost: { wood: 3 } },
   cottage: { to: 'house', cost: { wood: 5, planks: 3 } },
-  house: { to: 'manor', cost: { wood: 15, stone: 15, planks: 10 } },
+  house: { to: 'manor', cost: { wood: 15, stone: 10, planks: 10, stone_blocks: 5 } },
   // Production building upgrades
   farm: { to: 'large_farm', cost: { wood: 10, stone: 5, planks: 5 } },
   sawmill: { to: 'lumber_mill', cost: { wood: 10, stone: 10, planks: 5 } },
@@ -1209,11 +1209,11 @@ export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cos
   smelter: { to: 'advanced_smelter', cost: { stone: 15, planks: 10, ingots: 5 } },
   mill: { to: 'windmill', cost: { wood: 10, stone: 10, planks: 5, rope: 3 } },
   bakery: { to: 'kitchen', cost: { wood: 10, stone: 10, planks: 5 } },
-  storehouse: { to: 'large_storehouse', cost: { wood: 20, stone: 10, planks: 10 } },
+  storehouse: { to: 'large_storehouse', cost: { wood: 20, stone: 5, planks: 10, stone_blocks: 5 } },
   tavern: { to: 'inn', cost: { wood: 15, stone: 10, planks: 8, rope: 3 } },
   foraging_hut: { to: 'foraging_lodge', cost: { wood: 8, stone: 3, planks: 2 } },
   fence: { to: 'wall', cost: { stone: 3 } },
-  wall: { to: 'reinforced_wall', cost: { stone: 5, ingots: 2 } },
+  wall: { to: 'reinforced_wall', cost: { stone_blocks: 3, ingots: 2 } },
 };
 
 export const WATCHTOWER_RANGE = 5;

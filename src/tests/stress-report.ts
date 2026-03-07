@@ -277,8 +277,12 @@ function playerAI(state: GameState): GameState {
   if (day >= 28 && countBuildings(state, 'leather_workshop') === 0 && countBuildings(state, 'tanner') > 0 && countBuildings(state, 'weaver') > 0 && canBuildTech(state, 'leather_workshop')) {
     state = tryBuild(state, 'leather_workshop', 12, 14);
   }
-  // Church for morale (requires trade_routes)
-  if (day >= 30 && countBuildings(state, 'church') === 0 && canAfford(state, 'church') && canBuildTech(state, 'church')) {
+  // Stonemason — stone → stone_blocks for advanced buildings (requires masonry)
+  if (day >= 20 && countBuildings(state, 'stonemason') === 0 && countBuildings(state, 'quarry') > 0 && canBuildTech(state, 'stonemason') && canAfford(state, 'stonemason')) {
+    state = tryBuild(state, 'stonemason', 14, 16);
+  }
+  // Church for morale (requires trade_routes + stone_blocks)
+  if (day >= 35 && countBuildings(state, 'church') === 0 && canAfford(state, 'church') && canBuildTech(state, 'church')) {
     state = tryBuild(state, 'church', 14, 15);
   }
   // Library — passive research speed boost (requires civil_engineering)

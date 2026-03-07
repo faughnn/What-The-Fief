@@ -26,14 +26,14 @@ function makeWorld(): GameState {
     state.fog[y][x] = true;
     state.territory[y][x] = true;
   }
-  state.resources = { ...state.resources, wood: 200, stone: 200, ingots: 50, planks: 50 };
+  state.resources = { ...state.resources, wood: 200, stone: 200, ingots: 50, planks: 50, stone_blocks: 50 };
   state.villagers = [];
   state.nextVillagerId = 1;
 
   const s = placeBuilding(state, 'storehouse', 10, 10);
   const sh = s.buildings.find(b => b.type === 'storehouse')!;
   sh.constructed = true; sh.hp = sh.maxHp;
-  sh.localBuffer = { food: 200, stone: 200, ingots: 50 };
+  sh.localBuffer = { food: 200, stone: 200, ingots: 50, stone_blocks: 50 };
 
   const s2 = placeBuilding(s, 'tent', 8, 10);
   const tent = s2.buildings.find(b => b.type === 'tent')!;
