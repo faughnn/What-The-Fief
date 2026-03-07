@@ -8,7 +8,7 @@ import {
 } from '../world.js';
 import { TickState, computeStorageCap, hasTech, buildBuildingMap } from './helpers.js';
 import { validateState } from './validation.js';
-import { processDailyChecks } from './daily.js';
+import { processDailyChecks, checkVictory } from './daily.js';
 import { processDisease } from './disease.js';
 import { processSeasonAndWeather, processLightning } from './weather.js';
 import { processCaravans, processMerchant, processProsperity, processEventsAndQuests } from './trade.js';
@@ -58,7 +58,7 @@ export function tick(state: GameState): GameState {
   if (ts.isNewDay) processSeasonAndWeather(ts);
 
   // Daily checks (on new day)
-  if (ts.isNewDay) processDailyChecks(ts);
+  if (ts.isNewDay) { processDailyChecks(ts); checkVictory(ts); }
 
   // Villager state machine (per-tick)
   processVillagerStateMachine(ts);

@@ -18,6 +18,7 @@ import {
   FESTIVAL_MORALE_BOOST, FESTIVAL_DURATION,
   FRIENDSHIP_COWORK_THRESHOLD, FRIENDSHIP_MORALE_BONUS,
   FRIENDSHIP_GRIEF_DAYS, FRIENDSHIP_GRIEF_PENALTY, MAX_FRIENDS,
+  ALL_TECHS, VICTORY_MIN_POPULATION, VICTORY_MIN_PROSPERITY,
   ELDER_AGE, OLD_AGE_DEATH_START, OLD_AGE_DEATH_CHANCE, TOWN_HALL_MAINT_RANGE, VILLAGE_HALL_MAINT_RANGE,
   WEAPON_RACK_RANGE, WEAPON_EQUIP_PRIORITY, WEAPON_RESOURCE, WEAPON_DURABILITY,
   ARMOR_EQUIP_PRIORITY, ARMOR_RESOURCE, ARMOR_DURABILITY,
@@ -96,26 +97,20 @@ function calculateMorale(v: Villager, housingMorale: number, season: Season, wea
 }
 
 export function processDailyChecks(ts: TickState): void {
-  // Auto-assign homeless
+  // === Pre-morale pass ===
+  // Homeless assignment, tavern cooldown, grief countdown, clothing durability/equip
+  // All independent per-villager updates that must happen before morale calculation
   for (const v of ts.villagers) {
+    // Auto-assign homeless
     if (!v.homeBuildingId) {
       const homeId = findHome(ts.buildings, ts.villagers);
       if (homeId) v.homeBuildingId = homeId;
     }
-  }
-
-  // Tavern visit cooldown — decrement daily
-  for (const v of ts.villagers) {
+    // Tavern visit cooldown — decrement daily
     if (v.tavernVisitCooldown > 0) v.tavernVisitCooldown -= 1;
-  }
-
-  // Grief countdown — decrement daily
-  for (const v of ts.villagers) {
+    // Grief countdown — decrement daily
     if (v.grief > 0) v.grief -= 1;
-  }
-
-  // Clothing durability — decrement daily, unclothed when worn out
-  for (const v of ts.villagers) {
+    // Clothing durability — decrement daily, unclothed when worn out
     if (v.clothed) {
       v.clothingDurability -= 1;
       if (v.clothingDurability <= 0) {
@@ -123,10 +118,7 @@ export function processDailyChecks(ts: TickState): void {
         v.clothingDurability = 0;
       }
     }
-  }
-
-  // Clothing equip — try to clothe unclothed villagers from storehouse linen/leather
-  for (const v of ts.villagers) {
+    // Clothing equip — try to clothe unclothed villagers from storehouse linen/leather
     if (!v.clothed) {
       for (const mat of ['linen', 'leather'] as const) {
         const sh = findStorehouseWithResource(ts.buildings, mat);
@@ -140,11 +132,13 @@ export function processDailyChecks(ts: TickState): void {
     }
   }
 
+  // === Morale pass ===
+  // Calculate morale (depends on pre-morale state), reset lastAte, update housing check
   // Festival active check
   const festivalActive = ts.newDay - ts.lastFestivalDay < FESTIVAL_DURATION && ts.lastFestivalDay >= 0;
 
-  // Calculate morale
   for (const v of ts.villagers) {
+    // Calculate morale
     let housingMorale = 0;
     const home = v.homeBuildingId ? ts.buildingMap.get(v.homeBuildingId) : undefined;
     if (home) housingMorale = HOUSING_INFO[home.type]?.morale ?? 0;
@@ -184,15 +178,9 @@ export function processDailyChecks(ts: TickState): void {
     // Count living friends
     const friendsAlive = v.friends.filter(fid => ts.villagers.some(other => other.id === fid)).length;
     v.morale = calculateMorale(v, housingMorale + comfortBonus, ts.season, ts.weather, familyNearby, churchNearby, decorationBonus, ts.newDay, festivalActive, friendsAlive);
-  }
-
-  // Reset lastAte AFTER morale calculation — so yesterday's meals influence today's morale
-  for (const v of ts.villagers) {
+    // Reset lastAte AFTER morale calculation — so yesterday's meals influence today's morale
     v.lastAte = 'nothing' as FoodEaten;
-  }
-
-  // Housing check
-  for (const v of ts.villagers) {
+    // Housing check
     v.homeless = v.homeBuildingId ? 0 : v.homeless + 1;
   }
 
@@ -204,6 +192,8 @@ export function processDailyChecks(ts: TickState): void {
       if (guard) {
         let xp = 2;
         if (guard.traits.includes('fast_learner')) xp = Math.ceil(xp * 1.5);
+        if (guard.traits.includes('prodigy')) xp = Math.ceil(xp * 1.5);
+        if (guard.traits.includes('dullard')) xp = Math.max(1, Math.floor(xp * 0.7));
         const combatCap = guard.skillCaps?.combat ?? 100;
         guard.skills.combat = Math.min(combatCap, guard.skills.combat + xp);
       }
@@ -448,19 +438,6 @@ export function processDailyChecks(ts: TickState): void {
     }
   }
 
-  // Hunger decay — AFTER departure check so villagers get one more dawn to eat.
-  // Departure uses yesterday's food level. Decay applies for today. Eating at dawn (tick 30) restores food.
-  // Note: lastAte is NOT reset here — it's reset AFTER morale calculation
-  // so that yesterday's meals correctly influence today's morale.
-  for (const v of ts.villagers) {
-    const isGlutton = v.traits.includes('glutton');
-    const isFrugal = v.traits.includes('frugal');
-    const isNeurotic = v.traits.includes('neurotic');
-    let decay = isGlutton ? 2 : (isFrugal ? 0.5 : 1);
-    if (isNeurotic) decay *= 1.25;
-    v.food = Math.max(0, v.food - decay);
-  }
-
   // Immigration — new villagers arrive at map edge and walk home
   // Requires: food in storehouse + renown (after first FREE_SETTLERS villagers)
   let storehouseEdible = 0;
@@ -500,33 +477,57 @@ export function processDailyChecks(ts: TickState): void {
     }
   }
 
-  // Guard equip tools and weapons
-  // Weapon racks: guards near a rack can equip from its buffer
-  const weaponRacks = ts.buildings.filter(b => b.type === 'weapon_rack' && b.constructed);
-  for (const v of ts.villagers) {
-    if (v.role !== 'guard') continue;
-    // Try weapon rack first for weapons/armor
-    if (v.weapon === 'none' || v.armor === 'none') {
-      for (const rack of weaponRacks) {
-        const dx = Math.abs(v.x - rack.x);
-        const dy = Math.abs(v.y - rack.y);
-        if (dx <= WEAPON_RACK_RANGE && dy <= WEAPON_RACK_RANGE) {
-          if (v.weapon === 'none') autoEquipWeaponFromBuffer(v, rack.localBuffer);
-          if (v.armor === 'none') autoEquipArmorFromBuffer(v, rack.localBuffer);
-          break;
-        }
-      }
+  // Bandit ultimatum countdown
+  if (ts.banditUltimatum) {
+    ts.banditUltimatum.daysLeft -= 1;
+    if (ts.banditUltimatum.daysLeft <= 0) {
+      // Ultimatum expired — trigger raid
+      ts.raidBar = Math.min(100, ts.raidBar + 60);
+      ts.events.push('The bandits have lost patience! A raid is imminent!');
+      ts.banditUltimatum = null;
     }
-    // Fallback to storehouse
-    if (v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
-    if (v.weapon === 'none') autoEquipWeapon(v, ts.resources, ts.buildings);
-    if (v.armor === 'none') autoEquipArmor(v, ts.resources, ts.buildings);
   }
 
-  // Disease daily: HP loss and duration countdown (after regen, so net effect is visible)
-  // Note: placed before regen so the -2 HP is offset by +2 regen = net 0,
-  // but we want net negative, so use 3 HP loss
+  // === Post-morale pass ===
+  // Hunger decay, guard equip, disease HP loss, HP regen, winter cold damage
+  // Order within pass: hunger decay, guard equip, disease (before regen), HP regen, winter cold
+  const weaponRacks = ts.buildings.filter(b => b.type === 'weapon_rack' && b.constructed);
+  const isWinter = ts.season === 'winter';
+  const hasMedicineTech = hasTech(ts.research, 'medicine');
+  const hasArmoredGuardsTech = hasTech(ts.research, 'armored_guards');
+
   for (const v of ts.villagers) {
+    // Hunger decay — AFTER departure check so villagers get one more dawn to eat.
+    // Departure uses yesterday's food level. Decay applies for today.
+    const isGlutton = v.traits.includes('glutton');
+    const isFrugal = v.traits.includes('frugal');
+    const isNeurotic = v.traits.includes('neurotic');
+    let decay = isGlutton ? 2 : (isFrugal ? 0.5 : 1);
+    if (isNeurotic) decay *= 1.25;
+    v.food = Math.max(0, v.food - decay);
+
+    // Guard equip tools and weapons
+    if (v.role === 'guard') {
+      // Try weapon rack first for weapons/armor
+      if (v.weapon === 'none' || v.armor === 'none') {
+        for (const rack of weaponRacks) {
+          const dx = Math.abs(v.x - rack.x);
+          const dy = Math.abs(v.y - rack.y);
+          if (dx <= WEAPON_RACK_RANGE && dy <= WEAPON_RACK_RANGE) {
+            if (v.weapon === 'none') autoEquipWeaponFromBuffer(v, rack.localBuffer);
+            if (v.armor === 'none') autoEquipArmorFromBuffer(v, rack.localBuffer);
+            break;
+          }
+        }
+      }
+      // Fallback to storehouse
+      if (v.tool === 'none') autoEquipTool(v, ts.resources, ts.toolDurBonus, ts.buildings);
+      if (v.weapon === 'none') autoEquipWeapon(v, ts.resources, ts.buildings);
+      if (v.armor === 'none') autoEquipArmor(v, ts.resources, ts.buildings);
+    }
+
+    // Disease daily: HP loss and duration countdown
+    // Placed before regen so the disease HP loss is partially offset by regen
     if (v.sick) {
       v.hp = Math.max(1, v.hp - DISEASE_HP_LOSS_PER_DAY);
       v.sickDays -= 1;
@@ -545,29 +546,16 @@ export function processDailyChecks(ts: TickState): void {
         v.sickDays = 0;
       }
     }
-  }
 
-  // Bandit ultimatum countdown
-  if (ts.banditUltimatum) {
-    ts.banditUltimatum.daysLeft -= 1;
-    if (ts.banditUltimatum.daysLeft <= 0) {
-      // Ultimatum expired — trigger raid
-      ts.raidBar = Math.min(100, ts.raidBar + 60);
-      ts.events.push('The bandits have lost patience! A raid is imminent!');
-      ts.banditUltimatum = null;
-    }
-  }
-
-  // HP regen (2 HP per day)
-  for (const v of ts.villagers) {
+    // HP regen (2 HP per day) and maxHp calculation
     const toughBonus = v.traits.includes('tough') ? TOUGH_HP_BONUS : 0;
     if (v.role === 'guard') {
-      const armorBonus = hasTech(ts.research, 'armored_guards') ? ARMOR_BONUS_HP : 0;
+      const armorBonus = hasArmoredGuardsTech ? ARMOR_BONUS_HP : 0;
       v.maxHp = GUARD_BASE_HP + Math.floor(v.morale / GUARD_MORALE_HP_DIVISOR) + armorBonus + toughBonus;
     } else {
       v.maxHp = VILLAGER_BASE_HP + toughBonus;
     }
-    const regenBonus = hasTech(ts.research, 'medicine') ? MEDICINE_REGEN_BONUS : 0;
+    const regenBonus = hasMedicineTech ? MEDICINE_REGEN_BONUS : 0;
     // Apothecary healing: if a constructed apothecary has bandages, +2 HP/day and consume 1 bandage
     let apothBonus = 0;
     if (v.hp < v.maxHp) {
@@ -581,13 +569,9 @@ export function processDailyChecks(ts: TickState): void {
     }
     if (v.hp < v.maxHp) v.hp = Math.min(v.maxHp, v.hp + HP_REGEN_PER_DAY + regenBonus + apothBonus);
     v.hp = Math.min(v.hp, v.maxHp);
-  }
 
-  // Winter cold damage — after regen so effect is observable
-  if (ts.season === 'winter') {
-    for (const v of ts.villagers) {
-      if (!v.clothed) v.hp = Math.max(0, v.hp - 1);
-    }
+    // Winter cold damage — after regen so effect is observable
+    if (isWinter && !v.clothed) v.hp = Math.max(0, v.hp - 1);
   }
 
   // Late death cleanup — catch villagers killed by cold damage (above)
@@ -606,5 +590,19 @@ export function processDailyChecks(ts: TickState): void {
       ts.graveyard.push({ name: d.name, day: ts.newDay });
     }
     ts.villagers = ts.villagers.filter(v => v.hp > 0);
+  }
+}
+
+// --- Victory Condition ---
+// Checked daily: all NPC villages liberated + all techs + prosperity + population
+export function checkVictory(ts: TickState): void {
+  if (ts.victory) return; // already won
+  const allLiberated = ts.npcSettlements.every(npc => npc.liberated);
+  const allTechs = ALL_TECHS.every(t => ts.research.completed.includes(t));
+  const enoughPop = ts.villagers.length >= VICTORY_MIN_POPULATION;
+  const enoughProsperity = ts.prosperity >= VICTORY_MIN_PROSPERITY;
+  if (allLiberated && allTechs && enoughPop && enoughProsperity) {
+    ts.victory = true;
+    ts.events.push('VICTORY! The land is liberated, your settlement thrives, and all knowledge has been mastered.');
   }
 }

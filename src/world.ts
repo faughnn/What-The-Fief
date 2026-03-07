@@ -1567,7 +1567,13 @@ export interface GameState {
   dynamicQuests: DynamicQuest[];
   lastDynamicQuestDay: number;
   nextDynamicQuestId: number;
+  // Victory condition
+  victory: boolean;
 }
+
+// --- Victory Condition ---
+export const VICTORY_MIN_POPULATION = 15;
+export const VICTORY_MIN_PROSPERITY = 100;
 
 // --- Points of Interest (exploration targets) ---
 export type POIType = 'ruins' | 'resource_cache' | 'animal_den' | 'abandoned_camp' | 'herb_grove';
@@ -1916,5 +1922,6 @@ export function createWorld(width: number, height: number, seed: number = 42): G
     dynamicQuests: [],
     lastDynamicQuestDay: -100,
     nextDynamicQuestId: 1,
+    victory: false,
   };
 }
