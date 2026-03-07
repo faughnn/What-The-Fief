@@ -1,0 +1,48 @@
+/* Cartographer's War Table — Global Theme */
+
+:root {
+  /* Color palette */
+  --dark-wood: #2a2118;
+  --dark-wood-deep: #1e1810;
+  --parchment: #f0e6d0;
+  --brass: #b8964e;
+  --brass-light: #d4b06a;
+  --ink: #3a3025;
+  --ink-light: #5a4a35;
+  --wax-red: #a83a2a;
+  --forest-green: #4a7a42;
+  --faded-blue: #5a7a8a;
+
+  /* Typography */
+  --font-display: 'Cinzel', serif;
+  --font-body: 'Crimson Text', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Spacing */
+  --sidebar-width: 280px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dark-wood-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ink-light);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brass);
+}
+
+/* Selection colors */
+::selection {
+  background: rgba(184, 150, 78, 0.3);
+  color: var(--parchment);
+}

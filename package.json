@@ -2,13 +2,15 @@
   "name": "colonysim",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist-electron/main.js",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "bundle": "esbuild src/browser-entry.ts --bundle --format=esm --outfile=dist/colonysim.js"
+    "dev": "node scripts/dev.js",
+    "build": "vite build && tsc -p tsconfig.electron.json",
+    "build:electron": "npm run build && electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
@@ -24,7 +26,15 @@
   "homepage": "https://github.com/faughnn/What-The-Fief#readme",
   "devDependencies": {
     "esbuild": "^0.27.3",
+    "svelte-check": "^4.4.4",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "electron": "^40.8.0",
+    "electron-builder": "^26.8.1",
+    "svelte": "^5.53.7",
+    "vite": "^7.3.1"
   }
 }
