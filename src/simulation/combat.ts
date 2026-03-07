@@ -38,7 +38,7 @@ import {
   CAMP_CLEAR_GOLD, CAMP_CLEAR_RENOWN,
   WOLF_SPAWN_THRESHOLD, RAM_SPAWN_THRESHOLD, MAX_RAMS,
   SIEGE_TOWER_THRESHOLD, WOLF_STRENGTH_OFFSET,
-  ARCHER_RAID_THRESHOLD, BRUTE_RAID_THRESHOLD,
+  ARCHER_RAID_THRESHOLD, BRUTE_RAID_THRESHOLD, WARLORD_RAID_THRESHOLD,
   TRUST_KILL_BANDIT, TRUST_VILLAGE_RADIUS, TRUST_THRESHOLDS, TrustRank,
   LIBERATION_RENOWN_REWARD, MILITIA_COMBAT,
   ENEMY_LOOT,
@@ -95,6 +95,8 @@ function pickCampPosition(ts: TickState, side: number): { x: number; y: number }
 
 // --- Determine enemy type for a slot in a raid based on camp strength ---
 function pickRaidEnemyType(index: number, totalBandits: number, strength: number): EnemyType {
+  // At strength >= WARLORD_RAID_THRESHOLD: 1 warlord leads the raid (index 0)
+  if (strength >= WARLORD_RAID_THRESHOLD && index === 0) return 'bandit_warlord';
   // At strength >= BRUTE_RAID_THRESHOLD: ~20% brutes (every 5th enemy)
   if (strength >= BRUTE_RAID_THRESHOLD && index > 0 && index % 5 === 0) return 'bandit_brute';
   // At strength >= ARCHER_RAID_THRESHOLD: ~30% archers (every 3rd enemy, not already brute)
@@ -104,14 +106,16 @@ function pickRaidEnemyType(index: number, totalBandits: number, strength: number
 
 // --- Describe raid composition for event messages ---
 function raidCompositionLabel(numBandits: number, strength: number): string {
-  let regulars = 0, archers = 0, brutes = 0;
+  let regulars = 0, archers = 0, brutes = 0, warlords = 0;
   for (let i = 0; i < numBandits; i++) {
     const type = pickRaidEnemyType(i, numBandits, strength);
-    if (type === 'bandit_archer') archers++;
+    if (type === 'bandit_warlord') warlords++;
+    else if (type === 'bandit_archer') archers++;
     else if (type === 'bandit_brute') brutes++;
     else regulars++;
   }
   const parts: string[] = [];
+  if (warlords > 0) parts.push(`${warlords} warlord`);
   if (regulars > 0) parts.push(`${regulars} bandits`);
   if (archers > 0) parts.push(`${archers} archers`);
   if (brutes > 0) parts.push(`${brutes} brutes`);

@@ -1010,7 +1010,7 @@ export interface Villager {
 }
 
 // --- Combat ---
-export type EnemyType = 'bandit' | 'bandit_archer' | 'bandit_brute' | 'wolf' | 'boar';
+export type EnemyType = 'bandit' | 'bandit_archer' | 'bandit_brute' | 'bandit_warlord' | 'wolf' | 'boar';
 
 export interface Enemy {
   type: EnemyType;
@@ -1028,6 +1028,7 @@ export const ENEMY_TEMPLATES: Record<EnemyType, Omit<Enemy, 'hp'> & { maxHp: num
   bandit: { type: 'bandit', maxHp: 10, attack: 3, defense: 1 },
   bandit_archer: { type: 'bandit_archer', maxHp: 7, attack: 2, defense: 0, range: 3 },
   bandit_brute: { type: 'bandit_brute', maxHp: 18, attack: 5, defense: 3 },
+  bandit_warlord: { type: 'bandit_warlord', maxHp: 30, attack: 7, defense: 5 },
   wolf: { type: 'wolf', maxHp: 6, attack: 4, defense: 0 },
   boar: { type: 'boar', maxHp: 15, attack: 2, defense: 2 },
 };
@@ -1042,6 +1043,7 @@ export const ENEMY_LOOT: Record<EnemyType, LootDrop[]> = {
   bandit: [{ resource: 'gold', amount: 1 }],
   bandit_archer: [{ resource: 'gold', amount: 1 }],
   bandit_brute: [{ resource: 'gold', amount: 3 }],
+  bandit_warlord: [{ resource: 'gold', amount: 10 }, { resource: 'sword', amount: 1 }],
   wolf: [{ resource: 'leather', amount: 1 }],
   boar: [{ resource: 'food', amount: 2 }],
 };
@@ -1049,6 +1051,7 @@ export const ENEMY_LOOT: Record<EnemyType, LootDrop[]> = {
 // Raid composition thresholds
 export const ARCHER_RAID_THRESHOLD = 3;  // Camp strength for archers to appear
 export const BRUTE_RAID_THRESHOLD = 5;   // Camp strength for brutes to appear
+export const WARLORD_RAID_THRESHOLD = 8; // Camp strength for warlord to appear (boss)
 
 // --- Bandit Camps (persistent world threats) ---
 export interface BanditCamp {
