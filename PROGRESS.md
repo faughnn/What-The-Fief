@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1535 tests passing (83 test files). 100-day stress test: 13 pop, 2 deaths, 0 errors, 9 techs researched, prosperity 90.
+- **Status**: V2 spatial simulation. 1576 tests passing (84 test files). 100-day stress test: 21 pop, 2 deaths, 0 errors, 10 techs researched, prosperity 90.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -41,6 +41,12 @@
   - **Charcoal chain**: Coal burner (wood → charcoal). Smelter now requires charcoal + iron_ore → ingots. Deepens production chain, creates wood resource competition. 28 tests.
   - **Housing comfort**: HOUSING_COMFORT values (tent=1, house=2, manor=3). Carpenter building (planks → furniture). Furniture boosts comfort. Comfort morale: level 2 = +5, level 3+ = +10. 20 tests.
   - **Enemy loot drops**: Bandits drop gold, brutes drop 3 gold, wolves drop leather, boars drop food. Data-driven ENEMY_LOOT table. Loot goes to storehouse. 27 tests.
+  - **Foraging lodge**: Upgraded foraging_hut (2 workers, 3 food/worker). Upgrade path from foraging_hut. 18 tests.
+  - **Smoking rack**: meat + charcoal → smoked_food (satisfaction 2.2, spoilage 0.003). Alternative food preservation. 26 tests.
+  - **Villager aging**: Ages 18-45 at start, +1/year (60 days). Elders (60+) have 50% production penalty. Old age death starts at 65, chance increases with age. 14 tests.
+  - **Weapon rack**: Passive storage for weapons/armor. Guards within 5 tiles auto-equip from rack buffer. 18 tests.
+  - **Mint**: Converts ingots → gold (1:2). Sustainable gold income for recruitment/festivals. Requires trade_routes. 17 tests.
+  - **18 milestone quests**: 12 original + 6 new (camp_cleared, food_empire, explorer, elder_village, tech_master, fortress).
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -179,13 +185,18 @@
 25. ~~Smoking rack~~ ✅ Done — meat + charcoal → smoked_food (satisfaction 2.2, spoilage 0.003). 26 tests.
 26. More quest variety (defend, escort, trade missions)
 27. ~~Villager aging~~ ✅ Done — age 18-45 start, +1/year, elder penalty at 60, old age death at 65+. 14 tests.
-28. Foraging lodge ✅ Done — upgraded foraging_hut (2 workers, 3 food/worker). 18 tests.
+28. ~~Foraging lodge~~ ✅ Done — upgraded foraging_hut (2 workers, 3 food/worker). 18 tests.
+29. ~~Mint building~~ ✅ Done — ingots → gold, sustainable income. 17 tests.
+30. Trapper's camp (passive animal trapping)
+31. Stonemason building (stone processing)
+32. River dock (water transport)
+33. More building upgrade paths (woodcutter→lumber_mill, hunting_lodge upgrade)
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
 - `src/simulation/` — tick orchestration, villagers, combat, daily, animals, buildings, commands, movement, validation, helpers
 - `src/timing.ts` — single source of truth for all pacing constants
-- `src/tests/test-v2-*.ts` — 83 test files, 1535 tests total
+- `src/tests/test-v2-*.ts` — 84 test files, 1576 tests total
 - `src/tests/stress-report.ts` — 100-day simulation with player AI
 
 ## Key Decisions
