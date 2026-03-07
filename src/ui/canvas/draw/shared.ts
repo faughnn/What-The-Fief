@@ -11,6 +11,8 @@ export interface RenderContext {
   placingType: string | null;
   placingValid: boolean;
   gridBuildings: Map<string, Building>;
+  viewportWidth: number;
+  viewportHeight: number;
 }
 
 export const TILE = 16;

@@ -2,12 +2,16 @@ import { writable, get } from 'svelte/store';
 
 export const camera = writable({ x: 0, y: 0, zoom: 1.5 });
 export const hoveredTile = writable<{ x: number; y: number } | null>(null);
-export const cameraDirty = writable(true);
+export const terrainDirty = writable(true);
+export const worldDirty = writable(true);
 
 const TILE = 16;
 
-// Mark camera dirty on every change
-camera.subscribe(() => cameraDirty.set(true));
+// Mark both layers dirty on camera change
+camera.subscribe(() => {
+  terrainDirty.set(true);
+  worldDirty.set(true);
+});
 
 export function screenToTile(sx: number, sy: number, canvas: HTMLCanvasElement): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();
@@ -126,7 +130,7 @@ export function setupCameraControls(canvas: HTMLCanvasElement, onClick?: (tile: 
   canvas.addEventListener('mousedown', onMouseDown);
   window.addEventListener('mousemove', onMouseMove);
   window.addEventListener('mouseup', onMouseUp);
-  canvas.addEventListener('wheel', onWheel);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   keyPanId = requestAnimationFrame(keyPan);

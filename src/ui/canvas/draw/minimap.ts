@@ -51,8 +51,8 @@ export function drawMinimap(ctx: CanvasRenderingContext2D, gs: GameState, rc: Re
   const ts = TILE * cam.zoom;
   const vx = cam.x * scale;
   const vy = cam.y * scale;
-  const vw = (ctx.canvas.parentElement?.parentElement?.querySelector('.game-canvas') as HTMLCanvasElement)?.width ?? 800;
-  const vh = (ctx.canvas.parentElement?.parentElement?.querySelector('.game-canvas') as HTMLCanvasElement)?.height ?? 600;
+  const vw = rc.viewportWidth;
+  const vh = rc.viewportHeight;
   ctx.strokeStyle = COLORS.brass;
   ctx.lineWidth = 1;
   ctx.strokeRect(vx, vy, (vw / ts) * scale, (vh / ts) * scale);
