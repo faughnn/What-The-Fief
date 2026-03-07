@@ -1,7 +1,7 @@
 # ColonySim — Progress
 
 ## Current State
-- **Status**: V2 spatial simulation. 1653 tests passing (88 test files). 100-day stress test: 21 pop, 2 deaths, 0 errors, 10 techs researched, prosperity 90.
+- **Status**: V2 spatial simulation. 1684 tests passing (90 test files). 100-day stress test: 19 pop, 3 deaths, 0 errors, 10 techs researched, prosperity 80.
 - **What exists**:
   - **Core**: 4000 ticks/day (RimWorld pacing, ~17 min/day at 1x). 1 tile/tick movement. BFS pathfinding. Physical production (local buffers, hauling). Storehouse buffer = global truth. Construction sites.
   - **Building upgrades**: tent→cottage→house→manor, farm→large_farm, sawmill→lumber_mill, quarry→deep_quarry, smelter→advanced_smelter, mill→windmill, bakery→kitchen, storehouse→large_storehouse.
@@ -53,6 +53,8 @@
   - **Stonemason**: stone → stone_blocks (1x1, 1 worker, 3 stone → 2 blocks). Requires masonry. Mining skill. Tradeable. 25 tests.
   - **Trapper's Camp**: passive food production with leather byproduct (1x1, 1 worker, outdoor). Requires animal_husbandry. Herbalism skill. 29 tests.
   - **Primary production byproduct**: byproduct support extended to primary (no-input) buildings, not just processing.
+  - **Stone blocks integration**: reinforced_wall, church, fountain, statue require stone_blocks. Manor and large_storehouse upgrades require stone_blocks. Creates meaningful progression: quarry → stone → stonemason → stone_blocks → advanced buildings.
+  - **Village Hall**: town_hall → village_hall upgrade. Extended maintenance aura (15 tiles vs 10). +50% research speed (stacks with library). +5 construction points. Requires architecture + stone_blocks. 18 tests.
 - **What's next**: See gap analysis below.
 
 ## The Bellwright Question
@@ -199,6 +201,8 @@
 33. ~~Stonemason building~~ ✅ Done — stone → stone_blocks processing. Mining skill. 25 tests.
 34. River dock (water transport)
 35. More building upgrade paths (woodcutter→lumber_mill, hunting_lodge upgrade)
+36. ~~Village Hall~~ ✅ Done — town_hall → village_hall. Extended aura, research boost, +5 CP. 18 tests.
+37. ~~Stone blocks integration~~ ✅ Done — advanced buildings require stone_blocks. 13 tests.
 
 ## Active Files
 - `src/world.ts` — data types (~1110 lines)
