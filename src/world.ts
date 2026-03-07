@@ -148,6 +148,8 @@ export type BuildingType =
   | 'library'
   // Upgraded resource buildings
   | 'foraging_lodge'
+  // Upgraded town hall
+  | 'village_hall'
   // Stone processing
   | 'stonemason'
   // Passive animal trapping
@@ -417,6 +419,7 @@ export const MEDICINE_REGEN_BONUS = 1;
 
 // --- Town Hall Maintenance ---
 export const TOWN_HALL_MAINT_RANGE = 10;  // buildings within this range of town hall don't decay
+export const VILLAGE_HALL_MAINT_RANGE = 15;  // village hall extends maintenance aura to 15 tiles
 
 // --- Weapon Rack ---
 export const WEAPON_RACK_RANGE = 5;      // guards within this range auto-equip from weapon rack buffer
@@ -851,6 +854,11 @@ export const BUILDING_TEMPLATES: Record<BuildingType, BuildingTemplate> = {
     cost: { stone: 15, planks: 8, ingots: 5 }, description: 'Mints gold coins from ingots',
     maxWorkers: 1, production: { output: 'gold', amountPerWorker: 2, inputs: { ingots: 1 } }, mapChar: '$',
   },
+  village_hall: {
+    type: 'village_hall', width: 2, height: 2, allowedTerrain: ['grass'],
+    cost: { wood: 30, stone: 20, planks: 15, stone_blocks: 10 }, description: 'Upgraded town hall — extended maintenance aura, research boost',
+    maxWorkers: 0, production: null, mapChar: 'V',
+  },
   stonemason: {
     type: 'stonemason', width: 1, height: 1, allowedTerrain: ['grass'],
     cost: { wood: 10, stone: 8 }, description: 'Cuts raw stone into shaped stone blocks',
@@ -1192,6 +1200,7 @@ export const BUILDING_MAX_HP: Record<BuildingType, number> = {
   foraging_lodge: 35,
   weapon_rack: 30,
   mint: 40,
+  village_hall: 150,
   stonemason: 40,
   trappers_camp: 25,
 };
@@ -1212,6 +1221,7 @@ export const UPGRADE_PATHS: Partial<Record<BuildingType, { to: BuildingType; cos
   storehouse: { to: 'large_storehouse', cost: { wood: 20, stone: 5, planks: 10, stone_blocks: 5 } },
   tavern: { to: 'inn', cost: { wood: 15, stone: 10, planks: 8, rope: 3 } },
   foraging_hut: { to: 'foraging_lodge', cost: { wood: 8, stone: 3, planks: 2 } },
+  town_hall: { to: 'village_hall', cost: { wood: 20, stone: 15, planks: 10, stone_blocks: 8 } },
   fence: { to: 'wall', cost: { stone: 3 } },
   wall: { to: 'reinforced_wall', cost: { stone_blocks: 3, ingots: 2 } },
 };
@@ -1335,6 +1345,7 @@ export const BUILDING_TECH_REQUIREMENTS: Partial<Record<BuildingType, TechId>> =
   apothecary: 'medicine',
   library: 'civil_engineering',
   foraging_lodge: 'advanced_farming',
+  village_hall: 'architecture',
   stonemason: 'masonry',
   trappers_camp: 'animal_husbandry',
 };

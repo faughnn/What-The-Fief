@@ -66,6 +66,7 @@ const CONSTRUCTION_TICKS_BASE: Record<string, number> = {
   foraging_lodge: 60,
   weapon_rack: 30,
   mint: 80,
+  village_hall: 200,
   stonemason: 70,
   trappers_camp: 45,
 };

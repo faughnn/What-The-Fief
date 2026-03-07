@@ -343,7 +343,10 @@ export function upgradeBuilding(state: GameState, buildingId: string): GameState
     }
   }
 
-  return { ...state, grid: newGrid, resources: newResources, buildings: newBuildings };
+  // Village hall upgrade grants +5 construction points
+  const cpBonus = path.to === 'village_hall' ? 5 : 0;
+
+  return { ...state, grid: newGrid, resources: newResources, buildings: newBuildings, constructionPoints: state.constructionPoints + cpBonus };
 }
 
 // --- Supply Route Commands ---
